@@ -1,8 +1,16 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { signIn, signUp } from "../src/lib/auth";
-import { Button, Input, Screen, Subtitle, Title } from "../src/components/ui";
+import { BrandMark, Button, Card, Input, Subtitle, Title } from "../src/components/ui";
 import { colors, spacing } from "../src/lib/theme";
 
 export default function LoginScreen() {
@@ -35,19 +43,21 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen>
+    <View style={styles.container}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.badge}>KAK FIT</Text>
-          <Title>{mode === "signin" ? "Welcome back" : "Create account"}</Title>
-          <Subtitle>Log workouts, build routines, track PRs.</Subtitle>
+          <View style={styles.hero}>
+            <BrandMark />
+            <Title>{mode === "signin" ? "Welcome back" : "Join Kak Fit"}</Title>
+            <Subtitle>Train smarter. Track everything. Pay nothing.</Subtitle>
+          </View>
 
-          <View style={styles.form}>
+          <Card glow>
             {mode === "signup" ? (
-              <Input placeholder="Name" value={name} onChangeText={setName} autoCapitalize="words" />
+              <Input placeholder="Your name" value={name} onChangeText={setName} autoCapitalize="words" />
             ) : null}
             <Input
               placeholder="Email"
@@ -57,46 +67,47 @@ export default function LoginScreen() {
               keyboardType="email-address"
             />
             <Input
-              placeholder="Password"
+              placeholder="Password (min 8 chars)"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
             />
             <Button
-              label={mode === "signin" ? "Sign In" : "Sign Up"}
+              label={mode === "signin" ? "Sign In" : "Create Account"}
+              icon={mode === "signin" ? "log-in-outline" : "person-add-outline"}
               onPress={submit}
               loading={loading}
             />
             <Button
-              label={mode === "signin" ? "Need an account? Sign up" : "Have an account? Sign in"}
+              label={mode === "signin" ? "New here? Create account" : "Already have an account?"}
+              variant="ghost"
               onPress={() => setMode(mode === "signin" ? "signup" : "signin")}
-              variant="secondary"
             />
-          </View>
+          </Card>
 
           <Text style={styles.demoHint}>
-            Demo: demo@kakfit.app / password123 (after running pnpm db:seed)
+            Demo: demo@kakfit.app / password123
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
-    </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
-  content: { flexGrow: 1, justifyContent: "center", gap: spacing.md, paddingVertical: spacing.xl },
-  badge: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 4,
+  content: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: spacing.xl,
+    gap: spacing.xl,
   },
-  form: { gap: spacing.sm, marginTop: spacing.lg },
+  hero: { gap: spacing.sm, alignItems: "center" },
   demoHint: {
     color: colors.textDim,
     fontSize: 12,
     textAlign: "center",
-    marginTop: spacing.md,
+    lineHeight: 18,
   },
 });

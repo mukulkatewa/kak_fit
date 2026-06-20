@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
-import { EmptyState, Input, ListItem, Screen, Title } from "../../src/components/ui";
+import { ActivityIndicator, FlatList, StyleSheet, Text } from "react-native";
+import { EmptyState, Screen, SearchBar, StatPill, Title } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
+import { ListRow } from "../../src/components/ui";
 import { colors, spacing } from "../../src/lib/theme";
 
 export default function ExercisesTab() {
@@ -14,38 +15,34 @@ export default function ExercisesTab() {
 
   return (
     <Screen>
-      <Title>Exercise Library</Title>
-      <Text style={styles.meta}>
-        {count?.count ?? 0} exercises from Wger + your custom moves
-      </Text>
-      <Input
-        placeholder="Search exercises..."
-        value={search}
-        onChangeText={setSearch}
-      />
+      <Title>Moves</Title>
+      <Text style={styles.meta}>{count?.count ?? 0} exercises · Wger + custom</Text>
+      <SearchBar value={search} onChangeText={setSearch} placeholder="Search exercises..." />
+
+      {count ? (
+        <StatPill value={count.count} label="In library" accent />
+      ) : null}
 
       {isLoading ? (
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
       ) : (
         <FlatList
           data={exercises ?? []}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <EmptyState title="No exercises found" message="Try a different search term." />
+            <EmptyState icon="search-outline" title="No exercises found" message="Try a different search." />
           }
           renderItem={({ item }) => {
             const primary = item.muscles.find((m) => m.isPrimary)?.muscle.name;
             return (
-              <ListItem
+              <ListRow
                 title={item.name}
-                subtitle={[
-                  primary,
-                  item.category?.name,
-                  item.isCustom ? "Custom" : null,
-                ]
+                subtitle={[primary, item.category?.name, item.isCustom ? "Custom" : null]
                   .filter(Boolean)
-                  .join(" • ")}
+                  .join(" · ")}
+                icon="barbell-outline"
               />
             );
           }}
@@ -56,6 +53,6 @@ export default function ExercisesTab() {
 }
 
 const styles = StyleSheet.create({
-  meta: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.sm },
-  list: { gap: spacing.sm, paddingBottom: spacing.xl },
+  meta: { color: colors.textMuted, fontSize: 14, marginTop: -8 },
+  list: { gap: spacing.sm, paddingBottom: spacing.xxl },
 });

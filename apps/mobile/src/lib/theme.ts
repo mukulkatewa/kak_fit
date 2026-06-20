@@ -19,6 +19,10 @@ export const colors = {
   danger: "#ef4444",
   dangerMuted: "rgba(239, 68, 68, 0.12)",
   glass: "rgba(20, 20, 24, 0.72)",
+  // Legacy aliases
+  primary: "#3b82f6",
+  primaryMuted: "rgba(59, 130, 246, 0.15)",
+  surfaceLight: "#2a2a32",
 };
 
 export const spacing = {

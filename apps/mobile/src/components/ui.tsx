@@ -570,5 +570,5 @@ const styles = StyleSheet.create({
   macroRingTarget: { fontSize: 10, color: colors.textDim },
 });
 
-// Legacy aliases
-export { ListRow as ListItem, Card as GlassCard };
+// Legacy alias
+export { ListRow as ListItem };

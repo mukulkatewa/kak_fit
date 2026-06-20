@@ -1,0 +1,301 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
+}
+
+enum SetType {
+  NORMAL
+  WARMUP
+  DROP
+  FAILURE
+}
+
+enum PersonalRecordType {
+  MAX_WEIGHT
+  MAX_REPS
+  MAX_VOLUME
+  ESTIMATED_1RM
+  MAX_DURATION
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+model User {
+  id               String           @id @default(cuid())
+  email            String           @unique
+  name             String?
+  avatarUrl        String?
+  bio              String?
+  isPrivate        Boolean          @default(false)
+  subscriptionTier SubscriptionTier @default(FREE)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  routines          Routine[]
+  workouts          Workout[]
+  customExercises   Exercise[]       @relation("CustomExercises")
+  followers         Follow[]         @relation("Following")
+  following         Follow[]         @relation("Followers")
+  likes             Like[]
+  comments          Comment[]
+  personalRecords   PersonalRecord[]
+  bodyMeasurements  BodyMeasurement[]
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Followers", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+}
+
+model Muscle {
+  id     String @id @default(cuid())
+  name   String
+  wgerId Int?   @unique
+
+  exercises ExerciseMuscle[]
+}
+
+model Equipment {
+  id     String @id @default(cuid())
+  name   String
+  wgerId Int?   @unique
+
+  exercises ExerciseEquipment[]
+}
+
+model Category {
+  id     String @id @default(cuid())
+  name   String
+  wgerId Int?   @unique
+
+  exercises Exercise[]
+}
+
+model Exercise {
+  id           String  @id @default(cuid())
+  name         String
+  instructions String?
+  imageUrl     String?
+  videoUrl     String?
+  wgerId       Int?    @unique
+  isCustom     Boolean @default(false)
+  userId       String?
+  categoryId   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user              User?               @relation("CustomExercises", fields: [userId], references: [id], onDelete: Cascade)
+  category          Category?           @relation(fields: [categoryId], references: [id])
+  muscles           ExerciseMuscle[]
+  equipment         ExerciseEquipment[]
+  routineExercises  RoutineExercise[]
+  workoutExercises  WorkoutExercise[]
+  personalRecords   PersonalRecord[]
+}
+
+model ExerciseMuscle {
+  id         String  @id @default(cuid())
+  exerciseId String
+  muscleId   String
+  isPrimary  Boolean @default(true)
+
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  muscle   Muscle   @relation(fields: [muscleId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciseId, muscleId])
+}
+
+model ExerciseEquipment {
+  id          String @id @default(cuid())
+  exerciseId  String
+  equipmentId String
+
+  exercise  Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciseId, equipmentId])
+}
+
+model RoutineFolder {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routines Routine[]
+}
+
+model Routine {
+  id        String   @id @default(cuid())
+  userId    String
+  folderId  String?
+  name      String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder    RoutineFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  exercises RoutineExercise[]
+}
+
+model RoutineExercise {
+  id           String @id @default(cuid())
+  routineId    String
+  exerciseId   String
+  order        Int
+  restSeconds  Int?
+  notes        String?
+
+  routine  Routine      @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercise Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  sets     RoutineSet[]
+
+  @@unique([routineId, order])
+}
+
+model RoutineSet {
+  id                String  @id @default(cuid())
+  routineExerciseId String
+  setNumber         Int
+  targetWeight      Float?
+  targetReps        Int?
+  targetDuration    Int?
+  setType           SetType @default(NORMAL)
+
+  routineExercise RoutineExercise @relation(fields: [routineExerciseId], references: [id], onDelete: Cascade)
+}
+
+model Workout {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String?
+  notes      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  isPublic   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises WorkoutExercise[]
+  likes     Like[]
+  comments  Comment[]
+  media     Media[]
+}
+
+model WorkoutExercise {
+  id         String @id @default(cuid())
+  workoutId  String
+  exerciseId String
+  order      Int
+  notes      String?
+
+  workout  Workout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise     @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  sets     WorkoutSet[]
+
+  @@unique([workoutId, order])
+}
+
+model WorkoutSet {
+  id                String  @id @default(cuid())
+  workoutExerciseId String
+  setNumber         Int
+  weight            Float?
+  reps              Int?
+  duration          Int?
+  rpe               Float?
+  notes             String?
+  setType           SetType @default(NORMAL)
+  isCompleted       Boolean @default(false)
+
+  workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  personalRecords PersonalRecord[]
+}
+
+model PersonalRecord {
+  id            String             @id @default(cuid())
+  userId        String
+  exerciseId    String
+  workoutSetId  String?
+  type          PersonalRecordType
+  value         Float
+  achievedAt    DateTime           @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise    Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  workoutSet  WorkoutSet? @relation(fields: [workoutSetId], references: [id], onDelete: SetNull)
+}
+
+model BodyMeasurement {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @default(now())
+  weight    Float?
+  bodyFat   Float?
+  waist     Float?
+  chest     Float?
+  arms      Float?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  workoutId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workoutId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  userId    String
+  workoutId String
+  parentId  String?
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout   @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+}
+
+model Media {
+  id        String    @id @default(cuid())
+  workoutId String
+  url       String
+  type      MediaType
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+}

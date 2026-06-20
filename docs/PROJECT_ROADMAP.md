@@ -444,15 +444,15 @@ These are the **minimum** to compete with Hevy at launch.
 
 ## Phase-Wise Development Roadmap
 
-### Phase 0 — Foundation (Weeks 1–2) ✅ Current
+### Phase 0 — Foundation (Weeks 1–2) 🚧 In Progress
 
 - [x] Monorepo setup (Turborepo: `apps/web`, `apps/mobile`, `packages/db`, `packages/api`)
-- [x] PostgreSQL + Prisma schema (users, exercises, workouts)
-- [x] Next.js tRPC server scaffold
-- [x] Expo app scaffold with navigation shell
-- [x] Better Auth setup (email + Google)
-- [x] Supabase Storage buckets configured
-- [x] CI: lint + typecheck on push
+- [x] PostgreSQL + Prisma schema (users, exercises, workouts, social)
+- [x] Next.js tRPC server scaffold (`/api/trpc` + health endpoint)
+- [x] Expo app scaffold with tRPC client shell
+- [ ] Better Auth setup (email + Google) — Phase 1
+- [ ] Supabase Storage buckets configured — Phase 1
+- [ ] CI: lint + typecheck on push — Phase 1
 
 **Exit criteria:** Mobile app calls `health` tRPC endpoint; user can register and see empty home screen.
 

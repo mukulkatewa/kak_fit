@@ -47,3 +47,6 @@ packages/db/prisma/*.db-journal
 
 # Misc
 .vercel
+apps/mobile/.claude/
+apps/mobile/AGENTS.md
+apps/mobile/CLAUDE.md

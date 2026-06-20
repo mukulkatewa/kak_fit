@@ -29,6 +29,18 @@ packages/
 ## Getting Started
 
 ```bash
+# Install dependencies
 pnpm install
-pnpm dev
+
+# Generate Prisma client
+pnpm db:generate
+
+# Copy env and set DATABASE_URL
+cp .env.example .env
+
+# Start Next.js API (port 3000)
+pnpm --filter @kak-fit/web dev
+
+# Start Expo mobile app (separate terminal)
+pnpm --filter @kak-fit/mobile start
 ```

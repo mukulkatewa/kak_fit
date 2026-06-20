@@ -1,0 +1,18 @@
+{
+  "name": "kak_fit",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "db:generate": "turbo db:generate",
+    "db:push": "turbo db:push",
+    "db:studio": "pnpm --filter @kak-fit/db studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4",
+    "typescript": "^5.8.2"
+  }
+}

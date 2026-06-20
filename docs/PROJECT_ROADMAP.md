@@ -419,11 +419,27 @@ Moved to a later version. Core product ships without social first.
 
 ### What Hevy Does NOT Emphasize (Our Opportunities)
 
-- No meal/nutrition tracking (stay focused — good)
+- **No nutrition tracking** — we add USDA-powered meal builder (free API, you charge users)
 - No built-in music/podcast (out of scope)
-- Coach product is expensive separate B2B play — we can enter later
+- Coach product is expensive separate B2B play — we enter at Phase 4
 - Web app is secondary to mobile — **we go mobile-first harder**
 - Regional pricing gaps — price aggressively in India, SEA, LATAM
+
+### Zero Platform Cost Strategy
+
+**You charge users. You pay $0 for APIs.**
+
+| Service | Cost | Source |
+|---------|------|--------|
+| Exercise database | Free | Wger (open source) |
+| Nutrition database | Free | USDA FoodData Central |
+| Auth | Free | Better Auth (self-hosted) |
+| Database | Free | PostgreSQL (Docker on your VPS) |
+| File storage | Free | MinIO (self-hosted) or Supabase free tier |
+| Mobile builds | Free | Expo + EAS free tier |
+| API hosting | Free | Your VPS (Docker + Caddy) |
+
+No Clerk, no paid analytics, no paid email — use Resend free tier or self-host when needed.
 
 ### Technical Recommendations
 
@@ -458,7 +474,7 @@ Moved to a later version. Core product ships without social first.
 
 ---
 
-### Phase 1 — Core Workout Engine (Weeks 3–6) 🚧 In Progress
+### Phase 1 — Core Workout Engine ✅ Complete
 
 **Goal:** A user can log a full workout — no social features.
 
@@ -479,27 +495,28 @@ Moved to a later version. Core product ships without social first.
 
 ---
 
-### Phase 2 — Progress & Measurements (Weeks 7–9)
+### Phase 2 — Premium UI + Progress + Nutrition (Weeks 7–11)
 
-**Goal:** Retention through data visualization.
+**Goal:** Premium Hevy-level UI, progress charts, USDA meal tracking.
 
 | Task | Details |
 |------|---------|
-| Exercise charts | Weight + volume over time (per exercise) |
-| PR history screen | All PRs with dates and workout links |
+| Design system | Dark mode, electric blue + neon green, gold PRs (see `docs/DESIGN_SYSTEM.md`) |
+| Dashboard redesign | Fitness score, streak, XP, muscle heatmap placeholder |
+| Analytics tab | Weight/volume charts per exercise |
+| PR history screen | Gold badges, dates, workout links |
 | Body measurements | Weight, waist, chest, arms, body fat % |
-| Measurement graphs | Trend lines |
-| Workout calendar | Monthly view + active streak |
-| Set types | Warm-up, drop, failure |
+| **Nutrition / Meal Builder** | USDA FoodData Central search + log meals |
+| Food cache | Import common foods locally to reduce API calls |
+| Daily macros summary | Calories, protein, carbs, fat rings |
 | Rest timer | Per-exercise auto timer |
-| Edit past workouts | Full edit/delete |
-| Offline mode v1 | Queue sets locally, sync on reconnect |
+| Set types | Warm-up, drop, failure |
 
-**Exit criteria:** 4-week training history shows progression charts; body weight trend visible.
+**Exit criteria:** Log a meal + workout in same day; see macros and training stats on dashboard.
 
 ---
 
-### Phase 3 — Monetization & Pro (Weeks 10–13)
+### Phase 3 — Monetization & Pro (Weeks 12–14)
 
 **Goal:** Revenue while staying cheaper than Hevy.
 

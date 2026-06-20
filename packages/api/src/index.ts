@@ -1,6 +1,7 @@
 import { router, publicProcedure } from "./trpc";
 import { authRouter } from "./routers/auth";
 import { exerciseRouter } from "./routers/exercise";
+import { nutritionRouter } from "./routers/nutrition";
 import { personalRecordRouter } from "./routers/personal-record";
 import { routineRouter } from "./routers/routine";
 import { workoutRouter } from "./routers/workout";
@@ -28,6 +29,7 @@ export const appRouter = router({
   routine: routineRouter,
   workout: workoutRouter,
   personalRecord: personalRecordRouter,
+  nutrition: nutritionRouter,
 });
 
 export type AppRouter = typeof appRouter;

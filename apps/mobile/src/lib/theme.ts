@@ -1,28 +1,41 @@
+import { Platform, type ViewStyle } from "react-native";
+
 export const colors = {
-  bg: "#050508",
-  bgElevated: "#0c0c10",
-  surface: "#141418",
-  surfaceHover: "#1c1c22",
-  border: "#2a2a32",
-  borderSubtle: "#1f1f26",
-  text: "#f4f4f5",
-  textMuted: "#a1a1aa",
-  textDim: "#71717a",
+  // Backgrounds — clean near-black, Hevy-style
+  bg: "#0a0a0c",
+  bgElevated: "#101014",
+  surface: "#16161b",
+  surfaceHover: "#1f1f26",
+  surfaceActive: "#26262f",
+  // Borders
+  border: "#26262e",
+  borderSubtle: "#1c1c22",
+  // Text
+  text: "#fafafa",
+  textMuted: "#9b9ba6",
+  textDim: "#5f5f6b",
+  // Accent — electric blue
   accent: "#3b82f6",
-  accentMuted: "rgba(59, 130, 246, 0.15)",
-  accentNeon: "#22d3ee",
+  accentBright: "#60a5fa",
+  accentMuted: "rgba(59, 130, 246, 0.14)",
+  accentNeon: "#38bdf8",
+  // Success — neon green
   success: "#22c55e",
   successNeon: "#4ade80",
-  successMuted: "rgba(34, 197, 94, 0.12)",
+  successMuted: "rgba(34, 197, 94, 0.13)",
+  // PR gold
   gold: "#fbbf24",
-  goldMuted: "rgba(251, 191, 36, 0.15)",
-  danger: "#ef4444",
-  dangerMuted: "rgba(239, 68, 68, 0.12)",
-  glass: "rgba(20, 20, 24, 0.72)",
-  // Legacy aliases
+  goldBright: "#fcd34d",
+  goldMuted: "rgba(251, 191, 36, 0.14)",
+  // Danger
+  danger: "#f43f5e",
+  dangerMuted: "rgba(244, 63, 94, 0.13)",
+  // Glass
+  glass: "rgba(22, 22, 27, 0.7)",
+  // Legacy aliases (kept for back-compat)
   primary: "#3b82f6",
-  primaryMuted: "rgba(59, 130, 246, 0.15)",
-  surfaceLight: "#2a2a32",
+  primaryMuted: "rgba(59, 130, 246, 0.14)",
+  surfaceLight: "#26262e",
 };
 
 export const spacing = {
@@ -36,35 +49,44 @@ export const spacing = {
 };
 
 export const radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
   full: 999,
 };
 
 export const typography = {
-  display: { fontSize: 32, fontWeight: "800" as const, letterSpacing: -0.5 },
-  h1: { fontSize: 24, fontWeight: "700" as const },
-  h2: { fontSize: 18, fontWeight: "600" as const },
-  body: { fontSize: 15, fontWeight: "400" as const },
-  caption: { fontSize: 12, fontWeight: "500" as const },
-  mono: { fontSize: 13, fontWeight: "600" as const, fontVariant: ["tabular-nums"] as const },
+  display: { fontSize: 30, fontWeight: "800" as const, letterSpacing: -0.6 },
+  h1: { fontSize: 22, fontWeight: "800" as const, letterSpacing: -0.3 },
+  h2: { fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.2 },
+  body: { fontSize: 15, fontWeight: "500" as const },
+  caption: { fontSize: 12, fontWeight: "600" as const },
+  label: { fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.8 },
+  mono: { fontSize: 13, fontWeight: "700" as const, fontVariant: ["tabular-nums"] as const },
 };
 
+function nativeShadow(color: string, opacity: number, radius: number, height = 4): ViewStyle {
+  return {
+    shadowColor: color,
+    shadowOffset: { width: 0, height },
+    shadowOpacity: opacity,
+    shadowRadius: radius,
+    elevation: 6,
+  };
+}
+
 export const shadows = {
-  card: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  glow: {
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 4,
-  },
+  card: Platform.select<ViewStyle>({
+    web: { boxShadow: "0 6px 20px rgba(0,0,0,0.35)" },
+    default: nativeShadow("#000", 0.35, 16, 6),
+  })!,
+  glow: Platform.select<ViewStyle>({
+    web: { boxShadow: "0 0 24px rgba(59,130,246,0.35)" },
+    default: nativeShadow("#3b82f6", 0.35, 20, 0),
+  })!,
+  goldGlow: Platform.select<ViewStyle>({
+    web: { boxShadow: "0 0 24px rgba(251,191,36,0.3)" },
+    default: nativeShadow("#fbbf24", 0.3, 20, 0),
+  })!,
 };

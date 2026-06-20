@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import { Button, Input, Screen, Title } from "../../src/components/ui";
+import { Ionicons } from "@expo/vector-icons";
+import { Button, Header, Input, Screen, SearchBar } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
-import { colors, spacing } from "../../src/lib/theme";
+import { colors, radius, spacing } from "../../src/lib/theme";
 
 export default function CreateRoutineScreen() {
   const router = useRouter();
@@ -40,7 +41,6 @@ export default function CreateRoutineScreen() {
       Alert.alert("Missing info", "Add a name and at least one exercise.");
       return;
     }
-
     create.mutate({
       name: name.trim(),
       exercises: selected.map((item, index) => ({
@@ -56,21 +56,33 @@ export default function CreateRoutineScreen() {
 
   return (
     <Screen>
-      <Title>New Routine</Title>
-      <Input placeholder="Routine name (e.g. Push Day)" value={name} onChangeText={setName} />
-      <Input placeholder="Search exercises" value={search} onChangeText={setSearch} />
+      <Header
+        eyebrow="NEW ROUTINE"
+        title="Build Template"
+        action={
+          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.closeBtn}>
+            <Ionicons name="close" size={22} color={colors.textMuted} />
+          </Pressable>
+        }
+      />
 
-      <Text style={styles.selectedLabel}>
-        Selected: {selected.length} exercise{selected.length === 1 ? "" : "s"}
-      </Text>
+      <Input placeholder="Routine name (e.g. Push Day)" value={name} onChangeText={setName} />
+      <SearchBar value={search} onChangeText={setSearch} placeholder="Search exercises to add..." />
+
+      <View style={styles.selectedBar}>
+        <Text style={styles.selectedLabel}>
+          {selected.length} exercise{selected.length === 1 ? "" : "s"} selected
+        </Text>
+      </View>
 
       {isLoading ? (
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.accent} />
       ) : (
         <FlatList
           data={exercises ?? []}
           keyExtractor={(item) => item.id}
           style={styles.list}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const active = selected.some((s) => s.exerciseId === item.id);
             return (
@@ -78,22 +90,38 @@ export default function CreateRoutineScreen() {
                 style={[styles.row, active && styles.rowActive]}
                 onPress={() => toggleExercise(item.id, item.name)}
               >
-                <Text style={styles.rowText}>{item.name}</Text>
-                {active ? <Text style={styles.check}>✓</Text> : null}
+                <Text style={[styles.rowText, active && styles.rowTextActive]} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <View style={[styles.checkbox, active && styles.checkboxActive]}>
+                  {active ? <Ionicons name="checkmark" size={16} color="#fff" /> : null}
+                </View>
               </Pressable>
             );
           }}
         />
       )}
 
-      <Button label="Save Routine" onPress={save} loading={create.isPending} />
-      <Button label="Cancel" onPress={() => router.back()} variant="secondary" />
+      <View style={styles.footer}>
+        <Button label="Save Routine" icon="checkmark" fullWidth onPress={save} loading={create.isPending} />
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  selectedLabel: { color: colors.textMuted, fontSize: 13 },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectedBar: { flexDirection: "row" },
+  selectedLabel: { color: colors.accentBright, fontSize: 13, fontWeight: "700" },
   list: { flex: 1 },
   row: {
     flexDirection: "row",
@@ -101,12 +129,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: 10,
-    marginBottom: 6,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.surfaceLight,
+    borderColor: colors.border,
   },
-  rowActive: { borderColor: colors.primary, backgroundColor: colors.primaryMuted },
-  rowText: { color: colors.text, fontSize: 15, flex: 1 },
-  check: { color: colors.primary, fontWeight: "700" },
+  rowActive: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
+  rowText: { color: colors.text, fontSize: 15, flex: 1, fontWeight: "500" },
+  rowTextActive: { fontWeight: "700" },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  footer: { paddingTop: spacing.sm },
 });

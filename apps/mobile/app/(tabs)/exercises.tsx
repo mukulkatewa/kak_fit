@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text } from "react-native";
-import { EmptyState, Screen, SearchBar, StatPill, Title } from "../../src/components/ui";
+import { EmptyState, Header, ListRow, Screen, SearchBar } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
-import { ListRow } from "../../src/components/ui";
 import { colors, spacing } from "../../src/lib/theme";
 
 export default function ExercisesTab() {
@@ -15,13 +14,8 @@ export default function ExercisesTab() {
 
   return (
     <Screen>
-      <Title>Moves</Title>
-      <Text style={styles.meta}>{count?.count ?? 0} exercises · Wger + custom</Text>
+      <Header eyebrow="LIBRARY" title="Moves" subtitle={`${count?.count ?? 0} exercises · Wger + custom`} />
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search exercises..." />
-
-      {count ? (
-        <StatPill value={count.count} label="In library" accent />
-      ) : null}
 
       {isLoading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
@@ -53,6 +47,5 @@ export default function ExercisesTab() {
 }
 
 const styles = StyleSheet.create({
-  meta: { color: colors.textMuted, fontSize: 14, marginTop: -8 },
-  list: { gap: spacing.sm, paddingBottom: spacing.xxl },
+  list: { gap: spacing.sm, paddingBottom: spacing.xxl, paddingTop: spacing.xs },
 });

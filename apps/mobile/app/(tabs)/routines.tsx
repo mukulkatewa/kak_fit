@@ -1,15 +1,9 @@
 import { useRouter } from "expo-router";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, View } from "react-native";
-import {
-  Button,
-  EmptyState,
-  ListRow,
-  Screen,
-  SectionHeader,
-  Title,
-} from "../../src/components/ui";
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Button, EmptyState, Header, Screen } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
-import { colors, spacing } from "../../src/lib/theme";
+import { colors, radius, spacing } from "../../src/lib/theme";
 
 export default function RoutinesTab() {
   const router = useRouter();
@@ -36,11 +30,14 @@ export default function RoutinesTab() {
 
   return (
     <Screen>
-      <View style={styles.header}>
-        <Title>Train</Title>
-        <Button label="New" icon="add" onPress={() => router.push("/routine/create")} />
-      </View>
-      <Text style={styles.sub}>Build Push / Pull / Legs templates</Text>
+      <Header
+        eyebrow="ROUTINES"
+        title="Train"
+        subtitle="Push / Pull / Legs templates"
+        action={
+          <Button label="New" icon="add" size="sm" onPress={() => router.push("/routine/create")} />
+        }
+      />
 
       {isLoading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} />
@@ -58,28 +55,48 @@ export default function RoutinesTab() {
             />
           }
           renderItem={({ item }) => (
-            <View style={styles.itemGroup}>
-              <ListRow
-                title={item.name}
-                subtitle={`${item.exercises.length} exercises`}
-                icon="fitness-outline"
+            <View style={styles.routineCard}>
+              <Pressable
+                style={({ pressed }) => [styles.routineMain, pressed && styles.pressed]}
                 onPress={() => startRoutine.mutate({ routineId: item.id })}
-              />
+              >
+                <View style={styles.routineIcon}>
+                  <Ionicons name="fitness" size={22} color={colors.accentBright} />
+                </View>
+                <View style={styles.routineBody}>
+                  <Text style={styles.routineName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.routineMeta}>{item.exercises.length} exercises</Text>
+                </View>
+                <View style={styles.startPill}>
+                  <Ionicons name="play" size={14} color={colors.accentNeon} />
+                  <Text style={styles.startText}>Start</Text>
+                </View>
+              </Pressable>
+
               <View style={styles.actions}>
-                <Text style={styles.action} onPress={() => duplicate.mutate({ id: item.id })}>
-                  Duplicate
-                </Text>
-                <Text
-                  style={[styles.action, styles.danger]}
+                <Pressable
+                  style={styles.actionBtn}
+                  onPress={() => duplicate.mutate({ id: item.id })}
+                  hitSlop={6}
+                >
+                  <Ionicons name="copy-outline" size={15} color={colors.textMuted} />
+                  <Text style={styles.action}>Duplicate</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.actionBtn}
+                  hitSlop={6}
                   onPress={() =>
-                    Alert.alert("Delete?", item.name, [
+                    Alert.alert("Delete routine?", item.name, [
                       { text: "Cancel", style: "cancel" },
                       { text: "Delete", style: "destructive", onPress: () => remove.mutate({ id: item.id }) },
                     ])
                   }
                 >
-                  Delete
-                </Text>
+                  <Ionicons name="trash-outline" size={15} color={colors.danger} />
+                  <Text style={[styles.action, styles.danger]}>Delete</Text>
+                </Pressable>
               </View>
             </View>
           )}
@@ -90,11 +107,57 @@ export default function RoutinesTab() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sub: { color: colors.textMuted, fontSize: 14, marginTop: -8 },
-  list: { gap: spacing.sm, paddingBottom: spacing.xxl },
-  itemGroup: { gap: 4 },
-  actions: { flexDirection: "row", gap: spacing.lg, paddingHorizontal: spacing.sm },
-  action: { color: colors.accentNeon, fontSize: 13, fontWeight: "600" },
+  list: { gap: spacing.md, paddingBottom: spacing.xxl, paddingTop: spacing.xs },
+  routineCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  routineMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  pressed: { backgroundColor: colors.surfaceHover },
+  routineIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accentMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  routineBody: { flex: 1, gap: 3 },
+  routineName: { color: colors.text, fontWeight: "700", fontSize: 16 },
+  routineMeta: { color: colors.textMuted, fontSize: 13, fontWeight: "500" },
+  startPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.successMuted,
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: colors.success,
+  },
+  startText: { color: colors.successNeon, fontWeight: "700", fontSize: 13 },
+  actions: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: spacing.md,
+  },
+  action: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
   danger: { color: colors.danger },
 });

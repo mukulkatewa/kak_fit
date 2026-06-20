@@ -5,7 +5,15 @@ import type { AppRouter } from "@kak-fit/api";
 import superjson from "superjson";
 import { getToken } from "./auth";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+const getApiUrl = () => {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+  if (typeof window !== "undefined") {
+    return envUrl.replace(/\/\/[\d.]+:/, "//localhost:");
+  }
+  return envUrl;
+};
+
+const API_URL = getApiUrl();
 
 export const trpc = createTRPCReact<AppRouter>();
 

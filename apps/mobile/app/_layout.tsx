@@ -1,8 +1,8 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { getToken } from "../src/lib/auth";
+import { AuthProvider, useAuth } from "../src/lib/auth-context";
 import { createQueryClient, createTRPCClient, trpc } from "../src/lib/trpc";
 import { colors } from "../src/lib/theme";
 
@@ -12,32 +12,24 @@ const trpcClient = createTRPCClient();
 function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
-  const [ready, setReady] = useState(false);
-  const [hasToken, setHasToken] = useState(false);
+  const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    getToken().then((token) => {
-      setHasToken(!!token);
-      setReady(true);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
+    if (isLoading) return;
 
     const inAuth = segments[0] === "login";
 
-    if (!hasToken && !inAuth) {
+    if (!isAuthenticated && !inAuth) {
       router.replace("/login");
-    } else if (hasToken && inAuth) {
+    } else if (isAuthenticated && inAuth) {
       router.replace("/(tabs)");
     }
-  }, [ready, hasToken, segments, router]);
+  }, [isLoading, isAuthenticated, segments, router]);
 
-  if (!ready) {
+  if (isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.primary} size="large" />
+        <ActivityIndicator color={colors.accent} size="large" />
       </View>
     );
   }
@@ -47,17 +39,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <AuthGate>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-            <Stack.Screen name="login" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="workout/active" options={{ presentation: "fullScreenModal" }} />
-            <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
-          </Stack>
-        </AuthGate>
-      </QueryClientProvider>
-    </trpc.Provider>
+    <AuthProvider>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <AuthGate>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+              <Stack.Screen name="login" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="workout/active" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
+            </Stack>
+          </AuthGate>
+        </QueryClientProvider>
+      </trpc.Provider>
+    </AuthProvider>
   );
 }

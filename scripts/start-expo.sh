@@ -7,6 +7,7 @@ fuser -k 8081/tcp 8082/tcp 2>/dev/null || true
 sleep 1
 
 bash "$ROOT/scripts/sync-ip.sh"
+bash "$ROOT/scripts/ensure-dev-limits.sh"
 IP=$(hostname -I | awk '{print $1}')
 
 export REACT_NATIVE_PACKAGER_HOSTNAME="$IP"

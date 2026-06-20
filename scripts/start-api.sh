@@ -7,6 +7,7 @@ fuser -k 3000/tcp 3001/tcp 2>/dev/null || true
 sleep 1
 
 bash "$ROOT/scripts/sync-ip.sh"
+bash "$ROOT/scripts/ensure-dev-limits.sh"
 
 echo ""
 echo "Starting API on http://localhost:3000"

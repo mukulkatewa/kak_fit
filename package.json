@@ -3,7 +3,11 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "turbo dev",
+    "dev:web": "pnpm --filter @kak-fit/web dev",
+    "dev:api": "bash scripts/start-api.sh",
+    "dev:mobile": "bash scripts/start-expo.sh",
+    "sync:ip": "bash scripts/sync-ip.sh",
+    "kill:ports": "fuser -k 3000/tcp 3001/tcp 8081/tcp 2>/dev/null || true",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",

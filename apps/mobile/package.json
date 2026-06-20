@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@expo/vector-icons": "^14.1.0",
     "@expo/metro-runtime": "~6.1.2",
     "@kak-fit/api": "workspace:*",
     "@tanstack/react-query": "^5.69.0",

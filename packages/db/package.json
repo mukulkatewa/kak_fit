@@ -8,8 +8,9 @@
     "db:generate": "dotenv -e ../../.env -- prisma generate",
     "db:push": "dotenv -e ../../.env -- prisma db push",
     "studio": "dotenv -e ../../.env -- prisma studio",
-    "import:wger": "tsx scripts/import-wger.ts",
-    "seed:demo": "tsx scripts/seed-demo.ts"
+    "import:wger": "dotenv -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/import-wger.ts'",
+    "seed:demo": "dotenv -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/seed-demo.ts'",
+    "count": "dotenv -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/count.ts'"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0"

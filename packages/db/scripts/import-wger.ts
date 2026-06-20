@@ -10,6 +10,28 @@ const WGER_BASE = "https://wger.de/api/v2";
 const ENGLISH_LANGUAGE = 2;
 const PAGE_SIZE = 50;
 
+/** Retry transient Supabase pooler drops during long imports. */
+async function withDbRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  const delays = [0, 2000, 5000];
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (delays[attempt] > 0) {
+      console.log(`  Retrying ${label} (attempt ${attempt + 1})...`);
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const code = (error as { code?: string }).code;
+      if (code !== "P1001" && code !== "P1017") throw error;
+    }
+  }
+
+  throw lastError;
+}
+
 async function fetchPage<T>(url: string): Promise<WgerPaginated<T>> {
   return fetchJson<WgerPaginated<T>>(url);
 }
@@ -87,26 +109,36 @@ export async function importWgerExercises() {
     const image =
       item.images.find((img) => img.is_main) ?? item.images[0] ?? null;
 
-    const exercise = await prisma.exercise.upsert({
-      where: { wgerId: item.id },
-      create: {
-        wgerId: item.id,
-        name: translation.name,
-        instructions: translation.description || null,
-        imageUrl: image?.image ?? null,
-        categoryId: categoryMap.get(item.category.id) ?? null,
-        isCustom: false,
-      },
-      update: {
-        name: translation.name,
-        instructions: translation.description || null,
-        imageUrl: image?.image ?? null,
-        categoryId: categoryMap.get(item.category.id) ?? null,
-      },
-    });
+    const exercise = await withDbRetry(
+      () =>
+        prisma.exercise.upsert({
+          where: { wgerId: item.id },
+          create: {
+            wgerId: item.id,
+            name: translation.name,
+            instructions: translation.description || null,
+            imageUrl: image?.image ?? null,
+            categoryId: categoryMap.get(item.category.id) ?? null,
+            isCustom: false,
+          },
+          update: {
+            name: translation.name,
+            instructions: translation.description || null,
+            imageUrl: image?.image ?? null,
+            categoryId: categoryMap.get(item.category.id) ?? null,
+          },
+        }),
+      translation.name,
+    );
 
-    await prisma.exerciseMuscle.deleteMany({ where: { exerciseId: exercise.id } });
-    await prisma.exerciseEquipment.deleteMany({ where: { exerciseId: exercise.id } });
+    await withDbRetry(
+      () => prisma.exerciseMuscle.deleteMany({ where: { exerciseId: exercise.id } }),
+      "exerciseMuscle.deleteMany",
+    );
+    await withDbRetry(
+      () => prisma.exerciseEquipment.deleteMany({ where: { exerciseId: exercise.id } }),
+      "exerciseEquipment.deleteMany",
+    );
 
     const linkedMuscles = new Set<string>();
 
@@ -114,26 +146,38 @@ export async function importWgerExercises() {
       const muscleId = muscleMap.get(muscle.id);
       if (!muscleId || linkedMuscles.has(muscleId)) continue;
       linkedMuscles.add(muscleId);
-      await prisma.exerciseMuscle.create({
-        data: { exerciseId: exercise.id, muscleId, isPrimary: true },
-      });
+      await withDbRetry(
+        () =>
+          prisma.exerciseMuscle.create({
+            data: { exerciseId: exercise.id, muscleId, isPrimary: true },
+          }),
+        "exerciseMuscle.create",
+      );
     }
 
     for (const muscle of item.muscles_secondary) {
       const muscleId = muscleMap.get(muscle.id);
       if (!muscleId || linkedMuscles.has(muscleId)) continue;
       linkedMuscles.add(muscleId);
-      await prisma.exerciseMuscle.create({
-        data: { exerciseId: exercise.id, muscleId, isPrimary: false },
-      });
+      await withDbRetry(
+        () =>
+          prisma.exerciseMuscle.create({
+            data: { exerciseId: exercise.id, muscleId, isPrimary: false },
+          }),
+        "exerciseMuscle.create",
+      );
     }
 
     for (const eq of item.equipment) {
       const equipmentId = equipmentMap.get(eq.id);
       if (!equipmentId) continue;
-      await prisma.exerciseEquipment.create({
-        data: { exerciseId: exercise.id, equipmentId },
-      });
+      await withDbRetry(
+        () =>
+          prisma.exerciseEquipment.create({
+            data: { exerciseId: exercise.id, equipmentId },
+          }),
+        "exerciseEquipment.create",
+      );
     }
 
     imported += 1;

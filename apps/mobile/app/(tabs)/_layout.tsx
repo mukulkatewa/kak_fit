@@ -40,7 +40,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="exercises" options={{ href: null }} />
       <Tabs.Screen name="progress" options={{ href: null }} />
       <Tabs.Screen name="nutrition" options={{ href: null }} />
-      <Tabs.Screen name="history" options={{ href: null }} />
     </Tabs>
   );
 }

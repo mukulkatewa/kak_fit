@@ -15,6 +15,7 @@
     "db:push": "turbo db:push",
     "db:import": "pnpm --filter @kak-fit/db import:wger",
     "db:seed": "pnpm --filter @kak-fit/db seed:demo",
+    "db:count": "pnpm --filter @kak-fit/db count",
     "db:studio": "pnpm --filter @kak-fit/db studio",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"

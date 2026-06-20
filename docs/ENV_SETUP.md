@@ -209,7 +209,8 @@ cp .env apps/web/.env.local
 # 3. Database
 pnpm docker:up          # or point DATABASE_URL to your VPS Postgres
 pnpm db:push
-pnpm db:import          # Wger exercises
+pnpm db:import          # Wger exercises (uses session pooler automatically)
+pnpm db:count           # Quick check: users + exercise count
 pnpm db:seed            # Demo user (skip in prod)
 
 # 4. Build & run

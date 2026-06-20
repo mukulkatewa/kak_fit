@@ -133,17 +133,38 @@ S3_PUBLIC_URL="http://localhost:9000/kak-fit"
 
 Run MinIO via Docker (we'll add `docker-compose` service in Phase 2).
 
-**Option B — Supabase Storage (free tier: 1GB)**
+**Option B — Supabase (recommended for production)**
+
+Use Supabase for **Postgres + Storage** in one place.
 
 ```env
+SUPABASE_PROJECT_REF="your-project-ref"
+SUPABASE_DB_PASSWORD="your-database-password"
+SUPABASE_POOLER_HOST="aws-1-ap-northeast-1.pooler.supabase.com"
+# Auto-written by `pnpm sync:ip` from the above (Prisma + Supabase pattern):
+DATABASE_URL="postgresql://postgres.REF:PASSWORD@HOST:6543/postgres?pgbouncer=true&schema=public&sslmode=require"
+DIRECT_URL="postgresql://postgres.REF:PASSWORD@HOST:5432/postgres?schema=public&sslmode=require"
 NEXT_PUBLIC_SUPABASE_URL="https://xxxxx.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGci..."
 SUPABASE_SERVICE_ROLE_KEY="eyJhbGci..."
 ```
 
-Get from: Supabase Dashboard → Project Settings → API.
+| Variable | Where to get it |
+|----------|-----------------|
+| `SUPABASE_DB_PASSWORD` | Dashboard → Project Settings → **Database** → Database password |
+| `SUPABASE_POOLER_HOST` | Dashboard → **Connect** → **ORMs** → **Prisma** (host in connection string) |
+| `DATABASE_URL` / `DIRECT_URL` | Auto-built by `sync:ip` — transaction pooler `:6543` + session pooler `:5432` |
+| `SUPABASE_PROJECT_REF` | Subdomain in your project URL (`https://REF.supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_*` | Dashboard → Project Settings → **API** (use the `anon` JWT key, not `sb_publishable_…`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Same API page (server-only, never ship to mobile) |
 
-Leave all storage vars empty until Phase 2 — app works without them.
+When `SUPABASE_DB_PASSWORD` and `SUPABASE_POOLER_HOST` are set, `pnpm sync:ip` writes both Prisma URLs. Then run:
+
+```bash
+pnpm sync:ip
+pnpm db:push
+pnpm db:seed    # optional demo user
+```
 
 ---
 

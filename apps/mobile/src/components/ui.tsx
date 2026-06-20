@@ -12,7 +12,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, radius, shadows, spacing, typography } from "../lib/theme";
+import { colors, radius, spacing, typography } from "../lib/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -55,7 +55,6 @@ export function Header({
   title,
   subtitle,
   action,
-  eyebrow,
 }: {
   title: string;
   subtitle?: string;
@@ -65,7 +64,6 @@ export function Header({
   return (
     <View style={styles.header}>
       <View style={styles.headerText}>
-        {eyebrow ? <Text style={styles.headerEyebrow}>{eyebrow}</Text> : null}
         <Text style={styles.headerTitle}>{title}</Text>
         {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
       </View>
@@ -221,11 +219,65 @@ export function Chip({
 
 // ─── Typography ───────────────────────────────────────────────────────────────
 
-export function BrandMark() {
+export function ListGroup({ children }: { children: React.ReactNode }) {
+  return <View style={styles.listGroup}>{children}</View>;
+}
+
+export function StatBlock({
+  value,
+  label,
+}: {
+  value: string | number;
+  label: string;
+}) {
+  return (
+    <View style={styles.statBlock}>
+      <Text style={styles.statBlockValue}>{value}</Text>
+      <Text style={styles.statBlockLabel}>{label}</Text>
+    </View>
+  );
+}
+
+export function HevyButton({
+  label,
+  onPress,
+  loading,
+  variant = "primary",
+}: {
+  label: string;
+  onPress: () => void;
+  loading?: boolean;
+  variant?: "primary" | "secondary";
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={loading}
+      style={({ pressed }) => [
+        styles.hevyButton,
+        variant === "secondary" && styles.hevyButtonSecondary,
+        pressed && styles.pressed,
+        loading && styles.buttonDisabled,
+      ]}
+    >
+      {loading ? (
+        <ActivityIndicator color={variant === "secondary" ? colors.accent : "#fff"} size="small" />
+      ) : (
+        <Text style={[styles.hevyButtonText, variant === "secondary" && styles.hevyButtonTextSecondary]}>
+          {label}
+        </Text>
+      )}
+    </Pressable>
+  );
+}
+
+export function BrandMark({ large }: { large?: boolean }) {
   return (
     <View style={styles.brandMarkRow}>
-      <View style={styles.brandDot} />
-      <Text style={styles.brandMark}>KAK FIT</Text>
+      <View style={[styles.brandIcon, large && styles.brandIconLarge]}>
+        <Ionicons name="barbell" size={large ? 32 : 18} color={colors.accent} />
+      </View>
+      <Text style={[styles.brandMark, large && styles.brandMarkLarge]}>Kak Fit</Text>
     </View>
   );
 }
@@ -354,6 +406,7 @@ export function ListRow({
   right,
   icon,
   gold,
+  last,
 }: {
   title: string;
   subtitle?: string;
@@ -361,15 +414,16 @@ export function ListRow({
   right?: React.ReactNode;
   icon?: IconName;
   gold?: boolean;
+  last?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.listRow, pressed && styles.listRowPressed]}
+      style={({ pressed }) => [styles.listRow, !last && styles.listRowBorder, pressed && styles.listRowPressed]}
     >
       {icon ? (
         <View style={[styles.listRowIcon, gold && styles.listRowIconGold]}>
-          <Ionicons name={icon} size={20} color={gold ? colors.gold : colors.accentBright} />
+          <Ionicons name={icon} size={18} color={gold ? colors.gold : colors.textMuted} />
         </View>
       ) : null}
       <View style={styles.listRowBody}>
@@ -382,7 +436,7 @@ export function ListRow({
           </Text>
         ) : null}
       </View>
-      {right ?? (onPress ? <Ionicons name="chevron-forward" size={18} color={colors.textDim} /> : null)}
+      {right ?? (onPress ? <Ionicons name="chevron-forward" size={16} color={colors.textDim} /> : null)}
     </Pressable>
   );
 }
@@ -448,42 +502,34 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     minHeight: 44,
+    marginBottom: spacing.xs,
   },
-  headerText: { flex: 1, gap: 2 },
-  headerEyebrow: {
-    ...typography.label,
-    color: colors.accentNeon,
-    marginBottom: 2,
-  },
+  headerText: { flex: 1, gap: 4 },
   headerTitle: { ...typography.display, color: colors.text },
-  headerSubtitle: { ...typography.body, color: colors.textMuted },
-  headerAction: { marginLeft: spacing.md },
+  headerSubtitle: { ...typography.caption, color: colors.textMuted },
+  headerAction: { marginLeft: spacing.md, marginTop: 8 },
 
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: spacing.sm,
   },
   sectionTitle: { ...typography.h2, color: colors.text },
-  sectionAction: { ...typography.caption, color: colors.accentBright },
+  sectionAction: { ...typography.caption, color: colors.accent },
 
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.md,
-    ...shadows.card,
   },
-  cardGlow: { borderColor: colors.accent, ...shadows.glow },
+  cardGlow: {},
   glassCard: {
-    backgroundColor: colors.glass,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
     padding: spacing.lg,
     gap: spacing.md,
   },
@@ -491,49 +537,53 @@ const styles = StyleSheet.create({
   statPill: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radius.lg,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
     alignItems: "center",
-    gap: 3,
+    gap: 2,
   },
-  statPillAccent: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
-  statPillGold: { borderColor: colors.gold, backgroundColor: colors.goldMuted },
-  statValue: { ...typography.h1, color: colors.text, fontSize: 24 },
-  statValueAccent: { color: colors.accentBright },
+  statPillAccent: {},
+  statPillGold: {},
+  statValue: { fontSize: 22, fontWeight: "700", color: colors.text },
+  statValueAccent: { color: colors.accent },
   statValueGold: { color: colors.gold },
-  statLabel: { ...typography.label, color: colors.textMuted, fontSize: 10 },
+  statLabel: { ...typography.caption, color: colors.textMuted, fontSize: 12 },
+
+  statBlock: { flex: 1, alignItems: "center", gap: 2 },
+  statBlockValue: { fontSize: 20, fontWeight: "700", color: colors.text },
+  statBlockLabel: { fontSize: 12, color: colors.textMuted },
+
+  listGroup: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+  },
 
   prBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     backgroundColor: colors.goldMuted,
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: colors.gold,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     alignSelf: "flex-start",
   },
-  prBadgeText: { ...typography.label, color: colors.gold, fontSize: 9 },
+  prBadgeText: { fontSize: 11, fontWeight: "600", color: colors.gold },
 
   streakBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: colors.successMuted,
-    borderRadius: radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.success,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     alignSelf: "flex-start",
   },
-  streakEmoji: { fontSize: 15 },
-  streakText: { ...typography.caption, color: colors.successNeon, fontWeight: "700" },
+  streakEmoji: { fontSize: 14 },
+  streakText: { ...typography.caption, color: colors.textMuted },
 
   xpContainer: { gap: spacing.sm },
   xpHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -542,69 +592,69 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: colors.accent,
   },
-  xpLevel: { ...typography.label, color: colors.accentBright, fontSize: 10 },
+  xpLevel: { fontSize: 11, fontWeight: "600", color: colors.accent },
   xpText: { ...typography.caption, color: colors.textMuted },
   xpTrack: {
-    height: 8,
-    backgroundColor: colors.bgElevated,
+    height: 4,
+    backgroundColor: colors.surfaceHover,
     borderRadius: radius.full,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   xpFill: { height: "100%", backgroundColor: colors.accent, borderRadius: radius.full },
 
   scoreRing: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    borderWidth: 3,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
     borderColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.accentMuted,
   },
   scoreRingInner: { alignItems: "center" },
-  scoreValue: { fontSize: 30, fontWeight: "800", color: colors.text, letterSpacing: -1 },
-  scoreLabel: { fontSize: 8, fontWeight: "800", color: colors.accentNeon, letterSpacing: 1.5 },
+  scoreValue: { fontSize: 24, fontWeight: "700", color: colors.text },
+  scoreLabel: { fontSize: 9, fontWeight: "600", color: colors.textMuted },
 
   progressTrack: {
-    height: 6,
-    backgroundColor: colors.bgElevated,
+    height: 4,
+    backgroundColor: colors.surfaceHover,
     borderRadius: radius.full,
     overflow: "hidden",
   },
   progressFill: { height: "100%", borderRadius: radius.full },
 
   avatar: {
-    backgroundColor: colors.accentMuted,
-    borderWidth: 2,
-    borderColor: colors.accent,
+    backgroundColor: colors.surfaceHover,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontWeight: "800", color: colors.accentBright },
+  avatarText: { fontWeight: "600", color: colors.text },
 
   chip: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.surfaceHover,
   },
-  chipActive: { backgroundColor: colors.accentMuted, borderColor: colors.accent },
-  chipText: { ...typography.caption, color: colors.textMuted },
-  chipTextActive: { color: colors.accentBright },
+  chipActive: { backgroundColor: colors.accent },
+  chipText: { ...typography.caption, color: colors.textMuted, fontWeight: "500" },
+  chipTextActive: { color: "#fff", fontWeight: "600" },
 
-  brandMarkRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  brandDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accentNeon },
-  brandMark: { fontSize: 11, fontWeight: "800", color: colors.accentNeon, letterSpacing: 3 },
-  title: { ...typography.display, color: colors.text },
-  subtitle: { ...typography.body, color: colors.textMuted, lineHeight: 21 },
+  brandMarkRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  brandIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  brandIconLarge: { width: 64, height: 64, borderRadius: radius.lg },
+  brandMark: { fontSize: 17, fontWeight: "600", color: colors.text },
+  brandMarkLarge: { fontSize: 28, fontWeight: "700" },
+  title: { ...typography.h1, color: colors.text },
+  subtitle: { ...typography.body, color: colors.textMuted, lineHeight: 20 },
 
   button: {
     borderRadius: radius.md,
@@ -613,88 +663,103 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     backgroundColor: colors.accent,
   },
-  buttonMd: { paddingVertical: 14, paddingHorizontal: 22, minHeight: 50 },
-  buttonSm: { paddingVertical: 9, paddingHorizontal: 16, minHeight: 38 },
+  buttonMd: { paddingVertical: 14, paddingHorizontal: 20, minHeight: 50 },
+  buttonSm: { paddingVertical: 8, paddingHorizontal: 14, minHeight: 36 },
   buttonFull: { alignSelf: "stretch" },
-  buttonSecondary: { backgroundColor: colors.surfaceHover, borderWidth: 1, borderColor: colors.border },
-  buttonGhost: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.border },
-  buttonDanger: { backgroundColor: colors.dangerMuted, borderWidth: 1, borderColor: colors.danger },
-  buttonGold: { backgroundColor: colors.goldMuted, borderWidth: 1, borderColor: colors.gold },
+  buttonSecondary: { backgroundColor: colors.surfaceHover },
+  buttonGhost: { backgroundColor: "transparent" },
+  buttonDanger: { backgroundColor: colors.dangerMuted },
+  buttonGold: { backgroundColor: colors.surfaceHover },
   buttonDisabled: { opacity: 0.5 },
   buttonInner: { flexDirection: "row", alignItems: "center", gap: 8 },
-  buttonText: { fontSize: 16, fontWeight: "700" },
-  buttonTextSm: { fontSize: 14, fontWeight: "700" },
-  pressed: { opacity: 0.8, transform: [{ scale: 0.97 }] },
+  buttonText: { fontSize: 17, fontWeight: "600" },
+  buttonTextSm: { fontSize: 15, fontWeight: "600" },
+  pressed: { opacity: 0.7 },
+
+  hevyButton: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 52,
+  },
+  hevyButtonSecondary: {
+    backgroundColor: colors.surfaceHover,
+  },
+  hevyButtonText: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#ffffff",
+  },
+  hevyButtonTextSecondary: {
+    color: colors.accent,
+  },
 
   fab: {
     position: "absolute",
     right: spacing.lg,
     bottom: spacing.xl,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
-    ...shadows.glow,
   },
-  fabPressed: { opacity: 0.85, transform: [{ scale: 0.94 }] },
+  fabPressed: { opacity: 0.8 },
 
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceHover,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
-    minHeight: 48,
+    minHeight: 40,
   },
-  searchInput: { flex: 1, color: colors.text, fontSize: 15, paddingVertical: 10 },
+  searchInput: { flex: 1, color: colors.text, fontSize: 15, paddingVertical: 8 },
   input: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: 14,
     color: colors.text,
-    fontSize: 16,
+    fontSize: 17,
   },
 
   listRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     gap: spacing.md,
+    minHeight: 56,
   },
-  listRowPressed: { backgroundColor: colors.surfaceHover, transform: [{ scale: 0.99 }] },
+  listRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.separator,
+  },
+  listRowPressed: { backgroundColor: colors.surfaceHover },
   listRowIcon: {
-    width: 42,
-    height: 42,
+    width: 32,
+    height: 32,
     borderRadius: radius.sm,
-    backgroundColor: colors.accentMuted,
+    backgroundColor: colors.surfaceHover,
     alignItems: "center",
     justifyContent: "center",
   },
   listRowIconGold: { backgroundColor: colors.goldMuted },
-  listRowBody: { flex: 1, gap: 3 },
-  listRowTitle: { ...typography.body, color: colors.text, fontWeight: "700" },
-  listRowSubtitle: { ...typography.caption, color: colors.textMuted, fontWeight: "500" },
+  listRowBody: { flex: 1, gap: 2 },
+  listRowTitle: { fontSize: 17, color: colors.text, fontWeight: "400" },
+  listRowSubtitle: { fontSize: 13, color: colors.textMuted },
 
   empty: { alignItems: "center", paddingVertical: spacing.xxxl, gap: spacing.md },
   emptyIcon: {
-    width: 68,
-    height: 68,
+    width: 56,
+    height: 56,
     borderRadius: radius.lg,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -703,23 +768,23 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textMuted,
     textAlign: "center",
-    lineHeight: 21,
-    maxWidth: 280,
+    lineHeight: 20,
+    maxWidth: 260,
   },
 
   macroRing: { alignItems: "center", gap: 4, flex: 1 },
   macroRingOuter: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 3,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surface,
   },
-  macroRingValue: { fontSize: 16, fontWeight: "800" },
+  macroRingValue: { fontSize: 15, fontWeight: "700" },
   macroRingLabel: { ...typography.caption, color: colors.textMuted },
-  macroRingTarget: { fontSize: 10, color: colors.textDim },
+  macroRingTarget: { fontSize: 11, color: colors.textDim },
 });
 
 // Legacy alias

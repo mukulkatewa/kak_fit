@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../src/lib/auth-context";
 import { createQueryClient, createTRPCClient, trpc } from "../src/lib/trpc";
 import { colors } from "../src/lib/theme";
@@ -39,19 +40,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-          <AuthGate>
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-              <Stack.Screen name="login" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="workout/active" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
-            </Stack>
-          </AuthGate>
-        </QueryClientProvider>
-      </trpc.Provider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <trpc.Provider client={trpcClient} queryClient={queryClient}>
+          <QueryClientProvider client={queryClient}>
+            <AuthGate>
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+                <Stack.Screen name="login" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="workout/active" options={{ presentation: "fullScreenModal" }} />
+                <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
+                <Stack.Screen name="exercise/[id]" />
+                <Stack.Screen name="measurements" />
+              </Stack>
+            </AuthGate>
+          </QueryClientProvider>
+        </trpc.Provider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

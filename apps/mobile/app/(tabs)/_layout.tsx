@@ -1,25 +1,16 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { StyleSheet, View } from "react-native";
-import { colors, radius } from "../../src/lib/theme";
+import { StyleSheet } from "react-native";
+import { colors } from "../../src/lib/theme";
 
-type TabIcon = keyof typeof Ionicons.glyphMap;
-
-function TabIcon({ name, color, focused }: { name: TabIcon; color: string; focused: boolean }) {
-  return (
-    <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-      <Ionicons name={name} size={20} color={color} />
-    </View>
-  );
-}
-
+/** Hevy uses 3 tabs: Home, Workout, You */
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: colors.accentNeon,
+        tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textDim,
         tabBarLabelStyle: styles.tabLabel,
       }}
@@ -28,37 +19,27 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, focused }) => <TabIcon name="home" color={color} focused={focused} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="routines"
         options={{
-          title: "Train",
-          tabBarIcon: ({ color, focused }) => <TabIcon name="barbell" color={color} focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="exercises"
-        options={{
-          title: "Moves",
-          tabBarIcon: ({ color, focused }) => <TabIcon name="fitness" color={color} focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="nutrition"
-        options={{
-          title: "Meals",
-          tabBarIcon: ({ color, focused }) => <TabIcon name="nutrition" color={color} focused={focused} />,
+          title: "Workout",
+          tabBarIcon: ({ color, size }) => <Ionicons name="barbell-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "You",
-          tabBarIcon: ({ color, focused }) => <TabIcon name="person" color={color} focused={focused} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
+      {/* Hidden — opened from Profile dashboard grid or deep links */}
+      <Tabs.Screen name="exercises" options={{ href: null }} />
+      <Tabs.Screen name="progress" options={{ href: null }} />
+      <Tabs.Screen name="nutrition" options={{ href: null }} />
       <Tabs.Screen name="history" options={{ href: null }} />
     </Tabs>
   );
@@ -66,30 +47,13 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: colors.bgElevated,
-    borderTopColor: colors.borderSubtle,
-    borderTopWidth: 1,
-    height: 72,
-    paddingBottom: 10,
-    paddingTop: 8,
+    backgroundColor: colors.bg,
+    borderTopColor: colors.separator,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    height: 84,
+    paddingBottom: 28,
+    paddingTop: 6,
     elevation: 0,
   },
-  tabLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    marginTop: 2,
-  },
-  iconWrap: {
-    width: 36,
-    height: 28,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconWrapActive: {
-    backgroundColor: colors.accentMuted,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
+  tabLabel: { fontSize: 11, fontWeight: "500", marginTop: 2 },
 });

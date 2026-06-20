@@ -1,28 +1,58 @@
 import { useRouter } from "expo-router";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { BarChart } from "../../src/components/charts";
+import { CardSkeleton } from "../../src/components/skeleton";
 import {
   Avatar,
   Button,
-  Card,
-  EmptyState,
+  ListGroup,
   ListRow,
-  PRBadge,
   Screen,
   SectionHeader,
-  StatPill,
-  Title,
 } from "../../src/components/ui";
+import {
+  HevyBanner,
+  HevyDashboardGrid,
+  HevyIconButton,
+  HevySegmentedControl,
+  HevyStatsRow,
+  HevyTopBar,
+} from "../../src/components/hevy-ui";
 import { useAuth } from "../../src/lib/auth-context";
 import { trpc } from "../../src/lib/trpc";
-import { colors, radius, spacing } from "../../src/lib/theme";
+import { colors, spacing } from "../../src/lib/theme";
+
+type ChartMode = "duration" | "volume" | "reps";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
+  const [chartMode, setChartMode] = useState<ChartMode>("duration");
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
   const { data: user } = trpc.auth.me.useQuery();
   const { data: stats } = trpc.auth.stats.useQuery();
-  const { data: workouts, isLoading } = trpc.workout.history.useQuery({ limit: 10 });
-  const { data: prs } = trpc.personalRecord.list.useQuery({ limit: 8 });
+  const { data: volumeHistory, isLoading: chartLoading } = trpc.progress.volumeHistory.useQuery({ limit: 8 });
+  const { data: workouts, isLoading } = trpc.workout.history.useQuery({ limit: 6 });
+
+  const username = user?.email?.split("@")[0] ?? "athlete";
+  const profilePct = useMemo(() => {
+    let score = 40;
+    if (user?.name) score += 20;
+    if ((stats?.workoutCount ?? 0) > 0) score += 20;
+    if ((stats?.prCount ?? 0) > 0) score += 20;
+    return Math.min(score, 100);
+  }, [user, stats]);
+
+  const chartData = useMemo(() => {
+    if (!volumeHistory?.length) return [];
+    return volumeHistory.map((v) => ({
+      label: v.label,
+      value: chartMode === "volume" ? v.volume : Math.max(1, Math.round(v.volume / 500)),
+    }));
+  }, [volumeHistory, chartMode]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -30,103 +60,105 @@ export default function ProfileScreen() {
   };
 
   return (
-    <Screen scroll>
-      <View style={styles.header}>
-        <Avatar name={user?.name} size={68} />
-        <View style={styles.headerInfo}>
-          <Title>{user?.name ?? "Athlete"}</Title>
-          <Text style={styles.email}>{user?.email}</Text>
-          <View style={styles.tierBadge}>
-            <Text style={styles.tierText}>{user?.subscriptionTier ?? "FREE"} PLAN</Text>
-          </View>
-        </View>
-      </View>
-
-      {stats ? (
-        <View style={styles.statsRow}>
-          <StatPill value={stats.workoutCount} label="SESSIONS" accent />
-          <StatPill value={stats.prCount} label="PRS" gold />
-          <StatPill value={stats.customExerciseCount} label="CUSTOM" />
-        </View>
-      ) : null}
-
-      <SectionHeader title="Personal Records" />
-      <View style={styles.prGrid}>
-        {(prs ?? []).length === 0 ? (
-          <EmptyState icon="trophy-outline" title="No PRs yet" message="Finish workouts to unlock records." />
-        ) : (
-          prs?.map((pr) => (
-            <View key={pr.id} style={styles.prCard}>
-              <PRBadge label={pr.type.replace(/_/g, " ")} />
-              <Text style={styles.prName} numberOfLines={1}>
-                {pr.exercise.name}
-              </Text>
-              <Text style={styles.prVal}>
-                {pr.type === "MAX_REPS" ? `${pr.value} reps` : `${pr.value.toFixed(1)} kg`}
-              </Text>
-            </View>
-          ))
-        )}
-      </View>
-
-      <SectionHeader title="History" />
-      {isLoading ? (
-        <ActivityIndicator color={colors.accent} />
-      ) : (
-        <FlatList
-          data={workouts ?? []}
-          keyExtractor={(item) => item.id}
-          scrollEnabled={false}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            <EmptyState icon="calendar-outline" title="No workouts yet" message="Your sessions will appear here." />
+    <Screen scroll padded={false}>
+      <View style={styles.pad}>
+        <HevyTopBar
+          title={username}
+          right={
+            <>
+              <HevyIconButton icon="create-outline" />
+              <HevyIconButton icon="share-outline" />
+              <HevyIconButton icon="settings-outline" onPress={handleSignOut} />
+            </>
           }
-          renderItem={({ item }) => (
-            <ListRow
-              title={item.name ?? "Workout"}
-              subtitle={`${item.exerciseCount} exercises · ${Math.round(item.volume)} kg · ${item.finishedAt ? new Date(item.finishedAt).toLocaleDateString() : ""}`}
-              icon="checkmark-done-outline"
-            />
-          )}
         />
-      )}
 
-      <Card>
-        <Text style={styles.settingsTitle}>ACCOUNT</Text>
-        <Button label="Sign Out" variant="danger" icon="log-out-outline" fullWidth onPress={handleSignOut} />
-      </Card>
+        <View style={styles.profileRow}>
+          <Avatar name={user?.name} size={80} />
+          <HevyStatsRow
+            items={[
+              { value: stats?.workoutCount ?? 0, label: "Workouts" },
+              { value: 0, label: "Followers" },
+              { value: 0, label: "Following" },
+            ]}
+          />
+        </View>
+
+        {!bannerDismissed && profilePct < 100 ? (
+          <HevyBanner
+            text={`Your profile is ${profilePct}% complete`}
+            onDismiss={() => setBannerDismissed(true)}
+          />
+        ) : null}
+
+        {chartLoading ? (
+          <CardSkeleton />
+        ) : chartData.length === 0 ? (
+          <View style={styles.noDataCard}>
+            <Ionicons name="bar-chart-outline" size={40} color={colors.textDim} />
+            <Text style={styles.noDataText}>No data yet</Text>
+          </View>
+        ) : (
+          <BarChart data={chartData} color={colors.accent} />
+        )}
+
+        <HevySegmentedControl
+          options={[
+            { key: "duration" as const, label: "Duration" },
+            { key: "volume" as const, label: "Volume" },
+            { key: "reps" as const, label: "Reps" },
+          ]}
+          value={chartMode}
+          onChange={setChartMode}
+        />
+
+        <Text style={styles.sectionLabel}>Dashboard</Text>
+        <HevyDashboardGrid
+          items={[
+            { icon: "stats-chart-outline", label: "Statistics", onPress: () => router.push("/(tabs)/progress") },
+            { icon: "barbell-outline", label: "Exercises", onPress: () => router.push("/(tabs)/exercises") },
+            { icon: "body-outline", label: "Measures", onPress: () => router.push("/measurements") },
+            { icon: "calendar-outline", label: "Meals", onPress: () => router.push("/(tabs)/nutrition") },
+          ]}
+        />
+
+        <SectionHeader title="Workouts" />
+        {isLoading ? (
+          <ActivityIndicator color={colors.accent} />
+        ) : (workouts ?? []).length === 0 ? (
+          <View style={styles.noDataCard}>
+            <Ionicons name="barbell-outline" size={36} color={colors.textDim} />
+            <Text style={styles.noDataText}>No workouts</Text>
+          </View>
+        ) : (
+          <ListGroup>
+            {workouts?.map((item, index) => (
+              <ListRow
+                key={item.id}
+                title={item.name ?? "Workout"}
+                subtitle={`${Math.round(item.volume)} kg · ${item.finishedAt ? new Date(item.finishedAt).toLocaleDateString() : ""}`}
+                last={index === (workouts?.length ?? 0) - 1}
+              />
+            ))}
+          </ListGroup>
+        )}
+
+        <Button label="Sign Out" variant="ghost" fullWidth onPress={handleSignOut} />
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", gap: spacing.lg, alignItems: "center" },
-  headerInfo: { flex: 1, gap: 4 },
-  email: { color: colors.textMuted, fontSize: 13 },
-  tierBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginTop: 4,
+  pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxxl },
+  profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.xl },
+  noDataCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingVertical: spacing.xxxl,
+    alignItems: "center",
+    gap: spacing.sm,
   },
-  tierText: { fontSize: 9, fontWeight: "800", color: colors.accentBright, letterSpacing: 1 },
-  statsRow: { flexDirection: "row", gap: spacing.sm },
-  prGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  prCard: {
-    width: "48%",
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.gold,
-    backgroundColor: colors.goldMuted,
-    padding: spacing.md,
-    gap: 8,
-  },
-  prName: { color: colors.text, fontWeight: "600", fontSize: 13 },
-  prVal: { color: colors.gold, fontWeight: "800", fontSize: 17 },
-  list: { gap: spacing.sm },
-  settingsTitle: { color: colors.textMuted, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  noDataText: { color: colors.textMuted, fontSize: 15 },
+  sectionLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "500", marginTop: spacing.sm },
 });

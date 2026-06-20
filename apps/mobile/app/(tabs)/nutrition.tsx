@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import {
   Chip,
   EmptyState,
   Header,
+  ListGroup,
   ListRow,
   ProgressBar,
   Screen,
   SearchBar,
   SectionHeader,
 } from "../../src/components/ui";
+import { ListSkeleton } from "../../src/components/skeleton";
 import { trpc } from "../../src/lib/trpc";
 import { colors, radius, spacing } from "../../src/lib/theme";
 
@@ -26,10 +28,13 @@ export default function NutritionScreen() {
   const utils = trpc.useUtils();
 
   const { data: summary, isLoading: summaryLoading } = trpc.nutrition.dailySummary.useQuery();
-  const { data: foods, isLoading } = trpc.nutrition.searchFoods.useQuery(
-    { query: search },
-    { enabled: search.length >= 2 },
-  );
+  const {
+    data: foods,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = trpc.nutrition.searchFoods.useQuery({ query: search }, { enabled: search.length >= 2 });
 
   const logMeal = trpc.nutrition.logMeal.useMutation({
     onSuccess: () => {
@@ -44,7 +49,7 @@ export default function NutritionScreen() {
       mealType,
       items: [
         {
-          fdcId: item.fdcId || undefined,
+          fdcId: item.fdcId > 0 ? item.fdcId : undefined,
           name: item.name,
           calories: item.calories,
           protein: item.protein,
@@ -58,16 +63,16 @@ export default function NutritionScreen() {
 
   return (
     <Screen scroll>
-      <Header eyebrow="NUTRITION" title="Meals" subtitle="USDA FoodData Central · Free" />
+      <Header title="Meals" subtitle="USDA FoodData Central" />
 
       {summaryLoading ? (
-        <ActivityIndicator color={colors.accent} />
+        <ListSkeleton rows={2} />
       ) : summary ? (
         <View style={styles.macroRow}>
-          <MacroCard label="CAL" value={summary.calories} target={summary.targets.calories} color={colors.accentBright} />
-          <MacroCard label="PROTEIN" value={summary.protein} target={summary.targets.protein} color={colors.successNeon} />
-          <MacroCard label="CARBS" value={summary.carbs} target={summary.targets.carbs} color={colors.accentNeon} />
-          <MacroCard label="FAT" value={summary.fat} target={summary.targets.fat} color={colors.gold} />
+          <MacroCard label="Cal" value={summary.calories} target={summary.targets.calories} color={colors.text} />
+          <MacroCard label="Protein" value={summary.protein} target={summary.targets.protein} color={colors.accent} />
+          <MacroCard label="Carbs" value={summary.carbs} target={summary.targets.carbs} color={colors.success} />
+          <MacroCard label="Fat" value={summary.fat} target={summary.targets.fat} color={colors.gold} />
         </View>
       ) : null}
 
@@ -83,39 +88,40 @@ export default function NutritionScreen() {
         ))}
       </View>
 
-      <SearchBar value={search} onChangeText={setSearch} placeholder="Search foods (USDA database)..." />
+      <SearchBar value={search} onChangeText={setSearch} placeholder="Search foods (e.g. chicken, rice, egg)" />
 
       {search.length < 2 ? (
         <EmptyState
           icon="nutrition-outline"
           title="Search to log food"
-          message="Type at least 2 characters. Tap a result to log 100g to your selected meal."
+          message="Type at least 2 characters. Results come from USDA + your saved foods."
         />
       ) : isLoading ? (
-        <ActivityIndicator color={colors.accent} />
+        <ListSkeleton rows={6} />
+      ) : isError ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorTitle}>Search failed</Text>
+          <Text style={styles.errorMsg}>{error.message}</Text>
+          <Text style={styles.errorHint} onPress={() => refetch()}>
+            Tap to retry
+          </Text>
+        </View>
+      ) : (foods ?? []).length === 0 ? (
+        <EmptyState icon="search-outline" title="No foods found" message="Try chicken, rice, banana, or egg." />
       ) : (
-        <FlatList
-          data={foods ?? []}
-          keyExtractor={(item) => `${item.source}-${item.fdcId}-${item.name}`}
-          scrollEnabled={false}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            <EmptyState icon="search-outline" title="No foods found" message="Try a different search term." />
-          }
-          renderItem={({ item }) => (
+        <ListGroup>
+          {foods?.map((item, index) => (
             <ListRow
+              key={`${item.source}-${item.fdcId}-${item.name}`}
               title={item.name}
-              subtitle={`${Math.round(item.calories)} cal · P${Math.round(item.protein)} C${Math.round(item.carbs)} F${Math.round(item.fat)} / 100g`}
+              subtitle={`${Math.round(item.calories)} cal · P${Math.round(item.protein)} C${Math.round(item.carbs)} F${Math.round(item.fat)} · ${item.source}`}
               icon="restaurant-outline"
               onPress={() => handleLogFood(item)}
-              right={
-                <View style={styles.addPill}>
-                  <Text style={styles.addLabel}>{logMeal.isPending ? "…" : "+100g"}</Text>
-                </View>
-              }
+              right={<Text style={styles.addLabel}>{logMeal.isPending ? "…" : "+100g"}</Text>}
+              last={index === (foods?.length ?? 0) - 1}
             />
-          )}
-        />
+          ))}
+        </ListGroup>
       )}
     </Screen>
   );
@@ -149,26 +155,24 @@ const styles = StyleSheet.create({
   macroCard: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radius.lg,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
     alignItems: "center",
     gap: 4,
   },
-  macroValue: { fontSize: 20, fontWeight: "800" },
-  macroLabel: { fontSize: 9, color: colors.textMuted, fontWeight: "700", letterSpacing: 0.5 },
+  macroValue: { fontSize: 18, fontWeight: "700" },
+  macroLabel: { fontSize: 11, color: colors.textMuted },
   macroTrackWrap: { width: "100%", marginTop: 2 },
   mealTypeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  list: { gap: spacing.sm, paddingTop: spacing.xs },
-  addPill: {
-    backgroundColor: colors.successMuted,
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: colors.success,
+  addLabel: { color: colors.accent, fontWeight: "600", fontSize: 14 },
+  errorBox: {
+    backgroundColor: colors.dangerMuted,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
   },
-  addLabel: { color: colors.successNeon, fontWeight: "700", fontSize: 12 },
+  errorTitle: { color: colors.danger, fontWeight: "700", fontSize: 16 },
+  errorMsg: { color: colors.text, fontSize: 14, lineHeight: 20 },
+  errorHint: { color: colors.accent, fontSize: 14, fontWeight: "600", marginTop: spacing.sm },
 });

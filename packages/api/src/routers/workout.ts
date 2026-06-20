@@ -9,6 +9,7 @@ const workoutSetInput = z.object({
   reps: z.number().int().optional(),
   duration: z.number().int().optional(),
   notes: z.string().optional(),
+  setType: z.enum(["NORMAL", "WARMUP", "DROP", "FAILURE"]).optional(),
   isCompleted: z.boolean().default(false),
 });
 
@@ -225,6 +226,7 @@ export const workoutRouter = router({
         reps: z.number().int().optional(),
         duration: z.number().int().optional(),
         notes: z.string().optional(),
+        setType: z.enum(["NORMAL", "WARMUP", "DROP", "FAILURE"]).optional(),
         isCompleted: z.boolean().optional(),
       }),
     )
@@ -249,6 +251,7 @@ export const workoutRouter = router({
           reps: input.reps,
           duration: input.duration,
           notes: input.notes,
+          setType: input.setType,
           isCompleted: input.isCompleted,
         },
       });

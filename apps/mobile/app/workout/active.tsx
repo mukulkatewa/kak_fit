@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,20 +12,40 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Button,
   Card,
+  HevyButton,
   Input,
   Screen,
   SearchBar,
   SectionHeader,
-  Title,
 } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
+import { formatRestTime, useRestTimer } from "../../src/lib/rest-timer";
 import { colors, radius, spacing } from "../../src/lib/theme";
+
+const SET_TYPES = ["NORMAL", "WARMUP", "DROP", "FAILURE"] as const;
+type SetType = (typeof SET_TYPES)[number];
+
+const SET_TYPE_LABEL: Record<SetType, string> = {
+  NORMAL: "",
+  WARMUP: "W",
+  DROP: "D",
+  FAILURE: "F",
+};
+
+const SET_TYPE_COLOR: Record<SetType, string> = {
+  NORMAL: colors.textMuted,
+  WARMUP: colors.gold,
+  DROP: colors.accentBright,
+  FAILURE: colors.danger,
+};
 
 export default function ActiveWorkoutScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const { data: workout, isLoading, refetch } = trpc.workout.active.useQuery();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -36,9 +56,30 @@ export default function ActiveWorkoutScreen() {
     { enabled: pickerOpen },
   );
 
+  const { secondsLeft, isRunning, start, tick, stop } = useRestTimer();
+
+  useEffect(() => {
+    if (!isRunning) return;
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [isRunning, tick]);
+
   const updateSet = trpc.workout.updateSet.useMutation({ onSuccess: () => refetch() });
   const addSet = trpc.workout.addSet.useMutation({ onSuccess: () => refetch() });
   const deleteSet = trpc.workout.deleteSet.useMutation({ onSuccess: () => refetch() });
+
+  const handleSetUpdate = (
+    setId: string,
+    data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType },
+  ) => {
+    if (data.isCompleted === true) start();
+    updateSet.mutate({ setId, ...data });
+  };
+
+  const cycleSetType = (current: SetType): SetType => {
+    const idx = SET_TYPES.indexOf(current);
+    return SET_TYPES[(idx + 1) % SET_TYPES.length]!;
+  };
   const addExercise = trpc.workout.addExercise.useMutation({
     onSuccess: () => {
       setPickerOpen(false);
@@ -52,6 +93,8 @@ export default function ActiveWorkoutScreen() {
       utils.workout.active.invalidate();
       utils.workout.history.invalidate();
       utils.personalRecord.list.invalidate();
+      utils.progress.dashboard.invalidate();
+      utils.progress.volumeHistory.invalidate();
       utils.auth.stats.invalidate();
       const prCount = result.newRecords.length;
       Alert.alert(
@@ -94,17 +137,21 @@ export default function ActiveWorkoutScreen() {
     <Screen>
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={20} color={colors.accentNeon} />
-          <Text style={styles.back}>Back</Text>
+          <Ionicons name="chevron-back" size={22} color={colors.accent} />
         </Pressable>
-        <View style={styles.volumePill}>
-          <Text style={styles.volumeLabel}>VOLUME</Text>
-          <Text style={styles.volume}>{Math.round(volume)} kg</Text>
-        </View>
+        <Text style={styles.volume}>{Math.round(volume)} kg</Text>
       </View>
 
-      <Title>{workout.name ?? "Workout"}</Title>
-      <Text style={styles.meta}>{workout.exercises.length} exercises · tap ✓ to log sets</Text>
+      <Text style={styles.workoutTitle}>{workout.name ?? "Workout"}</Text>
+      <Text style={styles.meta}>{workout.exercises.length} exercises</Text>
+
+      {isRunning ? (
+        <Pressable style={styles.restBar} onPress={stop}>
+          <Text style={styles.restLabel}>Rest</Text>
+          <Text style={styles.restTime}>{formatRestTime(secondsLeft)}</Text>
+          <Text style={styles.restHint}>Tap to skip</Text>
+        </Pressable>
+      ) : null}
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {workout.exercises.map((exercise) => (
@@ -112,14 +159,17 @@ export default function ActiveWorkoutScreen() {
             key={exercise.id}
             name={exercise.exercise.name}
             sets={exercise.sets}
-            onUpdateSet={(setId, data) => updateSet.mutate({ setId, ...data })}
+            onUpdateSet={handleSetUpdate}
+            onCycleSetType={(setId, setType) =>
+              handleSetUpdate(setId, { setType: cycleSetType(setType) })
+            }
             onAddSet={() => addSet.mutate({ workoutExerciseId: exercise.id })}
             onDeleteSet={(setId) => deleteSet.mutate({ setId })}
           />
         ))}
 
         {pickerOpen ? (
-          <Card glow>
+          <Card>
             <SectionHeader title="Add Exercise" />
             <SearchBar placeholder="Search exercise" value={search} onChangeText={setSearch} />
             <FlatList
@@ -139,7 +189,7 @@ export default function ActiveWorkoutScreen() {
                   }
                 >
                   <Text style={styles.pickerText}>{item.name}</Text>
-                  <Ionicons name="add-circle" size={20} color={colors.successNeon} />
+                  <Ionicons name="add-circle" size={22} color={colors.accent} />
                 </Pressable>
               )}
             />
@@ -150,17 +200,15 @@ export default function ActiveWorkoutScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.footer}>
-        <Button
+      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
+        <HevyButton
           label="Finish Workout"
-          icon="checkmark-circle"
-          fullWidth
           onPress={() => finish.mutate({ workoutId: workout.id })}
           loading={finish.isPending}
         />
         <Button
           label="Discard"
-          variant="danger"
+          variant="ghost"
           fullWidth
           onPress={() =>
             Alert.alert("Discard workout?", "This cannot be undone.", [
@@ -178,6 +226,7 @@ function ExerciseBlock({
   name,
   sets,
   onUpdateSet,
+  onCycleSetType,
   onAddSet,
   onDeleteSet,
 }: {
@@ -187,12 +236,14 @@ function ExerciseBlock({
     setNumber: number;
     weight: number | null;
     reps: number | null;
+    setType: SetType;
     isCompleted: boolean;
   }>;
   onUpdateSet: (
     setId: string,
-    data: { weight?: number; reps?: number; isCompleted?: boolean },
+    data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType },
   ) => void;
+  onCycleSetType: (setId: string, setType: SetType) => void;
   onAddSet: () => void;
   onDeleteSet: (setId: string) => void;
 }) {
@@ -206,10 +257,16 @@ function ExerciseBlock({
         <Text style={[styles.setCol, styles.setColNarrow]}>✓</Text>
       </View>
       {sets.map((set) => (
-        <SetRow key={set.id} set={set} onUpdateSet={onUpdateSet} onDeleteSet={onDeleteSet} />
+        <SetRow
+          key={set.id}
+          set={set}
+          onUpdateSet={onUpdateSet}
+          onCycleSetType={onCycleSetType}
+          onDeleteSet={onDeleteSet}
+        />
       ))}
       <Pressable onPress={onAddSet} style={styles.addSetBtn}>
-        <Ionicons name="add" size={16} color={colors.accentNeon} />
+        <Ionicons name="add" size={16} color={colors.accent} />
         <Text style={styles.addSet}>Add Set</Text>
       </Pressable>
     </Card>
@@ -219,6 +276,7 @@ function ExerciseBlock({
 function SetRow({
   set,
   onUpdateSet,
+  onCycleSetType,
   onDeleteSet,
 }: {
   set: {
@@ -226,16 +284,19 @@ function SetRow({
     setNumber: number;
     weight: number | null;
     reps: number | null;
+    setType: SetType;
     isCompleted: boolean;
   };
   onUpdateSet: (
     setId: string,
-    data: { weight?: number; reps?: number; isCompleted?: boolean },
+    data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType },
   ) => void;
+  onCycleSetType: (setId: string, setType: SetType) => void;
   onDeleteSet: (setId: string) => void;
 }) {
   const [weight, setWeight] = useState(set.weight?.toString() ?? "");
   const [reps, setReps] = useState(set.reps?.toString() ?? "");
+  const typeLabel = SET_TYPE_LABEL[set.setType] || String(set.setNumber);
 
   const commit = () => {
     onUpdateSet(set.id, {
@@ -246,7 +307,9 @@ function SetRow({
 
   return (
     <View style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
-      <Text style={styles.setNumber}>{set.setNumber}</Text>
+      <Pressable onPress={() => onCycleSetType(set.id, set.setType)} style={styles.setTypeBtn}>
+        <Text style={[styles.setNumber, { color: SET_TYPE_COLOR[set.setType] }]}>{typeLabel}</Text>
+      </Pressable>
       <TextInput
         style={[styles.setInput, set.isCompleted && styles.setInputDone]}
         value={weight}
@@ -270,7 +333,7 @@ function SetRow({
         onPress={() => onUpdateSet(set.id, { isCompleted: !set.isCompleted })}
       >
         {set.isCompleted ? (
-          <Ionicons name="checkmark" size={18} color={colors.successNeon} />
+          <Ionicons name="checkmark" size={18} color={colors.accent} />
         ) : null}
       </Pressable>
       <Pressable onPress={() => onDeleteSet(set.id)} hitSlop={8}>
@@ -282,74 +345,69 @@ function SetRow({
 
 const styles = StyleSheet.create({
   topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  backBtn: { flexDirection: "row", alignItems: "center", gap: 2 },
-  back: { color: colors.accentNeon, fontSize: 16, fontWeight: "600" },
-  volumePill: {
+  backBtn: { padding: 4 },
+  volume: { color: colors.textMuted, fontSize: 15, fontWeight: "600" },
+  workoutTitle: { fontSize: 28, fontWeight: "700", color: colors.text },
+  meta: { color: colors.textMuted, fontSize: 15, marginTop: -4 },
+  restBar: {
     backgroundColor: colors.accentMuted,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    alignItems: "flex-end",
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.sm,
   },
-  volumeLabel: { fontSize: 9, fontWeight: "800", color: colors.accentNeon, letterSpacing: 1 },
-  volume: { color: colors.text, fontSize: 15, fontWeight: "800" },
-  meta: { color: colors.textMuted, fontSize: 13, marginTop: -8 },
+  restLabel: { color: colors.accent, fontWeight: "600", fontSize: 15 },
+  restTime: { flex: 1, color: colors.text, fontWeight: "700", fontSize: 28, textAlign: "center" },
+  restHint: { color: colors.textDim, fontSize: 12 },
   scroll: { flex: 1 },
   scrollContent: { gap: spacing.md, paddingBottom: spacing.xl },
-  exerciseName: { color: colors.text, fontSize: 18, fontWeight: "700" },
-  setHeader: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: 4 },
-  setCol: { flex: 1, color: colors.textDim, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
-  setColNarrow: { flex: 0, width: 36, textAlign: "center" },
+  exerciseName: { color: colors.text, fontSize: 17, fontWeight: "600" },
+  setHeader: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: 4, marginTop: spacing.sm },
+  setCol: { flex: 1, color: colors.textDim, fontSize: 12, fontWeight: "500", textAlign: "center" },
+  setColNarrow: { flex: 0, width: 36 },
   setRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  setRowDone: { opacity: 0.85 },
-  setNumber: { width: 28, color: colors.textMuted, fontSize: 14, fontWeight: "700", textAlign: "center" },
+  setRowDone: { opacity: 0.7 },
+  setNumber: { fontSize: 15, fontWeight: "700", textAlign: "center" },
+  setTypeBtn: { width: 28, alignItems: "center" },
   setInput: {
     flex: 1,
-    backgroundColor: colors.bgElevated,
+    backgroundColor: colors.surfaceHover,
     borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
     color: colors.text,
     paddingVertical: 10,
     paddingHorizontal: 10,
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "500",
     textAlign: "center",
   },
   setInputDone: {
-    borderColor: colors.success,
-    backgroundColor: colors.successMuted,
+    backgroundColor: colors.accentMuted,
   },
   check: {
     width: 40,
     height: 40,
     borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.bgElevated,
+    backgroundColor: colors.surfaceHover,
   },
   checkDone: {
-    backgroundColor: colors.successMuted,
-    borderColor: colors.successNeon,
+    backgroundColor: colors.accentMuted,
   },
-  addSetBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
-  addSet: { color: colors.accentNeon, fontSize: 14, fontWeight: "700" },
+  addSetBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm },
+  addSet: { color: colors.accent, fontSize: 15, fontWeight: "600" },
   pickerList: { maxHeight: 220 },
   pickerItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     padding: spacing.md,
-    backgroundColor: colors.bgElevated,
+    backgroundColor: colors.surfaceHover,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: 6,
   },
-  pickerText: { color: colors.text, fontSize: 15, fontWeight: "600", flex: 1 },
+  pickerText: { color: colors.text, fontSize: 15, fontWeight: "500", flex: 1 },
   footer: { gap: spacing.sm, paddingTop: spacing.sm },
 });

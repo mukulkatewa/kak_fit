@@ -1,41 +1,34 @@
 import { Platform, type ViewStyle } from "react-native";
 
+/** Hevy-inspired palette — pure dark, iOS blue accent, flat surfaces */
 export const colors = {
-  // Backgrounds — clean near-black, Hevy-style
-  bg: "#0a0a0c",
-  bgElevated: "#101014",
-  surface: "#16161b",
-  surfaceHover: "#1f1f26",
-  surfaceActive: "#26262f",
-  // Borders
-  border: "#26262e",
-  borderSubtle: "#1c1c22",
-  // Text
-  text: "#fafafa",
-  textMuted: "#9b9ba6",
-  textDim: "#5f5f6b",
-  // Accent — electric blue
-  accent: "#3b82f6",
-  accentBright: "#60a5fa",
-  accentMuted: "rgba(59, 130, 246, 0.14)",
-  accentNeon: "#38bdf8",
-  // Success — neon green
-  success: "#22c55e",
-  successNeon: "#4ade80",
-  successMuted: "rgba(34, 197, 94, 0.13)",
-  // PR gold
-  gold: "#fbbf24",
-  goldBright: "#fcd34d",
-  goldMuted: "rgba(251, 191, 36, 0.14)",
-  // Danger
-  danger: "#f43f5e",
-  dangerMuted: "rgba(244, 63, 94, 0.13)",
-  // Glass
-  glass: "rgba(22, 22, 27, 0.7)",
-  // Legacy aliases (kept for back-compat)
-  primary: "#3b82f6",
-  primaryMuted: "rgba(59, 130, 246, 0.14)",
-  surfaceLight: "#26262e",
+  bg: "#000000",
+  bgElevated: "#1c1c1e",
+  surface: "#1c1c1e",
+  surfaceHover: "#2c2c2e",
+  surfaceActive: "#3a3a3c",
+  border: "#38383a",
+  borderSubtle: "#2c2c2e",
+  separator: "#38383a",
+  text: "#ffffff",
+  textMuted: "#8e8e93",
+  textDim: "#636366",
+  accent: "#0a84ff",
+  accentBright: "#409cff",
+  accentMuted: "rgba(10, 132, 255, 0.15)",
+  accentNeon: "#0a84ff",
+  success: "#30d158",
+  successNeon: "#30d158",
+  successMuted: "rgba(48, 209, 88, 0.12)",
+  gold: "#ffd60a",
+  goldBright: "#ffd60a",
+  goldMuted: "rgba(255, 214, 10, 0.12)",
+  danger: "#ff453a",
+  dangerMuted: "rgba(255, 69, 58, 0.12)",
+  glass: "rgba(28, 28, 30, 0.95)",
+  primary: "#0a84ff",
+  primaryMuted: "rgba(10, 132, 255, 0.15)",
+  surfaceLight: "#2c2c2e",
 };
 
 export const spacing = {
@@ -43,50 +36,31 @@ export const spacing = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 24,
-  xxl: 32,
-  xxxl: 48,
+  xl: 20,
+  xxl: 28,
+  xxxl: 40,
 };
 
 export const radius = {
-  sm: 10,
-  md: 14,
-  lg: 18,
-  xl: 24,
+  sm: 8,
+  md: 10,
+  lg: 12,
+  xl: 16,
   full: 999,
 };
 
 export const typography = {
-  display: { fontSize: 30, fontWeight: "800" as const, letterSpacing: -0.6 },
-  h1: { fontSize: 22, fontWeight: "800" as const, letterSpacing: -0.3 },
-  h2: { fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.2 },
-  body: { fontSize: 15, fontWeight: "500" as const },
-  caption: { fontSize: 12, fontWeight: "600" as const },
-  label: { fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.8 },
-  mono: { fontSize: 13, fontWeight: "700" as const, fontVariant: ["tabular-nums"] as const },
+  display: { fontSize: 34, fontWeight: "700" as const, letterSpacing: 0.37 },
+  h1: { fontSize: 22, fontWeight: "600" as const, letterSpacing: -0.2 },
+  h2: { fontSize: 17, fontWeight: "600" as const },
+  body: { fontSize: 15, fontWeight: "400" as const },
+  caption: { fontSize: 13, fontWeight: "400" as const },
+  label: { fontSize: 11, fontWeight: "500" as const, letterSpacing: 0 },
+  mono: { fontSize: 15, fontWeight: "600" as const, fontVariant: ["tabular-nums"] as const },
 };
 
-function nativeShadow(color: string, opacity: number, radius: number, height = 4): ViewStyle {
-  return {
-    shadowColor: color,
-    shadowOffset: { width: 0, height },
-    shadowOpacity: opacity,
-    shadowRadius: radius,
-    elevation: 6,
-  };
-}
-
 export const shadows = {
-  card: Platform.select<ViewStyle>({
-    web: { boxShadow: "0 6px 20px rgba(0,0,0,0.35)" },
-    default: nativeShadow("#000", 0.35, 16, 6),
-  })!,
-  glow: Platform.select<ViewStyle>({
-    web: { boxShadow: "0 0 24px rgba(59,130,246,0.35)" },
-    default: nativeShadow("#3b82f6", 0.35, 20, 0),
-  })!,
-  goldGlow: Platform.select<ViewStyle>({
-    web: { boxShadow: "0 0 24px rgba(251,191,36,0.3)" },
-    default: nativeShadow("#fbbf24", 0.3, 20, 0),
-  })!,
+  card: Platform.select<ViewStyle>({ web: {}, default: {} })!,
+  glow: Platform.select<ViewStyle>({ web: {}, default: {} })!,
+  goldGlow: Platform.select<ViewStyle>({ web: {}, default: {} })!,
 };

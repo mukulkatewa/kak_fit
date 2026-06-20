@@ -1,32 +1,83 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { fetchExternal } from "../fetch-external";
 import { protectedProcedure, router } from "../trpc";
 
 const USDA_BASE = "https://api.nal.usda.gov/fdc/v1";
+
+/** USDA nutrient IDs (FoodData Central) */
+const NUTRIENT_IDS = {
+  calories: 1008,
+  protein: 1003,
+  carbs: 1005,
+  fat: 1004,
+  fiber: 1079,
+} as const;
+
+type UsdaNutrient = {
+  nutrientId?: number;
+  nutrientName?: string;
+  value?: number;
+  unitName?: string;
+};
 
 type UsdaFood = {
   fdcId: number;
   description: string;
   brandOwner?: string;
-  foodNutrients: Array<{
-    nutrientId: number;
-    nutrientName: string;
-    value: number;
-    unitName: string;
-  }>;
+  brandName?: string;
+  foodNutrients?: UsdaNutrient[];
 };
 
+function getApiKey() {
+  return process.env.USDA_API_KEY?.trim() || null;
+}
+
 function extractNutrients(food: UsdaFood) {
-  const find = (id: number) =>
-    food.foodNutrients.find((n) => n.nutrientId === id)?.value ?? 0;
+  const nutrients = food.foodNutrients ?? [];
+
+  const byId = (id: number) =>
+    nutrients.find((n) => n.nutrientId === id)?.value ?? 0;
+
+  const byName = (fragment: string) =>
+    nutrients.find((n) => n.nutrientName?.toLowerCase().includes(fragment))?.value ?? 0;
 
   return {
-    calories: find(1008),
-    protein: find(1003),
-    carbs: find(1005),
-    fat: find(1004),
-    fiber: find(1079),
+    calories: byId(NUTRIENT_IDS.calories) || byName("energy"),
+    protein: byId(NUTRIENT_IDS.protein) || byName("protein"),
+    carbs: byId(NUTRIENT_IDS.carbs) || byName("carbohydrate"),
+    fat: byId(NUTRIENT_IDS.fat) || byName("lipid") || byName("fat"),
+    fiber: byId(NUTRIENT_IDS.fiber) || byName("fiber"),
   };
+}
+
+async function fetchUsdaFoodDetail(fdcId: number, apiKey: string): Promise<UsdaFood | null> {
+  const url = `${USDA_BASE}/food/${fdcId}?api_key=${apiKey}`;
+  const response = await fetchExternal(url);
+  if (!response.ok) return null;
+  return response.json<UsdaFood>();
+}
+
+async function searchUsda(query: string, apiKey: string): Promise<UsdaFood[]> {
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    query,
+    pageSize: "20",
+    dataType: "Foundation,SR Legacy,Survey (FNDDS),Branded",
+  });
+
+  const response = await fetchExternal(`${USDA_BASE}/foods/search?${params}`);
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new TRPCError({
+      code: "BAD_GATEWAY",
+      message: `USDA API error (${response.status}). ${body.slice(0, 120)}`,
+    });
+  }
+
+  const data = await response.json<{ foods?: UsdaFood[] }>();
+  return data.foods ?? [];
 }
 
 const DEFAULT_TARGETS = {
@@ -36,7 +87,7 @@ const DEFAULT_TARGETS = {
   fat: 80,
 };
 
-type FoodSearchResult = {
+export type FoodSearchResult = {
   fdcId: number;
   name: string;
   brand: string | null;
@@ -47,17 +98,15 @@ type FoodSearchResult = {
   source: "local" | "usda";
 };
 
-function toSearchResult(
-  f: {
-    usdaFdcId: number | null;
-    name: string;
-    brand: string | null;
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-  },
-): FoodSearchResult {
+function toLocalResult(f: {
+  usdaFdcId: number | null;
+  name: string;
+  brand: string | null;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}): FoodSearchResult {
   return {
     fdcId: f.usdaFdcId ?? 0,
     name: f.name,
@@ -67,6 +116,19 @@ function toSearchResult(
     carbs: f.carbs,
     fat: f.fat,
     source: "local",
+  };
+}
+
+function toUsdaResult(food: UsdaFood, nutrients: ReturnType<typeof extractNutrients>): FoodSearchResult {
+  return {
+    fdcId: food.fdcId,
+    name: food.description,
+    brand: food.brandOwner ?? food.brandName ?? null,
+    calories: nutrients.calories,
+    protein: nutrients.protein,
+    carbs: nutrients.carbs,
+    fat: nutrients.fat,
+    source: "usda",
   };
 }
 
@@ -108,49 +170,63 @@ export const nutritionRouter = router({
   searchFoods: protectedProcedure
     .input(z.object({ query: z.string().min(2).max(100) }))
     .query(async ({ ctx, input }) => {
-      const apiKey = process.env.USDA_API_KEY;
+      const query = input.query.trim();
+      const apiKey = getApiKey();
 
       const local = await ctx.prisma.food.findMany({
         where: {
-          name: { contains: input.query, mode: "insensitive" },
+          name: { contains: query, mode: "insensitive" },
           OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
         },
-        take: 10,
+        take: 8,
+        orderBy: { name: "asc" },
       });
 
-      if (local.length >= 5) {
-        return local.map(toSearchResult);
-      }
+      const localResults = local.map(toLocalResult);
+      const seen = new Set(localResults.map((r) => r.name.toLowerCase()));
 
       if (!apiKey) {
-        return local.map(toSearchResult);
+        if (localResults.length === 0) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "USDA_API_KEY is missing on the server. Add it to .env and restart the API.",
+          });
+        }
+        return localResults;
       }
 
-      const url = `${USDA_BASE}/foods/search?api_key=${apiKey}&query=${encodeURIComponent(input.query)}&pageSize=15&dataType=Foundation,SR%20Legacy`;
-      const response = await fetch(url);
-
-      if (!response.ok) {
+      let usdaFoods: UsdaFood[];
+      try {
+        usdaFoods = await searchUsda(query, apiKey);
+      } catch (err) {
+        if (localResults.length > 0) return localResults;
+        const msg = err instanceof Error ? err.message : "USDA search failed";
         throw new TRPCError({
           code: "BAD_GATEWAY",
-          message: "USDA API unavailable. Add USDA_API_KEY to .env",
+          message: `Could not reach USDA API. ${msg}`,
         });
       }
 
-      const data = (await response.json()) as { foods: UsdaFood[] };
+      const merged: FoodSearchResult[] = [...localResults];
 
-      return (data.foods ?? []).slice(0, 15).map((food) => {
-        const nutrients = extractNutrients(food);
-        return {
-          fdcId: food.fdcId,
-          name: food.description,
-          brand: food.brandOwner ?? null,
-          calories: nutrients.calories,
-          protein: nutrients.protein,
-          carbs: nutrients.carbs,
-          fat: nutrients.fat,
-          source: "usda" as const,
-        };
-      });
+      for (const food of usdaFoods) {
+        if (merged.length >= 20) break;
+        const key = food.description.toLowerCase();
+        if (seen.has(key)) continue;
+
+        let nutrients = extractNutrients(food);
+
+        // Search results sometimes omit macros — fetch full food record
+        if (nutrients.calories === 0 && nutrients.protein === 0) {
+          const detail = await fetchUsdaFoodDetail(food.fdcId, apiKey);
+          if (detail) nutrients = extractNutrients(detail);
+        }
+
+        merged.push(toUsdaResult(food, nutrients));
+        seen.add(key);
+      }
+
+      return merged;
     }),
 
   logMeal: protectedProcedure
@@ -178,27 +254,27 @@ export const nutritionRouter = router({
           items: {
             create: await Promise.all(
               input.items.map(async (item) => {
-                let food = item.fdcId
-                  ? await ctx.prisma.food.findUnique({ where: { usdaFdcId: item.fdcId } })
-                  : null;
+                let food =
+                  item.fdcId && item.fdcId > 0
+                    ? await ctx.prisma.food.findUnique({ where: { usdaFdcId: item.fdcId } })
+                    : null;
 
                 if (!food) {
                   food = await ctx.prisma.food.create({
                     data: {
-                      usdaFdcId: item.fdcId,
+                      usdaFdcId: item.fdcId && item.fdcId > 0 ? item.fdcId : null,
                       name: item.name,
                       calories: item.calories,
                       protein: item.protein,
                       carbs: item.carbs,
                       fat: item.fat,
+                      isCustom: !item.fdcId,
+                      userId: item.fdcId ? null : ctx.user.id,
                     },
                   });
                 }
 
-                return {
-                  foodId: food.id,
-                  quantity: item.quantity,
-                };
+                return { foodId: food.id, quantity: item.quantity };
               }),
             ),
           },
@@ -208,4 +284,15 @@ export const nutritionRouter = router({
 
       return meal;
     }),
+
+  todayMeals: protectedProcedure.query(async ({ ctx }) => {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    return ctx.prisma.mealLog.findMany({
+      where: { userId: ctx.user.id, date: { gte: startOfDay } },
+      include: { items: { include: { food: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+  }),
 });

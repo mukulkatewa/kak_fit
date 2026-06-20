@@ -1,15 +1,10 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import { apiHeaders, getApiUrl } from "./api-client";
 
 const TOKEN_KEY = "kak_fit_token";
 
-const API_URL =
-  Platform.OS === "web"
-    ? (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000").replace(
-        /\/\/[\d.]+:/,
-        "//localhost:",
-      )
-    : (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000");
+const API_URL = getApiUrl();
 
 export type AuthUser = {
   id: string;
@@ -55,7 +50,7 @@ export async function clearToken(): Promise<void> {
 async function authRequest(path: string, body: Record<string, string>) {
   const response = await fetch(`${API_URL}/api/auth${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
 
@@ -75,10 +70,8 @@ async function authRequest(path: string, body: Record<string, string>) {
     throw new Error("No session token returned");
   }
 
-  // Store token id (DB key) — Better Auth sends id.signature in header
-  const token = tokenRaw.includes(".") ? tokenRaw.split(".")[0] : tokenRaw;
-  await setToken(token);
-  return { token, user: data.user as AuthUser };
+  await setToken(tokenRaw);
+  return { token: tokenRaw, user: data.user as AuthUser };
 }
 
 export async function signUp(name: string, email: string, password: string) {
@@ -94,7 +87,7 @@ export async function signOut() {
   if (token) {
     await fetch(`${API_URL}/api/auth/sign-out`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: apiHeaders({ Authorization: `Bearer ${token}` }),
     }).catch(() => undefined);
   }
   await clearToken();

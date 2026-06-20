@@ -495,22 +495,23 @@ No Clerk, no paid analytics, no paid email — use Resend free tier or self-host
 
 ---
 
-### Phase 2 — Premium UI + Progress + Nutrition (Weeks 7–11)
+### Phase 2 — Premium UI + Progress + Nutrition (In Progress)
 
 **Goal:** Premium Hevy-level UI, progress charts, USDA meal tracking.
 
-| Task | Details |
-|------|---------|
-| Design system | Dark mode, electric blue + neon green, gold PRs (see `docs/DESIGN_SYSTEM.md`) |
-| Dashboard redesign | Fitness score, streak, XP, muscle heatmap placeholder |
-| Analytics tab | Weight/volume charts per exercise |
-| PR history screen | Gold badges, dates, workout links |
-| Body measurements | Weight, waist, chest, arms, body fat % |
-| **Nutrition / Meal Builder** | USDA FoodData Central search + log meals |
-| Food cache | Import common foods locally to reduce API calls |
-| Daily macros summary | Calories, protein, carbs, fat rings |
-| Rest timer | Per-exercise auto timer |
-| Set types | Warm-up, drop, failure |
+| Task | Status |
+|------|--------|
+| Hevy-style dark UI | ✅ |
+| Progress tab (volume, muscle distribution, PRs) | ✅ |
+| Exercise detail + weight chart | ✅ |
+| Body measurements (log + weight trend) | ✅ |
+| Dashboard streak + macros strip | ✅ |
+| Rest timer on set complete | ✅ |
+| Set types (warm-up, drop, failure) | ✅ |
+| Nutrition / USDA meal logging | ✅ |
+| Food cache (local DB on log) | ✅ |
+| Muscle heatmap visual | 🔲 Placeholder (bar chart) |
+| Reanimated animations | 🔲 Phase 2+ |
 
 **Exit criteria:** Log a meal + workout in same day; see macros and training stats on dashboard.
 

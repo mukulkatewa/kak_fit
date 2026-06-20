@@ -1,14 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Platform } from "react-native";
 import * as authLib from "./auth";
+import { apiHeaders, getApiUrl } from "./api-client";
 
-const API_URL =
-  Platform.OS === "web"
-    ? (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000").replace(
-        /\/\/[\d.]+:/,
-        "//localhost:",
-      )
-    : (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000");
+const API_URL = getApiUrl();
 
 type AuthContextValue = {
   isAuthenticated: boolean;
@@ -23,12 +17,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function validateToken(token: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/api/auth/get-session`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const input = encodeURIComponent(JSON.stringify({ "0": { json: null } }));
+    const response = await fetch(`${API_URL}/api/trpc/auth.me?batch=1&input=${input}`, {
+      headers: apiHeaders({ Authorization: `Bearer ${token}` }),
     });
     if (!response.ok) return false;
-    const data = (await response.json()) as { session?: unknown };
-    return !!data.session;
+    const data = (await response.json()) as Array<{ result?: { data?: { json?: { id?: string } } } }>;
+    return Boolean(data[0]?.result?.data?.json?.id);
   } catch {
     return false;
   }

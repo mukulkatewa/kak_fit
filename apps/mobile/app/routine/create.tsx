@@ -1,24 +1,35 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Button, Header, Input, Screen, SearchBar } from "../../src/components/ui";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Button, SearchBar } from "../../src/components/ui";
+import { HevyInfoStrip, HevyModalHeader, HevyUnderlineInput } from "../../src/components/hevy-ui";
 import { trpc } from "../../src/lib/trpc";
 import { colors, radius, spacing } from "../../src/lib/theme";
 
 export default function CreateRoutineScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const [name, setName] = useState("");
-  const [selected, setSelected] = useState<
-    Array<{ exerciseId: string; name: string; sets: number }>
-  >([]);
+  const [showTip, setShowTip] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Array<{ exerciseId: string; name: string }>>([]);
 
-  const { data: exercises, isLoading } = trpc.exercise.list.useQuery({
-    search: search || undefined,
-    limit: 40,
-  });
+  const { data: exercises, isLoading } = trpc.exercise.list.useQuery(
+    { search: search || undefined, limit: 40 },
+    { enabled: pickerOpen },
+  );
 
   const create = trpc.routine.create.useMutation({
     onSuccess: () => {
@@ -28,124 +39,150 @@ export default function CreateRoutineScreen() {
     onError: (e) => Alert.alert("Error", e.message),
   });
 
-  const toggleExercise = (exerciseId: string, exerciseName: string) => {
-    setSelected((prev) => {
-      const exists = prev.find((e) => e.exerciseId === exerciseId);
-      if (exists) return prev.filter((e) => e.exerciseId !== exerciseId);
-      return [...prev, { exerciseId, name: exerciseName, sets: 3 }];
-    });
-  };
+  const canSave = name.trim().length > 0 && selected.length > 0;
 
   const save = () => {
-    if (!name.trim() || selected.length === 0) {
-      Alert.alert("Missing info", "Add a name and at least one exercise.");
-      return;
-    }
+    if (!canSave) return;
     create.mutate({
       name: name.trim(),
       exercises: selected.map((item, index) => ({
         exerciseId: item.exerciseId,
         order: index,
-        sets: Array.from({ length: item.sets }, (_, i) => ({
-          setNumber: i + 1,
-          targetReps: 10,
-        })),
+        sets: Array.from({ length: 3 }, (_, i) => ({ setNumber: i + 1, targetReps: 10 })),
       })),
     });
   };
 
+  const addExercise = (exerciseId: string, exerciseName: string) => {
+    if (selected.some((s) => s.exerciseId === exerciseId)) return;
+    setSelected((prev) => [...prev, { exerciseId, name: exerciseName }]);
+    setPickerOpen(false);
+    setSearch("");
+  };
+
   return (
-    <Screen>
-      <Header
-        eyebrow="NEW ROUTINE"
-        title="Build Template"
-        action={
-          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.closeBtn}>
-            <Ionicons name="close" size={22} color={colors.textMuted} />
-          </Pressable>
-        }
-      />
-
-      <Input placeholder="Routine name (e.g. Push Day)" value={name} onChangeText={setName} />
-      <SearchBar value={search} onChangeText={setSearch} placeholder="Search exercises to add..." />
-
-      <View style={styles.selectedBar}>
-        <Text style={styles.selectedLabel}>
-          {selected.length} exercise{selected.length === 1 ? "" : "s"} selected
-        </Text>
-      </View>
-
-      {isLoading ? (
-        <ActivityIndicator color={colors.accent} />
-      ) : (
-        <FlatList
-          data={exercises ?? []}
-          keyExtractor={(item) => item.id}
-          style={styles.list}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => {
-            const active = selected.some((s) => s.exerciseId === item.id);
-            return (
-              <Pressable
-                style={[styles.row, active && styles.rowActive]}
-                onPress={() => toggleExercise(item.id, item.name)}
-              >
-                <Text style={[styles.rowText, active && styles.rowTextActive]} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <View style={[styles.checkbox, active && styles.checkboxActive]}>
-                  {active ? <Ionicons name="checkmark" size={16} color="#fff" /> : null}
-                </View>
-              </Pressable>
-            );
-          }}
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <View style={styles.headerPad}>
+        <HevyModalHeader
+          title="Create Routine"
+          onCancel={() => router.back()}
+          onSave={save}
+          saveDisabled={!canSave}
+          saveLoading={create.isPending}
         />
-      )}
-
-      <View style={styles.footer}>
-        <Button label="Save Routine" icon="checkmark" fullWidth onPress={save} loading={create.isPending} />
       </View>
-    </Screen>
+
+      {showTip ? (
+        <HevyInfoStrip
+          text="You're creating a Routine. Add exercises, then tap Save."
+          onDismiss={() => setShowTip(false)}
+        />
+      ) : null}
+
+      <View style={styles.body}>
+        <HevyUnderlineInput placeholder="Routine title" value={name} onChangeText={setName} />
+
+        {selected.length > 0 ? (
+          <View style={styles.selectedList}>
+            {selected.map((ex, i) => (
+              <View key={ex.exerciseId} style={styles.selectedRow}>
+                <Text style={styles.selectedName}>{ex.name}</Text>
+                <Pressable
+                  onPress={() => setSelected((prev) => prev.filter((_, idx) => idx !== i))}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close-circle" size={20} color={colors.textDim} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.empty}>
+            <Ionicons name="barbell-outline" size={48} color={colors.textDim} />
+            <Text style={styles.emptyText}>Get started by adding an exercise to your routine.</Text>
+            <Pressable style={styles.addBtn} onPress={() => setPickerOpen(true)}>
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.addBtnText}>Add exercise</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {selected.length > 0 ? (
+          <Button label="Add exercise" icon="add" variant="secondary" fullWidth onPress={() => setPickerOpen(true)} />
+        ) : null}
+      </View>
+
+      {pickerOpen ? (
+        <View style={[styles.picker, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom }]}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Add exercise</Text>
+            <Pressable onPress={() => setPickerOpen(false)}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+          <SearchBar value={search} onChangeText={setSearch} placeholder="Search exercises" />
+          {isLoading ? (
+            <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
+          ) : (
+            <FlatList
+              data={exercises ?? []}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }}
+              renderItem={({ item }) => (
+                <Pressable style={styles.pickerRow} onPress={() => addExercise(item.id, item.name)}>
+                  <Text style={styles.pickerName}>{item.name}</Text>
+                  <Ionicons name="add-circle-outline" size={22} color={colors.accent} />
+                </Pressable>
+              )}
+            />
+          )}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  selectedBar: { flexDirection: "row" },
-  selectedLabel: { color: colors.accentBright, fontSize: 13, fontWeight: "700" },
-  list: { flex: 1 },
-  row: {
+  screen: { flex: 1, backgroundColor: colors.bg },
+  headerPad: { paddingHorizontal: spacing.lg },
+  body: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.lg },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg, paddingBottom: 80 },
+  emptyText: { color: colors.textMuted, fontSize: 15, textAlign: "center", maxWidth: 260, lineHeight: 22 },
+  addBtn: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: spacing.md,
+    gap: 8,
+    backgroundColor: colors.accent,
+    borderRadius: radius.full,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+  },
+  addBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  selectedList: { gap: spacing.sm },
+  selectedRow: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.md,
   },
-  rowActive: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
-  rowText: { color: colors.text, fontSize: 15, flex: 1, fontWeight: "500" },
-  rowTextActive: { fontWeight: "700" },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 7,
-    borderWidth: 2,
-    borderColor: colors.border,
+  selectedName: { flex: 1, color: colors.text, fontSize: 16 },
+  picker: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.bg,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  pickerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  pickerTitle: { fontSize: 20, fontWeight: "700", color: colors.text },
+  pickerRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.separator,
+    gap: spacing.md,
   },
-  checkboxActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  footer: { paddingTop: spacing.sm },
+  pickerName: { flex: 1, color: colors.text, fontSize: 16 },
 });

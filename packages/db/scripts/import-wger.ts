@@ -4,17 +4,14 @@ import { resolve } from "node:path";
 config({ path: resolve(__dirname, "../../../.env") });
 
 import type { WgerExerciseInfo, WgerPaginated } from "./types";
+import { fetchJson } from "./fetch-ipv4";
 
 const WGER_BASE = "https://wger.de/api/v2";
 const ENGLISH_LANGUAGE = 2;
 const PAGE_SIZE = 50;
 
 async function fetchPage<T>(url: string): Promise<WgerPaginated<T>> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Wger request failed: ${response.status} ${url}`);
-  }
-  return response.json() as Promise<WgerPaginated<T>>;
+  return fetchJson<WgerPaginated<T>>(url);
 }
 
 async function fetchAllPages<T>(path: string): Promise<T[]> {

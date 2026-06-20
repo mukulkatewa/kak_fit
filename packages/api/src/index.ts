@@ -1,7 +1,9 @@
 import { router, publicProcedure } from "./trpc";
 import { authRouter } from "./routers/auth";
 import { exerciseRouter } from "./routers/exercise";
+import { bodyMeasurementRouter } from "./routers/body-measurement";
 import { nutritionRouter } from "./routers/nutrition";
+import { progressRouter } from "./routers/progress";
 import { personalRecordRouter } from "./routers/personal-record";
 import { routineRouter } from "./routers/routine";
 import { workoutRouter } from "./routers/workout";
@@ -16,7 +18,7 @@ export const appRouter = router({
   version: publicProcedure.query(() => ({
     name: "Kak Fit",
     version: "0.2.0",
-    phase: "Phase 1 — Core Workout Engine",
+    phase: "Phase 2 — Progress + Nutrition",
   })),
 
   exerciseCount: publicProcedure.query(async ({ ctx }) => {
@@ -30,6 +32,8 @@ export const appRouter = router({
   workout: workoutRouter,
   personalRecord: personalRecordRouter,
   nutrition: nutritionRouter,
+  progress: progressRouter,
+  bodyMeasurement: bodyMeasurementRouter,
 });
 
 export type AppRouter = typeof appRouter;

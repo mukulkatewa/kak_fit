@@ -26,4 +26,8 @@ echo "============================================"
 echo ""
 
 cd "$ROOT/apps/mobile"
-exec npx expo start --lan --clear --port 8081
+CLEAR_FLAG=""
+if [[ "${EXPO_CLEAR_CACHE:-}" == "1" ]]; then
+  CLEAR_FLAG="--clear"
+fi
+exec npx expo start --lan --port 8081 $CLEAR_FLAG

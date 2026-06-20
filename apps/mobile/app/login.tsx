@@ -8,8 +8,9 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../src/lib/auth-context";
-import { BrandMark, Button, Card, Input, Subtitle, Title } from "../src/components/ui";
+import { BrandMark, Button, HevyButton, Input } from "../src/components/ui";
 import { colors, spacing } from "../src/lib/theme";
 
 const DEMO_EMAIL = "demo@kakfit.app";
@@ -17,6 +18,7 @@ const DEMO_PASSWORD = "password123";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
@@ -51,31 +53,22 @@ export default function LoginScreen() {
     }
   };
 
-  const fillDemo = () => {
-    setMode("signin");
-    setEmail(DEMO_EMAIL);
-    setPassword(DEMO_PASSWORD);
-    setError(null);
-  };
-
   return (
-    <View style={styles.container}>
-      <View style={styles.glowTop} />
-      <View style={styles.glowBottom} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.hero}>
-            <BrandMark />
-            <Title>{mode === "signin" ? "Welcome back" : "Join Kak Fit"}</Title>
-            <Subtitle>Train smarter. Track everything. Pay nothing.</Subtitle>
+          <View style={styles.logoSection}>
+            <BrandMark large />
           </View>
 
-          <Card glow>
+          <Text style={styles.heading}>{mode === "signin" ? "Sign in" : "Create account"}</Text>
+
+          <View style={styles.form}>
             {mode === "signup" ? (
-              <Input placeholder="Your name" value={name} onChangeText={setName} autoCapitalize="words" />
+              <Input placeholder="Name" value={name} onChangeText={setName} autoCapitalize="words" />
             ) : null}
             <Input
               placeholder="Email"
@@ -85,7 +78,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
             />
             <Input
-              placeholder="Password (min 8 chars)"
+              placeholder="Password"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -93,35 +86,28 @@ export default function LoginScreen() {
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            <Button
+            <HevyButton
               label={mode === "signin" ? "Sign In" : "Create Account"}
-              icon={mode === "signin" ? "log-in-outline" : "person-add-outline"}
-              fullWidth
               onPress={() => submit(false)}
               loading={loading}
             />
-            <Button
+            <HevyButton
               label="Try Demo Account"
-              icon="flash-outline"
-              variant="gold"
-              fullWidth
+              variant="secondary"
               onPress={() => submit(true)}
               loading={loading}
             />
-            <Button
-              label={mode === "signin" ? "New here? Create account" : "Already have an account?"}
-              variant="ghost"
-              fullWidth
-              onPress={() => {
-                setMode(mode === "signin" ? "signup" : "signin");
-                setError(null);
-              }}
-            />
-          </Card>
+          </View>
 
-          <Text style={styles.demoHint} onPress={fillDemo}>
-            Demo: {DEMO_EMAIL} / {DEMO_PASSWORD}
-          </Text>
+          <Button
+            label={mode === "signin" ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            variant="ghost"
+            fullWidth
+            onPress={() => {
+              setMode(mode === "signin" ? "signup" : "signin");
+              setError(null);
+            }}
+          />
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -129,27 +115,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg, overflow: "hidden" },
-  glowTop: {
-    position: "absolute",
-    top: -100,
-    left: -60,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: colors.accentMuted,
-    opacity: 0.7,
-  },
-  glowBottom: {
-    position: "absolute",
-    bottom: -80,
-    right: -40,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: colors.successMuted,
-    opacity: 0.4,
-  },
+  container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   content: {
     flexGrow: 1,
@@ -157,18 +123,17 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.xl,
   },
-  hero: { gap: spacing.sm, alignItems: "center" },
+  logoSection: { alignItems: "center", marginBottom: spacing.md },
+  heading: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: colors.text,
+    textAlign: "center",
+  },
+  form: { gap: spacing.md },
   error: {
     color: colors.danger,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
     textAlign: "center",
-    lineHeight: 18,
-  },
-  demoHint: {
-    color: colors.textDim,
-    fontSize: 12,
-    textAlign: "center",
-    lineHeight: 18,
   },
 });

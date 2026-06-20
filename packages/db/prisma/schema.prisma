@@ -34,24 +34,66 @@ enum MediaType {
 
 model User {
   id               String           @id @default(cuid())
+  name             String
   email            String           @unique
-  name             String?
-  avatarUrl        String?
+  emailVerified    Boolean          @default(false)
+  image            String?
   bio              String?
   isPrivate        Boolean          @default(false)
   subscriptionTier SubscriptionTier @default(FREE)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  routines          Routine[]
-  workouts          Workout[]
-  customExercises   Exercise[]       @relation("CustomExercises")
-  followers         Follow[]         @relation("Following")
-  following         Follow[]         @relation("Followers")
-  likes             Like[]
-  comments          Comment[]
-  personalRecords   PersonalRecord[]
-  bodyMeasurements  BodyMeasurement[]
+  sessions         Session[]
+  accounts         Account[]
+  routines         Routine[]
+  routineFolders   RoutineFolder[]
+  workouts         Workout[]
+  customExercises  Exercise[]       @relation("CustomExercises")
+  followers        Follow[]         @relation("Following")
+  following        Follow[]         @relation("Followers")
+  likes            Like[]
+  comments         Comment[]
+  personalRecords  PersonalRecord[]
+  bodyMeasurements BodyMeasurement[]
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model Follow {
@@ -91,25 +133,25 @@ model Category {
 }
 
 model Exercise {
-  id           String  @id @default(cuid())
+  id           String   @id @default(cuid())
   name         String
   instructions String?
   imageUrl     String?
   videoUrl     String?
-  wgerId       Int?    @unique
-  isCustom     Boolean @default(false)
+  wgerId       Int?     @unique
+  isCustom     Boolean  @default(false)
   userId       String?
   categoryId   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user              User?               @relation("CustomExercises", fields: [userId], references: [id], onDelete: Cascade)
-  category          Category?           @relation(fields: [categoryId], references: [id])
-  muscles           ExerciseMuscle[]
-  equipment         ExerciseEquipment[]
-  routineExercises  RoutineExercise[]
-  workoutExercises  WorkoutExercise[]
-  personalRecords   PersonalRecord[]
+  user             User?               @relation("CustomExercises", fields: [userId], references: [id], onDelete: Cascade)
+  category         Category?           @relation(fields: [categoryId], references: [id])
+  muscles          ExerciseMuscle[]
+  equipment        ExerciseEquipment[]
+  routineExercises RoutineExercise[]
+  workoutExercises WorkoutExercise[]
+  personalRecords  PersonalRecord[]
 }
 
 model ExerciseMuscle {
@@ -142,6 +184,7 @@ model RoutineFolder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   routines Routine[]
 }
 
@@ -154,21 +197,21 @@ model Routine {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folder    RoutineFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder    RoutineFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
   exercises RoutineExercise[]
 }
 
 model RoutineExercise {
-  id           String @id @default(cuid())
-  routineId    String
-  exerciseId   String
-  order        Int
-  restSeconds  Int?
-  notes        String?
+  id          String @id @default(cuid())
+  routineId   String
+  exerciseId  String
+  order       Int
+  restSeconds Int?
+  notes       String?
 
   routine  Routine      @relation(fields: [routineId], references: [id], onDelete: Cascade)
-  exercise Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  exercise Exercise     @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   sets     RoutineSet[]
 
   @@unique([routineId, order])
@@ -193,7 +236,7 @@ model Workout {
   notes      String?
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
-  isPublic   Boolean   @default(true)
+  isPublic   Boolean   @default(false)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
@@ -235,17 +278,19 @@ model WorkoutSet {
 }
 
 model PersonalRecord {
-  id            String             @id @default(cuid())
-  userId        String
-  exerciseId    String
-  workoutSetId  String?
-  type          PersonalRecordType
-  value         Float
-  achievedAt    DateTime           @default(now())
+  id           String             @id @default(cuid())
+  userId       String
+  exerciseId   String
+  workoutSetId String?
+  type         PersonalRecordType
+  value        Float
+  achievedAt   DateTime           @default(now())
 
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercise    Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  workoutSet  WorkoutSet? @relation(fields: [workoutSetId], references: [id], onDelete: SetNull)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise   Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  workoutSet WorkoutSet? @relation(fields: [workoutSetId], references: [id], onDelete: SetNull)
+
+  @@index([userId, exerciseId, type])
 }
 
 model BodyMeasurement {

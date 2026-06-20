@@ -24,11 +24,13 @@
 
 **Kak Fit** is a gym workout tracker and social fitness app modeled after [Hevy](https://www.hevyapp.com/) — the #1 workout tracker for strength training — but sold at a **lower price** to capture price-sensitive lifters who want the same core experience.
 
-### Hevy's Three Pillars (we replicate these)
+### Hevy's Three Pillars (our priority order)
 
-1. **Workout Logging** — fast, flexible session tracking
-2. **Progress Tracking** — charts, PRs, body composition
-3. **Socializing** — feed, follow, like, comment, discover
+1. **Workout Logging** — fast, flexible session tracking *(Phase 1 — core)*
+2. **Progress Tracking** — charts, PRs, body composition *(Phase 2)*
+3. **Socializing** — feed, follow, like, comment *(Phase 5+ — not MVP)*
+
+> **Product decision:** Social is Hevy's retention hook, but it's not our launch focus. We ship a best-in-class logger + progress tracker first, then add social in a later version. Coach platform comes after monetization.
 
 ### Our Differentiation
 
@@ -378,7 +380,10 @@ These are the **minimum** to compete with Hevy at launch.
 - [ ] Basic trend graph
 - [ ] Pro: full measurement set + unlimited history
 
-### 8. Social Feed
+### 8. Social Feed *(Deferred — Phase 5+, not in MVP)*
+
+Moved to a later version. Core product ships without social first.
+
 - [ ] Follow / unfollow users
 - [ ] Home feed (followed users' workouts)
 - [ ] Like workouts
@@ -444,34 +449,31 @@ These are the **minimum** to compete with Hevy at launch.
 
 ## Phase-Wise Development Roadmap
 
-### Phase 0 — Foundation (Weeks 1–2) 🚧 In Progress
+### Phase 0 — Foundation ✅ Complete
 
 - [x] Monorepo setup (Turborepo: `apps/web`, `apps/mobile`, `packages/db`, `packages/api`)
-- [x] PostgreSQL + Prisma schema (users, exercises, workouts, social)
-- [x] Next.js tRPC server scaffold (`/api/trpc` + health endpoint)
-- [x] Expo app scaffold with tRPC client shell
-- [ ] Better Auth setup (email + Google) — Phase 1
-- [ ] Supabase Storage buckets configured — Phase 1
-- [ ] CI: lint + typecheck on push — Phase 1
-
-**Exit criteria:** Mobile app calls `health` tRPC endpoint; user can register and see empty home screen.
+- [x] PostgreSQL + Prisma schema
+- [x] Next.js tRPC server scaffold
+- [x] Expo app scaffold with tRPC client
 
 ---
 
-### Phase 1 — Core Workout Engine (Weeks 3–6)
+### Phase 1 — Core Workout Engine (Weeks 3–6) 🚧 In Progress
 
-**Goal:** A user can log a full workout without social features.
+**Goal:** A user can log a full workout — no social features.
 
-| Task | Details |
-|------|---------|
-| Wger import script | Import muscles, equipment, categories, exercises, images |
-| Exercise library UI | Search, filter, exercise detail screen |
-| Custom exercises | CRUD with free-tier limit (7) |
-| Routine builder | Create, edit, reorder, folder organization |
-| Workout logger | Empty + routine start, set logging, finish workout |
-| Previous values | Show last performance per exercise |
-| PR engine | Calculate and store PRs on workout save |
-| Workout history | List + detail view on profile |
+| Task | Status |
+|------|--------|
+| Docker Postgres + `db:push` | ✅ |
+| Better Auth (email + bearer for mobile) | ✅ |
+| Wger import script | ✅ |
+| tRPC: exercises, routines, workouts, PRs | ✅ |
+| Exercise library UI (search) | ✅ |
+| Routine builder (create, duplicate, delete) | ✅ |
+| Workout logger (sets, add/delete, finish) | ✅ |
+| PR engine on workout finish | ✅ |
+| Workout history + PR list | ✅ |
+| Demo user seed | ✅ |
 
 **Exit criteria:** Complete Push Day workout logged, PR detected, history visible.
 
@@ -497,9 +499,39 @@ These are the **minimum** to compete with Hevy at launch.
 
 ---
 
-### Phase 3 — Social Feed (Weeks 10–13)
+### Phase 3 — Monetization & Pro (Weeks 10–13)
 
-**Goal:** Hevy's stickiness — community layer.
+**Goal:** Revenue while staying cheaper than Hevy.
+
+| Task | Details |
+|------|---------|
+| Subscription (RevenueCat or Stripe) | Monthly, yearly, lifetime |
+| Free tier enforcement | 4 routines, 7 custom exercises, 3mo charts |
+| Pro unlock | Unlimited routines/exercises/history |
+| Profile settings | Units (kg/lbs), default rest timer |
+| CSV export | Pro feature |
+| Superset support | Pair exercises in routines/workouts |
+
+**Exit criteria:** Free user hits routine limit → upgrade prompt → Pro unlocks.
+
+---
+
+### Phase 4 — Coach Platform (Weeks 14–20)
+
+| Task | Details |
+|------|---------|
+| Coach web dashboard | Client list, program builder |
+| Assign routines | Push template to client |
+| Client app view | "Assigned by coach" workouts |
+| In-app messaging | Coach ↔ client chat |
+| Client measurements view | Coach reads client body data |
+| Coach billing | Separate Stripe plan |
+
+---
+
+### Phase 5 — Social Feed *(Later version — not MVP)*
+
+**Goal:** Community layer for retention (after core product is solid).
 
 | Task | Details |
 |------|---------|
@@ -510,33 +542,13 @@ These are the **minimum** to compete with Hevy at launch.
 | Comments | Create, reply, delete own comments |
 | User profiles | Bio, avatar, workout list, stats summary |
 | Workout media | Upload photos to Supabase on finish workout |
-| Workout privacy | Public/private toggle |
 | Notifications | Push: new follower, like, comment |
-| Share workout summary | Basic shareable card (streak, PRs) |
 
 **Exit criteria:** Two users follow each other, log workouts, like and comment.
 
 ---
 
-### Phase 4 — Monetization & Pro (Weeks 14–16)
-
-**Goal:** Revenue while staying cheaper than Hevy.
-
-| Task | Details |
-|------|---------|
-| Subscription (RevenueCat or Stripe) | Monthly, yearly, lifetime |
-| Free tier enforcement | 4 routines, 7 custom exercises, 3mo charts |
-| Pro unlock | Unlimited routines/exercises/history |
-| Profile settings | Units (kg/lbs), default rest timer, privacy |
-| CSV export | Pro feature |
-| Superset support | Pair exercises in routines/workouts |
-| Copy/save others' workouts | From feed |
-
-**Exit criteria:** Free user hits routine limit → upgrade prompt → Pro unlocks.
-
----
-
-### Phase 5 — Growth Features (Weeks 17–22)
+### Phase 6 — Growth Features (Weeks 21–26)
 
 | Task | Details |
 |------|---------|
@@ -547,19 +559,6 @@ These are the **minimum** to compete with Hevy at launch.
 | Monthly report | Auto-generated recap |
 | Plate calculator | Barbell math tool |
 | Program library | Curated Push/Pull/Legs programs |
-
----
-
-### Phase 6 — Coach Platform (Weeks 23–30)
-
-| Task | Details |
-|------|---------|
-| Coach web dashboard | Client list, program builder |
-| Assign routines | Push template to client |
-| Client app view | "Assigned by coach" workouts |
-| In-app messaging | Coach ↔ client chat |
-| Client measurements view | Coach reads client body data |
-| Coach billing | Separate Stripe plan |
 
 ---
 

@@ -1,34 +1,36 @@
-import { initTRPC } from "@trpc/server";
-import superjson from "superjson";
-import { z } from "zod";
-
-export const createTRPCContext = async () => {
-  return {};
-};
-
-const t = initTRPC.context<typeof createTRPCContext>().create({
-  transformer: superjson,
-});
-
-export const router = t.router;
-export const publicProcedure = t.procedure;
+import { router, publicProcedure } from "./trpc";
+import { authRouter } from "./routers/auth";
+import { exerciseRouter } from "./routers/exercise";
+import { personalRecordRouter } from "./routers/personal-record";
+import { routineRouter } from "./routers/routine";
+import { workoutRouter } from "./routers/workout";
 
 export const appRouter = router({
-  health: publicProcedure.query(() => {
-    return {
-      status: "ok" as const,
-      service: "kak-fit-api",
-      timestamp: new Date().toISOString(),
-    };
+  health: publicProcedure.query(() => ({
+    status: "ok" as const,
+    service: "kak-fit-api",
+    timestamp: new Date().toISOString(),
+  })),
+
+  version: publicProcedure.query(() => ({
+    name: "Kak Fit",
+    version: "0.2.0",
+    phase: "Phase 1 — Core Workout Engine",
+  })),
+
+  exerciseCount: publicProcedure.query(async ({ ctx }) => {
+    const count = await ctx.prisma.exercise.count({ where: { isCustom: false } });
+    return { count };
   }),
 
-  version: publicProcedure.query(() => {
-    return {
-      name: "Kak Fit",
-      version: "0.1.0",
-      phase: "Phase 0 — Foundation",
-    };
-  }),
+  auth: authRouter,
+  exercise: exerciseRouter,
+  routine: routineRouter,
+  workout: workoutRouter,
+  personalRecord: personalRecordRouter,
 });
 
 export type AppRouter = typeof appRouter;
+
+export { createTRPCContext } from "./trpc";
+export type { TRPCContext } from "./trpc";

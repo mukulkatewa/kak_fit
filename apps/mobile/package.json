@@ -2,7 +2,7 @@
   "name": "@kak-fit/mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -11,17 +11,26 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
     "@kak-fit/api": "workspace:*",
     "@tanstack/react-query": "^5.69.0",
     "@trpc/client": "^11.0.2",
     "@trpc/react-query": "^11.0.2",
     "expo": "~56.0.12",
+    "expo-constants": "~18.0.8",
+    "expo-linking": "~8.0.7",
+    "expo-router": "~6.0.8",
+    "expo-secure-store": "~15.0.6",
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",
     "react-native": "0.85.3",
-    "superjson": "^2.2.2"
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "superjson": "^2.2.2",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@types/node": "^20",
     "@types/react": "~19.2.2",
     "typescript": "~5.8.2"
   }

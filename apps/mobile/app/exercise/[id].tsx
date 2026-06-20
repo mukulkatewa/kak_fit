@@ -37,13 +37,24 @@ export default function ExerciseDetailScreen() {
 
       {previous ? (
         <View style={styles.prevBox}>
-          <Text style={styles.prevLabel}>Last performance</Text>
-          <Text style={styles.prevVal}>
-            {previous.weight ?? "—"} kg × {previous.reps ?? "—"} reps
-          </Text>
+          <Text style={styles.prevLabel}>Last session</Text>
           <Text style={styles.prevMeta}>
-            {previous.workoutName} · {previous.finishedAt ? new Date(previous.finishedAt).toLocaleDateString() : ""}
+            {previous.workoutName ?? "Workout"} ·{" "}
+            {previous.finishedAt ? new Date(previous.finishedAt).toLocaleDateString() : ""}
           </Text>
+          {(previous.sets ?? []).length > 0 ? (
+            <View style={styles.prevSets}>
+              {previous.sets.map((s) => (
+                <Text key={s.setNumber} style={styles.prevSetLine}>
+                  Set {s.setNumber}: {s.weight ?? "—"} kg × {s.reps ?? "—"}
+                </Text>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.prevVal}>
+              {previous.weight ?? "—"} kg × {previous.reps ?? "—"} reps
+            </Text>
+          )}
         </View>
       ) : null}
 
@@ -102,6 +113,8 @@ const styles = StyleSheet.create({
   prevLabel: { fontSize: 13, color: colors.textMuted },
   prevVal: { fontSize: 20, fontWeight: "700", color: colors.text },
   prevMeta: { fontSize: 13, color: colors.textDim },
+  prevSets: { gap: 4, marginTop: spacing.xs },
+  prevSetLine: { fontSize: 14, color: colors.text, fontWeight: "500" },
   empty: { color: colors.textMuted, fontSize: 14, textAlign: "center", paddingVertical: spacing.lg },
   muscles: { fontSize: 15, color: colors.textMuted, lineHeight: 22 },
   instructions: { fontSize: 15, color: colors.textMuted, lineHeight: 22 },

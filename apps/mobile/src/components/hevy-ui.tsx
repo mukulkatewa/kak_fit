@@ -183,6 +183,139 @@ export function HevyUnderlineInput({
   );
 }
 
+/** Centered stack header with optional back — Hevy Explore style */
+export function HevyStackHeader({
+  title,
+  onBack,
+  right,
+}: {
+  title: string;
+  onBack?: () => void;
+  right?: React.ReactNode;
+}) {
+  return (
+    <View style={styles.stackHeader}>
+      {onBack ? (
+        <Pressable onPress={onBack} hitSlop={12} style={styles.stackBack}>
+          <Ionicons name="chevron-back" size={26} color={colors.text} />
+        </Pressable>
+      ) : (
+        <View style={styles.stackBack} />
+      )}
+      <Text style={styles.stackTitle}>{title}</Text>
+      <View style={styles.stackRight}>{right}</View>
+    </View>
+  );
+}
+
+/** Horizontal filter chips — Filters / Level / Goal / Equipment */
+export function HevyFilterBar({
+  chips,
+}: {
+  chips: Array<{
+    key: string;
+    label: string;
+    icon?: IconName;
+    active?: boolean;
+    onPress: () => void;
+  }>;
+}) {
+  return (
+    <View style={styles.filterRow}>
+      {chips.map((chip) => (
+        <Pressable
+          key={chip.key}
+          onPress={chip.onPress}
+          style={[styles.filterChip, chip.active && styles.filterChipActive]}
+        >
+          {chip.icon ? <Ionicons name={chip.icon} size={14} color={chip.active ? "#fff" : colors.text} /> : null}
+          <Text style={[styles.filterChipText, chip.active && styles.filterChipTextActive]}>{chip.label}</Text>
+          {chip.key !== "filters" ? (
+            <Ionicons name="chevron-down" size={12} color={chip.active ? "#fff" : colors.textMuted} />
+          ) : null}
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/** Program card — badge graphic + title + routine count */
+export function HevyProgramCard({
+  badge,
+  badgeColor,
+  title,
+  routineCount,
+  onPress,
+}: {
+  badge: string;
+  badgeColor: string;
+  title: string;
+  routineCount: number;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.programCard} onPress={onPress}>
+      <View style={[styles.programBadge, { backgroundColor: badgeColor }]}>
+        <Text style={styles.programBadgeText}>{badge}</Text>
+        <Ionicons name="barbell-outline" size={28} color="#1a1a1a" style={styles.programBadgeIcon} />
+      </View>
+      <View style={styles.programInfo}>
+        <Text style={styles.programTitle} numberOfLines={2}>{title}</Text>
+        <Text style={styles.programMeta}>{routineCount} routine{routineCount === 1 ? "" : "s"}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+/** Trainer promo card */
+export function HevyTrainerCard({ onPress }: { onPress?: () => void }) {
+  return (
+    <Pressable style={styles.trainerCard} onPress={onPress}>
+      <Text style={styles.trainerLabel}>Trainer</Text>
+      <Text style={styles.trainerTitle}>Program based on your needs and goals</Text>
+      <View style={styles.trainerPillsRow}>
+        <View style={styles.trainerPill}>
+          <Text style={styles.trainerPillText}>Goal</Text>
+        </View>
+        <View style={[styles.trainerPill, styles.trainerPillAccent]}>
+          <Text style={styles.trainerPillAccentText}>Personalised Program</Text>
+        </View>
+        <View style={styles.trainerPill}>
+          <Text style={styles.trainerPillText}>Equipment</Text>
+        </View>
+      </View>
+      <Text style={styles.trainerLink}>Explore now</Text>
+    </Pressable>
+  );
+}
+
+/** Category grid tile — label + emoji icon */
+export function HevyCategoryTile({
+  label,
+  icon,
+  onPress,
+}: {
+  label: string;
+  icon: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.categoryTile} onPress={onPress}>
+      <Text style={styles.categoryLabel}>{label}</Text>
+      <Text style={styles.categoryIcon}>{icon}</Text>
+    </Pressable>
+  );
+}
+
+/** Full-width secondary button */
+export function HevyOutlineButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable style={styles.outlineBtn} onPress={onPress}>
+      <Text style={styles.outlineBtnText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   topBar: {
     flexDirection: "row",
@@ -274,4 +407,95 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.separator,
   },
+  stackHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 44,
+    marginBottom: spacing.md,
+  },
+  stackBack: { width: 44, alignItems: "flex-start" },
+  stackTitle: { fontSize: 17, fontWeight: "600", color: colors.text, textAlign: "center", flex: 1 },
+  stackRight: { width: 44, alignItems: "flex-end" },
+  filterRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  filterChipActive: { backgroundColor: colors.accent },
+  filterChipText: { color: colors.text, fontSize: 14, fontWeight: "500" },
+  filterChipTextActive: { color: "#fff" },
+  programCard: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+    alignItems: "center",
+  },
+  programBadge: {
+    width: 88,
+    height: 88,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    justifyContent: "space-between",
+    overflow: "hidden",
+  },
+  programBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#1a1a1a",
+    fontStyle: "italic",
+    lineHeight: 13,
+  },
+  programBadgeIcon: { alignSelf: "flex-end", opacity: 0.5 },
+  programInfo: { flex: 1, gap: 6 },
+  programTitle: { fontSize: 16, fontWeight: "600", color: colors.text, lineHeight: 22 },
+  programMeta: { fontSize: 14, color: colors.textMuted },
+  trainerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    overflow: "hidden",
+  },
+  trainerLabel: { fontSize: 15, fontWeight: "700", color: colors.accent },
+  trainerTitle: { fontSize: 15, fontWeight: "500", color: colors.text, lineHeight: 20 },
+  trainerPillsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.xs },
+  trainerPill: {
+    backgroundColor: colors.surfaceHover,
+    borderRadius: radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  trainerPillAccent: { backgroundColor: colors.accent },
+  trainerPillText: { fontSize: 12, fontWeight: "600", color: colors.text },
+  trainerPillAccentText: { fontSize: 12, fontWeight: "600", color: "#fff" },
+  trainerLink: { fontSize: 15, fontWeight: "600", color: colors.accent, marginTop: spacing.xs },
+  categoryTile: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    maxWidth: "48%",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 64,
+  },
+  categoryLabel: { fontSize: 16, fontWeight: "500", color: colors.text, flex: 1 },
+  categoryIcon: { fontSize: 28 },
+  outlineBtn: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  outlineBtnText: { fontSize: 16, fontWeight: "600", color: colors.text },
 });

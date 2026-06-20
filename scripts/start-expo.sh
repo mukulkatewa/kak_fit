@@ -27,7 +27,8 @@ echo ""
 
 cd "$ROOT/apps/mobile"
 CLEAR_FLAG=""
-if [[ "${EXPO_CLEAR_CACHE:-}" == "1" ]]; then
+if [[ "${EXPO_CLEAR_CACHE:-}" == "1" ]] || [[ "${METRO_RESET:-}" == "1" ]]; then
   CLEAR_FLAG="--clear"
+  echo "Clearing Metro cache (EXPO_CLEAR_CACHE / METRO_RESET)"
 fi
 exec npx expo start --lan --port 8081 $CLEAR_FLAG

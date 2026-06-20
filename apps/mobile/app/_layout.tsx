@@ -1,3 +1,4 @@
+import "react-native-gesture-handler";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
@@ -48,7 +49,7 @@ export default function RootLayout() {
               <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
                 <Stack.Screen name="login" />
                 <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="workout/active" options={{ presentation: "fullScreenModal" }} />
+                <Stack.Screen name="workout" />
                 <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
                 <Stack.Screen name="exercise/[id]" />
                 <Stack.Screen name="measurements" />

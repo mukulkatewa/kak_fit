@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { BarChart, MuscleBars } from "../../src/components/charts";
+import { BarChart } from "../../src/components/charts";
+import { MuscleHeatmap } from "../../src/components/muscle-heatmap";
 import {
   Header,
   ListGroup,
@@ -16,7 +17,7 @@ import { colors, spacing } from "../../src/lib/theme";
 export default function ProgressScreen() {
   const router = useRouter();
   const { data: volume, isLoading: volLoading } = trpc.progress.volumeHistory.useQuery({ limit: 10 });
-  const { data: muscles, isLoading: muscleLoading } = trpc.progress.muscleDistribution.useQuery({ days: 30 });
+  const { data: muscleData, isLoading: muscleLoading } = trpc.progress.muscleDistribution.useQuery({ days: 30 });
   const { data: topExercises } = trpc.progress.topExercises.useQuery({ limit: 6 });
   const { data: prs } = trpc.personalRecord.list.useQuery({ limit: 8 });
   const { data: dashboard } = trpc.progress.dashboard.useQuery();
@@ -44,12 +45,14 @@ export default function ProgressScreen() {
         />
       )}
 
-      <SectionHeader title="Muscle Distribution" />
-      <Text style={styles.sectionSub}>Last 30 days</Text>
+      <SectionHeader title="Muscle Heatmap" />
+      <Text style={styles.sectionSub}>
+        Last 30 days{muscleData?.totalVolume ? ` · ${muscleData.totalVolume.toLocaleString()} kg total` : ""}
+      </Text>
       {muscleLoading ? (
         <ActivityIndicator color={colors.accent} />
       ) : (
-        <MuscleBars data={muscles ?? []} />
+        <MuscleHeatmap data={muscleData?.heatmap ?? []} />
       )}
 
       <SectionHeader title="Top Exercises" />

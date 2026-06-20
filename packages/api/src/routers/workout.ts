@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { getPreviousSetsBatch } from "../services/previous-values";
 import { syncPersonalRecords } from "../services/personal-records";
 import { protectedProcedure, router } from "../trpc";
 
@@ -24,12 +25,7 @@ const workoutDetailInclude = {
   exercises: {
     orderBy: { order: "asc" as const },
     include: {
-      exercise: {
-        include: {
-          muscles: { include: { muscle: true } },
-          category: true,
-        },
-      },
+      exercise: { select: { id: true, name: true } },
       sets: { orderBy: { setNumber: "asc" as const } },
     },
   },
@@ -43,6 +39,12 @@ export const workoutRouter = router({
       orderBy: { startedAt: "desc" },
     });
   }),
+
+  previousSets: protectedProcedure
+    .input(z.object({ exerciseIds: z.array(z.string()).min(1).max(30) }))
+    .query(async ({ ctx, input }) => {
+      return getPreviousSetsBatch(ctx.prisma, ctx.user.id, input.exerciseIds);
+    }),
 
   history: protectedProcedure
     .input(

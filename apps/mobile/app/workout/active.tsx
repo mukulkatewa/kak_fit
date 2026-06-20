@@ -17,11 +17,11 @@ import {
   Button,
   Card,
   HevyButton,
-  Input,
   Screen,
   SearchBar,
   SectionHeader,
 } from "../../src/components/ui";
+import { formatPreviousSet, pickPreviousForSet, type PreviousExerciseSession } from "../../src/lib/previous-set";
 import { trpc } from "../../src/lib/trpc";
 import { formatRestTime, useRestTimer } from "../../src/lib/rest-timer";
 import { colors, radius, spacing } from "../../src/lib/theme";
@@ -50,6 +50,16 @@ export default function ActiveWorkoutScreen() {
   const { data: workout, isLoading, refetch } = trpc.workout.active.useQuery();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
+
+  const exerciseIds = useMemo(
+    () => workout?.exercises.map((e) => e.exercise.id) ?? [],
+    [workout?.exercises],
+  );
+
+  const { data: previousMap } = trpc.workout.previousSets.useQuery(
+    { exerciseIds },
+    { enabled: exerciseIds.length > 0 },
+  );
 
   const { data: exercises } = trpc.exercise.list.useQuery(
     { search: search || undefined, limit: 30 },
@@ -80,14 +90,17 @@ export default function ActiveWorkoutScreen() {
     const idx = SET_TYPES.indexOf(current);
     return SET_TYPES[(idx + 1) % SET_TYPES.length]!;
   };
+
   const addExercise = trpc.workout.addExercise.useMutation({
     onSuccess: () => {
       setPickerOpen(false);
       setSearch("");
       refetch();
+      utils.workout.previousSets.invalidate();
     },
     onError: (e) => Alert.alert("Error", e.message),
   });
+
   const finish = trpc.workout.finish.useMutation({
     onSuccess: (result) => {
       utils.workout.active.invalidate();
@@ -95,6 +108,7 @@ export default function ActiveWorkoutScreen() {
       utils.personalRecord.list.invalidate();
       utils.progress.dashboard.invalidate();
       utils.progress.volumeHistory.invalidate();
+      utils.progress.muscleDistribution.invalidate();
       utils.auth.stats.invalidate();
       const prCount = result.newRecords.length;
       Alert.alert(
@@ -105,6 +119,7 @@ export default function ActiveWorkoutScreen() {
     },
     onError: (e) => Alert.alert("Error", e.message),
   });
+
   const cancel = trpc.workout.cancel.useMutation({
     onSuccess: () => {
       utils.workout.active.invalidate();
@@ -159,6 +174,7 @@ export default function ActiveWorkoutScreen() {
             key={exercise.id}
             name={exercise.exercise.name}
             sets={exercise.sets}
+            previous={previousMap?.[exercise.exercise.id] ?? null}
             onUpdateSet={handleSetUpdate}
             onCycleSetType={(setId, setType) =>
               handleSetUpdate(setId, { setType: cycleSetType(setType) })
@@ -225,6 +241,7 @@ export default function ActiveWorkoutScreen() {
 function ExerciseBlock({
   name,
   sets,
+  previous,
   onUpdateSet,
   onCycleSetType,
   onAddSet,
@@ -239,6 +256,7 @@ function ExerciseBlock({
     setType: SetType;
     isCompleted: boolean;
   }>;
+  previous: PreviousExerciseSession | null;
   onUpdateSet: (
     setId: string,
     data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType },
@@ -247,11 +265,43 @@ function ExerciseBlock({
   onAddSet: () => void;
   onDeleteSet: (setId: string) => void;
 }) {
+  const lastSet = sets[sets.length - 1];
+
+  const copyLastSet = () => {
+    if (!lastSet) return;
+    const source = pickPreviousForSet(previous, lastSet.setNumber);
+    if (!source) {
+      Alert.alert("No previous data", "Complete this exercise in a past workout first.");
+      return;
+    }
+    onUpdateSet(lastSet.id, {
+      weight: source.weight ?? undefined,
+      reps: source.reps ?? undefined,
+    });
+  };
+
   return (
     <Card>
-      <Text style={styles.exerciseName}>{name}</Text>
+      <View style={styles.exerciseHeader}>
+        <Text style={styles.exerciseName}>{name}</Text>
+        {previous ? (
+          <Pressable onPress={copyLastSet} hitSlop={8} style={styles.copyBtn}>
+            <Ionicons name="copy-outline" size={16} color={colors.accent} />
+            <Text style={styles.copyBtnText}>Copy prev</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {previous?.finishedAt ? (
+        <Text style={styles.prevMeta}>
+          Last: {formatPreviousSet(pickPreviousForSet(previous, 1))} ·{" "}
+          {new Date(previous.finishedAt).toLocaleDateString()}
+        </Text>
+      ) : null}
+
       <View style={styles.setHeader}>
         <Text style={[styles.setCol, styles.setColNarrow]}>SET</Text>
+        <Text style={[styles.setCol, styles.setColPrev]}>PREV</Text>
         <Text style={styles.setCol}>KG</Text>
         <Text style={styles.setCol}>REPS</Text>
         <Text style={[styles.setCol, styles.setColNarrow]}>✓</Text>
@@ -260,6 +310,7 @@ function ExerciseBlock({
         <SetRow
           key={set.id}
           set={set}
+          previousValues={pickPreviousForSet(previous, set.setNumber)}
           onUpdateSet={onUpdateSet}
           onCycleSetType={onCycleSetType}
           onDeleteSet={onDeleteSet}
@@ -275,6 +326,7 @@ function ExerciseBlock({
 
 function SetRow({
   set,
+  previousValues,
   onUpdateSet,
   onCycleSetType,
   onDeleteSet,
@@ -287,6 +339,7 @@ function SetRow({
     setType: SetType;
     isCompleted: boolean;
   };
+  previousValues: ReturnType<typeof pickPreviousForSet>;
   onUpdateSet: (
     setId: string,
     data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType },
@@ -298,6 +351,11 @@ function SetRow({
   const [reps, setReps] = useState(set.reps?.toString() ?? "");
   const typeLabel = SET_TYPE_LABEL[set.setType] || String(set.setNumber);
 
+  useEffect(() => {
+    setWeight(set.weight?.toString() ?? "");
+    setReps(set.reps?.toString() ?? "");
+  }, [set.weight, set.reps]);
+
   const commit = () => {
     onUpdateSet(set.id, {
       weight: weight ? Number(weight) : undefined,
@@ -305,11 +363,36 @@ function SetRow({
     });
   };
 
+  const copyPrevious = () => {
+    if (!previousValues) return;
+    const w = previousValues.weight?.toString() ?? "";
+    const r = previousValues.reps?.toString() ?? "";
+    setWeight(w);
+    setReps(r);
+    onUpdateSet(set.id, {
+      weight: previousValues.weight ?? undefined,
+      reps: previousValues.reps ?? undefined,
+    });
+  };
+
+  const prevLabel = formatPreviousSet(previousValues);
+
   return (
     <View style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
       <Pressable onPress={() => onCycleSetType(set.id, set.setType)} style={styles.setTypeBtn}>
         <Text style={[styles.setNumber, { color: SET_TYPE_COLOR[set.setType] }]}>{typeLabel}</Text>
       </Pressable>
+
+      <Pressable
+        onPress={copyPrevious}
+        disabled={!previousValues}
+        style={[styles.prevCell, !previousValues && styles.prevCellDisabled]}
+      >
+        <Text style={styles.prevText} numberOfLines={1}>
+          {prevLabel}
+        </Text>
+      </Pressable>
+
       <TextInput
         style={[styles.setInput, set.isCompleted && styles.setInputDone]}
         value={weight}
@@ -363,39 +446,50 @@ const styles = StyleSheet.create({
   restHint: { color: colors.textDim, fontSize: 12 },
   scroll: { flex: 1 },
   scrollContent: { gap: spacing.md, paddingBottom: spacing.xl },
-  exerciseName: { color: colors.text, fontSize: 17, fontWeight: "600" },
-  setHeader: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: 4, marginTop: spacing.sm },
-  setCol: { flex: 1, color: colors.textDim, fontSize: 12, fontWeight: "500", textAlign: "center" },
-  setColNarrow: { flex: 0, width: 36 },
-  setRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  setRowDone: { opacity: 0.7 },
-  setNumber: { fontSize: 15, fontWeight: "700", textAlign: "center" },
+  exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  exerciseName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: "600" },
+  copyBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  copyBtnText: { color: colors.accent, fontSize: 13, fontWeight: "600" },
+  prevMeta: { color: colors.textDim, fontSize: 12, marginTop: -4 },
+  setHeader: { flexDirection: "row", gap: spacing.xs, paddingHorizontal: 2, marginTop: spacing.sm },
+  setCol: { flex: 1, color: colors.textDim, fontSize: 11, fontWeight: "600", textAlign: "center" },
+  setColNarrow: { flex: 0, width: 28 },
+  setColPrev: { flex: 0, width: 52 },
+  setRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  setRowDone: { opacity: 0.85 },
+  setNumber: { fontSize: 14, fontWeight: "700", textAlign: "center" },
   setTypeBtn: { width: 28, alignItems: "center" },
+  prevCell: {
+    width: 52,
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  prevCellDisabled: { opacity: 0.35 },
+  prevText: { fontSize: 11, color: colors.textMuted, fontWeight: "500", textAlign: "center" },
   setInput: {
     flex: 1,
     backgroundColor: colors.surfaceHover,
     borderRadius: radius.sm,
     color: colors.text,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    fontSize: 17,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    fontSize: 16,
     fontWeight: "500",
     textAlign: "center",
+    minWidth: 0,
   },
-  setInputDone: {
-    backgroundColor: colors.accentMuted,
-  },
+  setInputDone: { backgroundColor: colors.accentMuted },
   check: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: radius.sm,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surfaceHover,
   },
-  checkDone: {
-    backgroundColor: colors.accentMuted,
-  },
+  checkDone: { backgroundColor: colors.accentMuted },
   addSetBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm },
   addSet: { color: colors.accent, fontSize: 15, fontWeight: "600" },
   pickerList: { maxHeight: 220 },

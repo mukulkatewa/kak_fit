@@ -18,27 +18,40 @@ const routineExerciseInput = z.object({
   sets: z.array(setInput).min(1),
 });
 
-const routineInclude = {
-  folder: true,
+const routineListInclude = {
   exercises: {
     orderBy: { order: "asc" as const },
-    include: {
-      exercise: {
-        include: {
-          muscles: { include: { muscle: true } },
-          category: true,
+    select: {
+      id: true,
+      order: true,
+      restSeconds: true,
+      notes: true,
+      exercise: { select: { id: true, name: true } },
+      sets: {
+        orderBy: { setNumber: "asc" as const },
+        select: {
+          id: true,
+          setNumber: true,
+          targetWeight: true,
+          targetReps: true,
+          targetDuration: true,
+          setType: true,
         },
       },
-      sets: { orderBy: { setNumber: "asc" as const } },
     },
   },
+} as const;
+
+const routineDetailInclude = {
+  folder: true,
+  ...routineListInclude,
 } as const;
 
 export const routineRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.prisma.routine.findMany({
       where: { userId: ctx.user.id },
-      include: routineInclude,
+      include: routineListInclude,
       orderBy: { updatedAt: "desc" },
     });
   }),
@@ -56,7 +69,7 @@ export const routineRouter = router({
     .query(async ({ ctx, input }) => {
       const routine = await ctx.prisma.routine.findFirst({
         where: { id: input.id, userId: ctx.user.id },
-        include: routineInclude,
+        include: routineDetailInclude,
       });
 
       if (!routine) {
@@ -106,7 +119,7 @@ export const routineRouter = router({
             })),
           },
         },
-        include: routineInclude,
+        include: routineListInclude,
       });
     }),
 
@@ -160,7 +173,7 @@ export const routineRouter = router({
             })),
           },
         },
-        include: routineInclude,
+        include: routineListInclude,
       });
     }),
 

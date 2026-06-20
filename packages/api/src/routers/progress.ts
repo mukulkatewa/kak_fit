@@ -179,13 +179,22 @@ export const progressRouter = router({
         muscleVolume.set(name, (muscleVolume.get(name) ?? 0) + vol);
       }
 
-      const sorted = Array.from(muscleVolume.entries())
+      const all = Array.from(muscleVolume.entries())
         .map(([muscle, volume]) => ({ muscle, volume: Math.round(volume) }))
-        .sort((a, b) => b.volume - a.volume)
-        .slice(0, 8);
+        .sort((a, b) => b.volume - a.volume);
 
-      const max = sorted[0]?.volume ?? 1;
-      return sorted.map((m) => ({ ...m, pct: Math.round((m.volume / max) * 100) }));
+      const max = all[0]?.volume ?? 1;
+      const withIntensity = all.map((m) => ({
+        ...m,
+        pct: Math.round((m.volume / max) * 100),
+        intensity: Math.min(1, m.volume / max),
+      }));
+
+      return {
+        muscles: withIntensity.slice(0, 8),
+        heatmap: withIntensity,
+        totalVolume: Math.round(all.reduce((sum, m) => sum + m.volume, 0)),
+      };
     }),
 
   topExercises: protectedProcedure

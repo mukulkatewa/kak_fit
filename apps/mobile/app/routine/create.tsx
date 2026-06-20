@@ -32,11 +32,48 @@ export default function CreateRoutineScreen() {
   );
 
   const create = trpc.routine.create.useMutation({
+    onMutate: async (input) => {
+      await utils.routine.list.cancel();
+      const previous = utils.routine.list.getData();
+      utils.routine.list.setData(undefined, (old) => [
+        {
+          id: `optimistic-${Date.now()}`,
+          userId: "",
+          folderId: null,
+          name: input.name,
+          notes: input.notes ?? null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          exercises: input.exercises.map((ex, index) => ({
+            id: `optimistic-ex-${index}`,
+            order: ex.order,
+            restSeconds: ex.restSeconds ?? null,
+            notes: ex.notes ?? null,
+            exercise: { id: ex.exerciseId, name: "Saving…" },
+            sets: ex.sets.map((set) => ({
+              id: `optimistic-set-${set.setNumber}`,
+              setNumber: set.setNumber,
+              targetWeight: set.targetWeight ?? null,
+              targetReps: set.targetReps ?? null,
+              targetDuration: set.targetDuration ?? null,
+              setType: "NORMAL" as const,
+            })),
+          })),
+        },
+        ...(old ?? []),
+      ]);
+      return { previous };
+    },
+    onError: (e, _input, context) => {
+      if (context?.previous) {
+        utils.routine.list.setData(undefined, context.previous);
+      }
+      Alert.alert("Error", e.message);
+    },
     onSuccess: () => {
       utils.routine.list.invalidate();
       router.back();
     },
-    onError: (e) => Alert.alert("Error", e.message),
   });
 
   const canSave = name.trim().length > 0 && selected.length > 0;

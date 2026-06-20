@@ -6,10 +6,13 @@ import {
 import { getPreviousExercisePerformance } from "../services/previous-values";
 import { protectedProcedure, router } from "../trpc";
 
-const exerciseInclude = {
-  category: true,
-  muscles: { include: { muscle: true } },
-  equipment: { include: { equipment: true } },
+const exerciseListInclude = {
+  category: { select: { id: true, name: true } },
+  muscles: {
+    where: { isPrimary: true },
+    take: 1,
+    include: { muscle: { select: { id: true, name: true } } },
+  },
 } as const;
 
 export const exerciseRouter = router({
@@ -45,7 +48,7 @@ export const exerciseRouter = router({
 
       const exercises = await ctx.prisma.exercise.findMany({
         where,
-        include: exerciseInclude,
+        include: exerciseListInclude,
         orderBy: { name: "asc" },
         take: input?.limit ?? 20,
         ...(input?.cursor ? { skip: 1, cursor: { id: input.cursor } } : {}),
@@ -62,7 +65,7 @@ export const exerciseRouter = router({
           id: input.id,
           OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
         },
-        include: exerciseInclude,
+        include: exerciseListInclude,
       });
 
       if (!exercise) {
@@ -118,7 +121,7 @@ export const exerciseRouter = router({
             ],
           },
         },
-        include: exerciseInclude,
+        include: exerciseListInclude,
       });
     }),
 

@@ -13,14 +13,26 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, "node_modules"),
 ];
 
-// pnpm/Metro create ephemeral *_tmp_<pid> dirs; watching them crashes FallbackWatcher (ENOENT)
-const blockList = [
-  /\/node_modules\/.*_tmp_\d+\//,
-  /\/node_modules\/\.pnpm\/.*_tmp_\d+\//,
+// pnpm creates ephemeral *_tmp_<pid> dirs inside node_modules; Metro's watcher
+// tries to read them after deletion → jsBigFileString::fromPath / ENOENT crash.
+const tmpDirBlock = /(^|[/\\])node_modules[/\\].*_tmp_\d+([/\\]|$)/;
+
+const existingBlock = config.resolver.blockList;
+config.resolver.blockList = [
+  ...(Array.isArray(existingBlock) ? existingBlock : existingBlock ? [existingBlock] : []),
+  tmpDirBlock,
+  /[/\\]\.git[/\\]/,
+  /[/\\]\.turbo[/\\]/,
+  /[/\\]\.next[/\\]/,
 ];
 
-config.resolver.blockList = Array.isArray(config.resolver.blockList)
-  ? [...config.resolver.blockList, ...blockList]
-  : blockList;
+config.watcher = {
+  ...config.watcher,
+  healthCheck: {
+    enabled: true,
+    interval: 30000,
+    timeout: 10000,
+  },
+};
 
 module.exports = config;

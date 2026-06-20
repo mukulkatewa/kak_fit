@@ -8,7 +8,7 @@ import { colors } from "../../src/lib/theme";
 export default function ExercisesTab() {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const { data: exercises, isLoading, isError, error, refetch } = trpc.exercise.list.useQuery({
+  const { data: exercises, isPending, isError, error, refetch } = trpc.exercise.list.useQuery({
     search: search || undefined,
     limit: 50,
   });
@@ -19,7 +19,7 @@ export default function ExercisesTab() {
       <Header title="Exercises" subtitle={`${count?.count ?? 0} exercises`} />
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search exercises" />
 
-      {isLoading ? (
+      {isPending && exercises === undefined ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
       ) : isError ? (
         <View style={{ marginTop: 24, gap: 12, alignItems: "center" }}>

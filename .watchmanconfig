@@ -1,0 +1,8 @@
+{
+  "ignore_dirs": [
+    ".git",
+    ".turbo",
+    ".next",
+    "node_modules/.cache"
+  ]
+}

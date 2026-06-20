@@ -41,6 +41,7 @@ export function Screen({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
         >
           {content}
         </ScrollView>
@@ -419,7 +420,12 @@ export function ListRow({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.listRow, !last && styles.listRowBorder, pressed && styles.listRowPressed]}
+      disabled={!onPress}
+      style={({ pressed }) => [
+        styles.listRow,
+        !last && styles.listRowBorder,
+        onPress && pressed && styles.listRowPressed,
+      ]}
     >
       {icon ? (
         <View style={[styles.listRowIcon, gold && styles.listRowIconGold]}>

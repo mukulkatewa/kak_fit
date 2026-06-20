@@ -15,7 +15,9 @@ export function createQueryClient() {
     defaultOptions: {
       queries: {
         retry: 1,
-        staleTime: 15_000,
+        staleTime: 30_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: true,
       },
     },
   });

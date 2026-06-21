@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
-import { colors, radius, spacing } from "../lib/theme";
+import { colors, radius, shadows, spacing } from "../lib/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -267,25 +267,16 @@ export function HevyProgramCard({
   );
 }
 
-/** Trainer promo card */
+/** Personalized program promo card */
 export function HevyTrainerCard({ onPress }: { onPress?: () => void }) {
   return (
-    <Pressable style={styles.trainerCard} onPress={onPress}>
-      <Text style={styles.trainerLabel}>Trainer</Text>
-      <Text style={styles.trainerTitle}>Program based on your needs and goals</Text>
-      <View style={styles.trainerPillsRow}>
-        <View style={styles.trainerPill}>
-          <Text style={styles.trainerPillText}>Goal</Text>
-        </View>
-        <View style={[styles.trainerPill, styles.trainerPillAccent]}>
-          <Text style={styles.trainerPillAccentText}>Personalised Program</Text>
-        </View>
-        <View style={styles.trainerPill}>
-          <Text style={styles.trainerPillText}>Equipment</Text>
-        </View>
-      </View>
-      <Text style={styles.trainerLink}>Explore now</Text>
-    </Pressable>
+    <View style={styles.trainerCard}>
+      <Text style={styles.trainerTitle}>Personalized Program</Text>
+      <Text style={styles.trainerSubtitle}>Based on your needs & goals</Text>
+      <Pressable style={styles.trainerCta} onPress={onPress}>
+        <Text style={styles.trainerCtaText}>Explore now</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -335,7 +326,7 @@ const styles = StyleSheet.create({
   banner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e3a5f",
+    backgroundColor: colors.accent,
     borderRadius: radius.lg,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
@@ -458,25 +449,26 @@ const styles = StyleSheet.create({
   programTitle: { fontSize: 16, fontWeight: "600", color: colors.text, lineHeight: 22 },
   programMeta: { fontSize: 14, color: colors.textMuted },
   trainerCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
+    backgroundColor: colors.bg,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
     gap: spacing.sm,
-    overflow: "hidden",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.card,
   },
-  trainerLabel: { fontSize: 15, fontWeight: "700", color: colors.accent },
-  trainerTitle: { fontSize: 15, fontWeight: "500", color: colors.text, lineHeight: 20 },
-  trainerPillsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.xs },
-  trainerPill: {
-    backgroundColor: colors.surfaceHover,
-    borderRadius: radius.full,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+  trainerTitle: { fontSize: 20, fontWeight: "800", color: colors.accent, textAlign: "center" },
+  trainerSubtitle: { fontSize: 14, fontWeight: "500", color: colors.textMuted, textAlign: "center" },
+  trainerCta: {
+    alignSelf: "stretch",
+    marginTop: spacing.md,
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    alignItems: "center",
   },
-  trainerPillAccent: { backgroundColor: colors.accent },
-  trainerPillText: { fontSize: 12, fontWeight: "600", color: colors.text },
-  trainerPillAccentText: { fontSize: 12, fontWeight: "600", color: "#fff" },
-  trainerLink: { fontSize: 15, fontWeight: "600", color: colors.accent, marginTop: spacing.xs },
+  trainerCtaText: { fontSize: 16, fontWeight: "700", color: "#fff" },
   categoryTile: {
     flexBasis: "48%",
     flexGrow: 1,

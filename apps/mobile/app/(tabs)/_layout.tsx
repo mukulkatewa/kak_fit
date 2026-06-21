@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet } from "react-native";
 import { colors } from "../../src/lib/theme";
 
-/** Hevy uses 3 tabs: Home, Workout, You */
+/** Green & white tab bar: Home, Workout, Meals, Profile */
 export default function TabsLayout() {
   return (
     <Tabs
@@ -19,27 +19,41 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? "home" : "home-outline"} size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="routines"
         options={{
           title: "Workout",
-          tabBarIcon: ({ color, size }) => <Ionicons name="barbell-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? "barbell" : "barbell-outline"} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="nutrition"
+        options={{
+          title: "Meals",
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? "restaurant" : "restaurant-outline"} size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "You",
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
+          title: "Profile",
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? "person" : "person-outline"} size={size} color={color} />
+          ),
         }}
       />
-      {/* Hidden — opened from Profile dashboard grid or deep links */}
+      {/* Hidden — opened from deep links / dashboard grid */}
       <Tabs.Screen name="exercises" options={{ href: null }} />
       <Tabs.Screen name="progress" options={{ href: null }} />
-      <Tabs.Screen name="nutrition" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -54,5 +68,5 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     elevation: 0,
   },
-  tabLabel: { fontSize: 11, fontWeight: "500", marginTop: 2 },
+  tabLabel: { fontSize: 11, fontWeight: "600", marginTop: 2 },
 });

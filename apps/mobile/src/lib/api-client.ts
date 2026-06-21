@@ -19,7 +19,7 @@ export function getClientOrigin(): string {
   }
 
   const apiUrl = getApiUrl();
-  const host = apiUrl.replace(/^https?:\/\//, "").replace(":3000", "");
+  const host = apiUrl.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
   return `exp://${host}:8081`;
 }
 

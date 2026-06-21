@@ -154,7 +154,13 @@ export default function WorkoutExploreScreen() {
           </View>
         </View>
 
-        <Text style={styles.pageTitle}>Explore</Text>
+        <Text style={styles.pageTitle}>Workout Library</Text>
+
+        <HevyTrainerCard
+          onPress={() =>
+            Alert.alert("Trainer", "AI personalised programs are coming in a future update.")
+          }
+        />
 
         <Text style={styles.sectionTitle}>Programs</Text>
         <HevyFilterBar chips={filterChips} />
@@ -180,12 +186,6 @@ export default function WorkoutExploreScreen() {
           />
         ) : null}
 
-        <HevyTrainerCard
-          onPress={() =>
-            Alert.alert("Trainer", "AI personalised programs are coming in a future update.")
-          }
-        />
-
         <Text style={styles.sectionTitle}>Routines</Text>
         <View style={styles.categoryGrid}>
           {ROUTINE_CATEGORIES.map((cat) => (
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   topActions: { flexDirection: "row", gap: spacing.sm },
   myRoutinesBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
   myRoutinesText: { color: colors.accent, fontSize: 15, fontWeight: "600" },
-  pageTitle: { fontSize: 34, fontWeight: "700", color: colors.text, marginTop: -spacing.sm },
+  pageTitle: { fontSize: 34, fontWeight: "800", color: colors.accent, marginTop: -spacing.sm },
   sectionTitle: { fontSize: 22, fontWeight: "700", color: colors.text },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   filterOption: {

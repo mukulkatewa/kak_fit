@@ -4,7 +4,7 @@ import { bearer } from "better-auth/plugins";
 import { prisma } from "@kak-fit/db";
 
 const authBaseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
-const authHost = authBaseUrl.replace(/^https?:\/\//, "").replace(":3000", "");
+const authHost = authBaseUrl.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,

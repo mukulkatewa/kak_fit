@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing } from "../lib/theme";
 
@@ -43,6 +44,157 @@ export function BarChart({
   );
 }
 
+/**
+ * Pure-View line chart (no SVG). Renders dots connected by rotated segments,
+ * with faint vertical gridlines below each point — used on the green hero card.
+ */
+export function LineChart({
+  data,
+  height = 150,
+  lineColor = colors.onAccent,
+  dotColor = colors.onAccent,
+  gridColor = colors.onAccentFaint,
+}: {
+  data: ChartPoint[];
+  height?: number;
+  lineColor?: string;
+  dotColor?: string;
+  gridColor?: string;
+}) {
+  const [width, setWidth] = useState(0);
+
+  const values = data.map((d) => d.value);
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+
+  const padY = 18;
+  const innerH = Math.max(height - padY * 2, 1);
+  const dot = 9;
+  const line = 3;
+
+  const points = data.map((d, i) => {
+    const x = data.length > 1 ? (i / (data.length - 1)) * width : width / 2;
+    const y = padY + (1 - (d.value - min) / range) * innerH;
+    return { x, y };
+  });
+
+  return (
+    <View
+      style={{ height, width: "100%" }}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
+      {width > 0 &&
+        points.map((p, i) => {
+          const next = points[i + 1];
+          const segment = next
+            ? (() => {
+                const dx = next.x - p.x;
+                const dy = next.y - p.y;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+                return (
+                  <View
+                    key={`seg-${i}`}
+                    style={{
+                      position: "absolute",
+                      left: (p.x + next.x) / 2 - len / 2,
+                      top: (p.y + next.y) / 2 - line / 2,
+                      width: len,
+                      height: line,
+                      borderRadius: line,
+                      backgroundColor: lineColor,
+                      transform: [{ rotate: `${angle}deg` }],
+                    }}
+                  />
+                );
+              })()
+            : null;
+
+          return (
+            <View key={`pt-${i}`}>
+              {/* faint vertical gridline under the point */}
+              <View
+                style={{
+                  position: "absolute",
+                  left: p.x - 0.5,
+                  top: p.y,
+                  width: 1,
+                  height: Math.max(height - p.y - 4, 0),
+                  backgroundColor: gridColor,
+                }}
+              />
+              {segment}
+              {/* dot */}
+              <View
+                style={{
+                  position: "absolute",
+                  left: p.x - dot / 2,
+                  top: p.y - dot / 2,
+                  width: dot,
+                  height: dot,
+                  borderRadius: dot / 2,
+                  backgroundColor: dotColor,
+                }}
+              />
+            </View>
+          );
+        })}
+    </View>
+  );
+}
+
+/**
+ * Segmented circular progress ring (no SVG). A radial run of ticks, the first
+ * `progress` fraction tinted — reads as a smooth arc, robust on iOS/Android/web.
+ */
+export function ProgressRing({
+  size = 120,
+  progress,
+  color = colors.accent,
+  track = colors.surfaceHover,
+  ticks = 48,
+  tickWidth = 3,
+  tickLength = 12,
+  inset = 3,
+  children,
+}: {
+  size?: number;
+  progress: number;
+  color?: string;
+  track?: string;
+  ticks?: number;
+  tickWidth?: number;
+  tickLength?: number;
+  inset?: number;
+  children?: React.ReactNode;
+}) {
+  const pct = Math.min(Math.max(progress, 0), 1);
+  const filled = Math.round(pct * ticks);
+  const reach = size / 2 - tickLength / 2 - inset;
+
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      {Array.from({ length: ticks }).map((_, i) => (
+        <View
+          key={i}
+          style={{
+            position: "absolute",
+            left: size / 2 - tickWidth / 2,
+            top: size / 2 - tickLength / 2,
+            width: tickWidth,
+            height: tickLength,
+            borderRadius: tickWidth,
+            backgroundColor: i < filled ? color : track,
+            transform: [{ rotate: `${(i / ticks) * 360}deg` }, { translateY: -reach }],
+          }}
+        />
+      ))}
+      <View style={styles.ringCenter}>{children}</View>
+    </View>
+  );
+}
+
 export function MuscleBars({
   data,
 }: {
@@ -77,6 +229,7 @@ const styles = StyleSheet.create({
   bar: { width: "80%", borderRadius: 4, minHeight: 4 },
   barLabel: { fontSize: 9, color: colors.textDim, textAlign: "center" },
   empty: { fontSize: 14, color: colors.textMuted, textAlign: "center", paddingVertical: spacing.xl },
+  ringCenter: { alignItems: "center", justifyContent: "center" },
   muscleList: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md },
   muscleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   muscleName: { width: 80, fontSize: 13, color: colors.text },

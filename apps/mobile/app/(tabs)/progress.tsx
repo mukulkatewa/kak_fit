@@ -68,7 +68,7 @@ export default function ProgressScreen() {
         ))}
       </ListGroup>
 
-      <SectionHeader title="Recent PRs" action="See all" onAction={() => router.push("/(tabs)/profile")} />
+      <SectionHeader title="Recent PRs" />
       <View style={styles.prList}>
         {(prs ?? []).length === 0 ? (
           <Text style={styles.empty}>Hit new PRs by completing workouts.</Text>

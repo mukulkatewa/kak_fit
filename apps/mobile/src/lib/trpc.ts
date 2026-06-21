@@ -6,8 +6,6 @@ import superjson from "superjson";
 import { apiHeaders, getApiUrl } from "./api-client";
 import { getToken } from "./auth";
 
-const API_URL = getApiUrl();
-
 export const trpc = createTRPCReact<AppRouter>();
 
 export function createQueryClient() {
@@ -27,7 +25,7 @@ export function createTRPCClient() {
   return trpc.createClient({
     links: [
       httpBatchLink({
-        url: `${API_URL}/api/trpc`,
+        url: `${getApiUrl()}/api/trpc`,
         transformer: superjson,
         async headers() {
           const token = await getToken();

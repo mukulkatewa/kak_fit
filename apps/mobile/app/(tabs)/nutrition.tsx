@@ -85,7 +85,7 @@ export default function NutritionScreen() {
   };
 
   const cals = summary?.calories ?? 0;
-  const calTarget = summary?.targets.calories ?? 2000;
+  const calTarget = summary?.targets.calories ?? 2500;
 
   return (
     <Screen scroll padded={false}>

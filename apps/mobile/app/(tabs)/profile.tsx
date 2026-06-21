@@ -29,7 +29,7 @@ type ChartMode = "duration" | "volume" | "reps";
 export default function ProfileScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
-  const [chartMode, setChartMode] = useState<ChartMode>("duration");
+  const [chartMode, setChartMode] = useState<ChartMode>("volume");
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const { data: user } = trpc.auth.me.useQuery();
@@ -50,7 +50,12 @@ export default function ProfileScreen() {
     if (!volumeHistory?.length) return [];
     return volumeHistory.map((v) => ({
       label: v.label,
-      value: chartMode === "volume" ? v.volume : Math.max(1, Math.round(v.volume / 500)),
+      value:
+        chartMode === "volume"
+          ? v.volume
+          : chartMode === "duration"
+            ? v.durationMinutes
+            : v.totalReps,
     }));
   }, [volumeHistory, chartMode]);
 
@@ -68,7 +73,7 @@ export default function ProfileScreen() {
             <>
               <HevyIconButton icon="create-outline" />
               <HevyIconButton icon="share-outline" />
-              <HevyIconButton icon="settings-outline" onPress={handleSignOut} />
+              <HevyIconButton icon="settings-outline" />
             </>
           }
         />
@@ -91,6 +96,16 @@ export default function ProfileScreen() {
           />
         ) : null}
 
+        <HevySegmentedControl
+          options={[
+            { key: "duration" as const, label: "Duration" },
+            { key: "volume" as const, label: "Volume" },
+            { key: "reps" as const, label: "Reps" },
+          ]}
+          value={chartMode}
+          onChange={setChartMode}
+        />
+
         {chartLoading ? (
           <CardSkeleton />
         ) : chartData.length === 0 ? (
@@ -101,16 +116,6 @@ export default function ProfileScreen() {
         ) : (
           <BarChart data={chartData} color={colors.accent} />
         )}
-
-        <HevySegmentedControl
-          options={[
-            { key: "duration" as const, label: "Duration" },
-            { key: "volume" as const, label: "Volume" },
-            { key: "reps" as const, label: "Reps" },
-          ]}
-          value={chartMode}
-          onChange={setChartMode}
-        />
 
         <Text style={styles.sectionLabel}>Dashboard</Text>
         <HevyDashboardGrid

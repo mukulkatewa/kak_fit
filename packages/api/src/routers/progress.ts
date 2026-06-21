@@ -96,19 +96,33 @@ export const progressRouter = router({
 
       return workouts
         .reverse()
-        .map((w) => ({
-          date: w.finishedAt!.toISOString(),
-          label: w.finishedAt!.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-          volume: Math.round(
+        .map((w) => {
+          const volume = Math.round(
             w.exercises.reduce(
               (sum, ex) =>
                 sum + ex.sets.reduce((s, set) => s + (set.weight ?? 0) * (set.reps ?? 0), 0),
               0,
             ),
-          ),
-          workoutId: w.id,
-          name: w.name,
-        }));
+          );
+          const totalReps = w.exercises.reduce(
+            (sum, ex) => sum + ex.sets.reduce((s, set) => s + (set.reps ?? 0), 0),
+            0,
+          );
+          const durationMinutes =
+            w.startedAt && w.finishedAt
+              ? Math.max(1, Math.round((w.finishedAt.getTime() - w.startedAt.getTime()) / 60_000))
+              : 0;
+
+          return {
+            date: w.finishedAt!.toISOString(),
+            label: w.finishedAt!.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+            volume,
+            totalReps,
+            durationMinutes,
+            workoutId: w.id,
+            name: w.name,
+          };
+        });
     }),
 
   exerciseChart: protectedProcedure

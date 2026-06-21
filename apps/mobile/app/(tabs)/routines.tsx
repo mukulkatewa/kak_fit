@@ -78,7 +78,7 @@ export default function WorkoutExploreScreen() {
       label: hasFilters ? "Clear" : "Filters",
       icon: "options-outline" as const,
       active: hasFilters,
-      onPress: hasFilters ? clearFilters : () => toggleFilter(null),
+      onPress: hasFilters ? clearFilters : () => setOpenFilter("level"),
     },
     {
       key: "level",

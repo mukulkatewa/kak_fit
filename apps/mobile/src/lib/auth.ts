@@ -4,8 +4,6 @@ import { apiHeaders, getApiUrl } from "./api-client";
 
 const TOKEN_KEY = "kak_fit_token";
 
-const API_URL = getApiUrl();
-
 export type AuthUser = {
   id: string;
   name: string;
@@ -48,7 +46,7 @@ export async function clearToken(): Promise<void> {
 }
 
 async function authRequest(path: string, body: Record<string, string>) {
-  const response = await fetch(`${API_URL}/api/auth${path}`, {
+  const response = await fetch(`${getApiUrl()}/api/auth${path}`, {
     method: "POST",
     headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
@@ -85,7 +83,7 @@ export async function signIn(email: string, password: string) {
 export async function signOut() {
   const token = await getToken();
   if (token) {
-    await fetch(`${API_URL}/api/auth/sign-out`, {
+    await fetch(`${getApiUrl()}/api/auth/sign-out`, {
       method: "POST",
       headers: apiHeaders({ Authorization: `Bearer ${token}` }),
     }).catch(() => undefined);

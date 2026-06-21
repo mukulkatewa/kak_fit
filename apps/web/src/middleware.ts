@@ -7,12 +7,16 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:8081",
 ]);
 
+function isLanDevOrigin(origin: string): boolean {
+  return (
+    /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:(8081|19006)$/.test(origin) ||
+    /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:(8081|19006)$/.test(origin)
+  );
+}
+
 function corsHeaders(origin: string | null) {
   const isAllowed =
-    origin &&
-    (ALLOWED_ORIGINS.has(origin) ||
-      /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:8081$/.test(origin) ||
-      /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:8081$/.test(origin));
+    origin && (ALLOWED_ORIGINS.has(origin) || isLanDevOrigin(origin));
 
   const allowed = isAllowed ? origin! : "http://localhost:8081";
   return {

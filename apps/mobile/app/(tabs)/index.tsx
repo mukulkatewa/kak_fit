@@ -10,6 +10,27 @@ import { colors, radius, shadows, spacing } from "../../src/lib/theme";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+function buildLastSevenDaysChart(workouts: { finishedAt: Date | string | null; volume: number }[]) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(today);
+    date.setDate(date.getDate() - (6 - i));
+    return { label: WEEKDAYS[date.getDay()], value: 0, key: date.getTime() };
+  });
+
+  for (const workout of workouts) {
+    if (!workout.finishedAt) continue;
+    const finished = new Date(workout.finishedAt);
+    finished.setHours(0, 0, 0, 0);
+    const day = days.find((d) => d.key === finished.getTime());
+    if (day) day.value += workout.volume;
+  }
+
+  return days.map(({ label, value }) => ({ label, value: Math.round(value) }));
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
   const utils = trpc.useUtils();
@@ -38,17 +59,10 @@ export default function DashboardScreen() {
     onError: (e) => alertWorkoutConflict(e, () => router.push("/workout/active")),
   });
 
-  // Weekly progress chart — last completed workouts (oldest → newest)
+  // Weekly progress — volume per calendar day for the last 7 days
   const finished = (recent ?? []).filter((w) => w.finishedAt);
-  const chartSource = [...finished].reverse().slice(-7);
-  const chartData =
-    chartSource.length > 0
-      ? chartSource.map((w) => ({
-          label: w.finishedAt ? WEEKDAYS[new Date(w.finishedAt).getDay()] : "",
-          value: Math.round(w.volume),
-        }))
-      : [0, 0, 0, 0, 0, 0, 0].map((v, i) => ({ label: WEEKDAYS[i], value: v }));
-  const totalVolume = chartSource.reduce((sum, w) => sum + w.volume, 0);
+  const chartData = buildLastSevenDaysChart(finished);
+  const totalVolume = chartData.reduce((sum, d) => sum + d.value, 0);
 
   return (
     <Screen scroll padded={false}>
@@ -128,7 +142,7 @@ export default function DashboardScreen() {
                     icon="fitness"
                     title={w.name ?? "Workout"}
                     subtitle={`${w.exerciseCount} exercises · ${Math.round(w.volume)} kg`}
-                    onPress={() => router.push("/(tabs)/progress")}
+                    onPress={() => router.push("/(tabs)/profile")}
                   />
                 ))}
               </View>

@@ -12,6 +12,11 @@ function getConfig() {
   return { url, key };
 }
 
+/** Headers that work for both legacy service-role JWTs and new sb_secret_ keys. */
+function authHeaders(key: string): Record<string, string> {
+  return { Authorization: `Bearer ${key}`, apikey: key };
+}
+
 export function isStorageConfigured(): boolean {
   return getConfig() !== null;
 }
@@ -23,7 +28,7 @@ async function ensureBucket(url: string, key: string): Promise<void> {
   if (bucketEnsured) return;
   const res = await fetch(`${url}/storage/v1/bucket`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: { ...authHeaders(key), "Content-Type": "application/json" },
     body: JSON.stringify({ id: BUCKET, name: BUCKET, public: true }),
   });
   // 200 = created, 409 = already exists — both are fine.
@@ -57,7 +62,7 @@ export async function uploadImage(
   const res = await fetch(`${url}/storage/v1/object/${BUCKET}/${path}`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${key}`,
+      ...authHeaders(key),
       "Content-Type": contentType,
       "x-upsert": "true",
     },
@@ -81,6 +86,6 @@ export async function deleteImage(path: string): Promise<void> {
   const { url, key } = config;
   await fetch(`${url}/storage/v1/object/${BUCKET}/${path}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${key}` },
+    headers: authHeaders(key),
   }).catch(() => undefined);
 }

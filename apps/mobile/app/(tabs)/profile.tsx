@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BarChart } from "../../src/components/charts";
@@ -36,6 +36,13 @@ export default function ProfileScreen() {
   const { data: stats } = trpc.auth.stats.useQuery();
   const { data: volumeHistory, isLoading: chartLoading } = trpc.progress.volumeHistory.useQuery({ limit: 8 });
   const { data: workouts, isLoading } = trpc.workout.history.useQuery({ limit: 6 });
+  const utils = trpc.useUtils();
+
+  useEffect(() => {
+    void utils.exercise.list.prefetch({ limit: 50 });
+    void utils.exercise.muscles.prefetch();
+    void utils.progress.calendar.prefetch();
+  }, [utils]);
 
   const username = user?.name?.trim() || user?.email?.split("@")[0] || "athlete";
   // Banner: only show while bio is empty — the one thing we can guide them to add.

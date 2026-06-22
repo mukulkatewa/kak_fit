@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getPreviousSetsBatch } from "../services/previous-values";
-import { syncPersonalRecords } from "../services/personal-records";
+import { recalculatePersonalRecordsForExercise, syncPersonalRecords } from "../services/personal-records";
 import { protectedProcedure, router } from "../trpc";
 
 const workoutSetInput = z.object({
@@ -429,5 +429,156 @@ export const workoutRouter = router({
           ...(input.notes !== undefined ? { notes: input.notes } : {}),
         },
       });
+    }),
+
+  /** Copy a finished workout into a new active session. */
+  startFromWorkout: protectedProcedure
+    .input(z.object({ workoutId: z.string(), name: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.prisma.workout.findFirst({
+        where: { userId: ctx.user.id, finishedAt: null },
+      });
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Finish your active workout first",
+        });
+      }
+
+      const source = await ctx.prisma.workout.findFirst({
+        where: { id: input.workoutId, userId: ctx.user.id, finishedAt: { not: null } },
+        include: {
+          exercises: { include: { sets: { orderBy: { setNumber: "asc" } } }, orderBy: { order: "asc" } },
+        },
+      });
+      if (!source) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
+      }
+
+      return ctx.prisma.workout.create({
+        data: {
+          userId: ctx.user.id,
+          name: input.name ?? source.name ?? "Workout",
+          exercises: {
+            create: source.exercises.map((ex) => ({
+              exerciseId: ex.exerciseId,
+              order: ex.order,
+              notes: ex.notes,
+              supersetGroup: ex.supersetGroup ?? null,
+              sets: {
+                create: ex.sets.map((set) => ({
+                  setNumber: set.setNumber,
+                  weight: set.weight,
+                  reps: set.reps,
+                  duration: set.duration,
+                  setType: set.setType,
+                  notes: set.notes,
+                  isCompleted: false,
+                })),
+              },
+            })),
+          },
+        },
+        include: workoutDetailInclude,
+      });
+    }),
+
+  updateFinishedSet: protectedProcedure
+    .input(
+      z.object({
+        setId: z.string(),
+        weight: z.number().optional(),
+        reps: z.number().int().optional(),
+        duration: z.number().int().optional(),
+        notes: z.string().optional(),
+        setType: z.enum(["NORMAL", "WARMUP", "DROP", "FAILURE"]).optional(),
+        isCompleted: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const set = await ctx.prisma.workoutSet.findFirst({
+        where: {
+          id: input.setId,
+          workoutExercise: {
+            workout: { userId: ctx.user.id, finishedAt: { not: null } },
+          },
+        },
+        include: { workoutExercise: { select: { exerciseId: true } } },
+      });
+      if (!set) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Set not found" });
+      }
+
+      const updated = await ctx.prisma.workoutSet.update({
+        where: { id: input.setId },
+        data: {
+          weight: input.weight,
+          reps: input.reps,
+          duration: input.duration,
+          notes: input.notes,
+          setType: input.setType,
+          isCompleted: input.isCompleted,
+        },
+      });
+
+      await recalculatePersonalRecordsForExercise(
+        ctx.prisma,
+        ctx.user.id,
+        set.workoutExercise.exerciseId,
+      );
+
+      return updated;
+    }),
+
+  addFinishedSet: protectedProcedure
+    .input(z.object({ workoutExerciseId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const exercise = await ctx.prisma.workoutExercise.findFirst({
+        where: {
+          id: input.workoutExerciseId,
+          workout: { userId: ctx.user.id, finishedAt: { not: null } },
+        },
+        include: { sets: { orderBy: { setNumber: "desc" }, take: 1 } },
+      });
+      if (!exercise) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exercise not found" });
+      }
+
+      const lastSet = exercise.sets[0];
+      return ctx.prisma.workoutSet.create({
+        data: {
+          workoutExerciseId: exercise.id,
+          setNumber: (lastSet?.setNumber ?? 0) + 1,
+          weight: lastSet?.weight,
+          reps: lastSet?.reps,
+          duration: lastSet?.duration,
+          isCompleted: lastSet?.isCompleted ?? false,
+        },
+      });
+    }),
+
+  deleteFinishedSet: protectedProcedure
+    .input(z.object({ setId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const set = await ctx.prisma.workoutSet.findFirst({
+        where: {
+          id: input.setId,
+          workoutExercise: {
+            workout: { userId: ctx.user.id, finishedAt: { not: null } },
+          },
+        },
+        include: { workoutExercise: { select: { exerciseId: true } } },
+      });
+      if (!set) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Set not found" });
+      }
+
+      await ctx.prisma.workoutSet.delete({ where: { id: input.setId } });
+      await recalculatePersonalRecordsForExercise(
+        ctx.prisma,
+        ctx.user.id,
+        set.workoutExercise.exerciseId,
+      );
+      return { success: true };
     }),
 });

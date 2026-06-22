@@ -41,9 +41,9 @@
 | Live PR notification | ✅ | ✅ |
 | Workout detail view (read-only) | ✅ | ✅ |
 | Rename / delete past workouts | ✅ | ✅ |
-| Edit past workouts (modify sets) | ✅ | 🔲 |
+| Edit past workouts (modify sets) | ✅ | ✅ |
 | RPE per set | ✅ | 🟡 DB field only |
-| Copy workout → new session | ✅ | 🔲 |
+| Copy workout → new session | ✅ | ✅ |
 | Create routine from workout | ✅ | 🔲 |
 | Offline logging | ✅ | 🔲 |
 | Plate / warm-up calculator | ✅ Pro | 🔲 |
@@ -69,7 +69,7 @@
 | Search + muscle/category filter | ✅ | ✅ |
 | Custom exercises (create) | ✅ | ✅ |
 | Exercise detail + history + 1RM | ✅ | ✅ |
-| Exercise GIFs/images | ✅ | 🔲 |
+| Exercise GIFs/images | ✅ | ✅ (Wger demo images) |
 | Strength-level benchmarks | ✅ | 🔲 |
 
 ## 4. Progress Tracking

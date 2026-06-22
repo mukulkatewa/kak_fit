@@ -12,6 +12,14 @@ const exerciseListInclude = {
   },
 } as const;
 
+const exerciseDetailInclude = {
+  category: { select: { id: true, name: true } },
+  muscles: {
+    include: { muscle: { select: { id: true, name: true } } },
+    orderBy: { isPrimary: "desc" as const },
+  },
+} as const;
+
 export const exerciseRouter = router({
   list: protectedProcedure
     .input(
@@ -113,7 +121,7 @@ export const exerciseRouter = router({
           id: input.id,
           OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
         },
-        include: exerciseListInclude,
+        include: exerciseDetailInclude,
       });
 
       if (!exercise) {

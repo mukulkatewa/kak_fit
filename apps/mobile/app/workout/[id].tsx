@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
 import { EmptyState } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
+import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import {
   radius,
   spacing,
@@ -94,6 +95,24 @@ export default function WorkoutDetailScreen() {
     onError: (e) => Alert.alert("Couldn't delete", e.message),
   });
 
+  const discardActive = trpc.workout.discardActive.useMutation();
+  const copyWorkout = trpc.workout.startFromWorkout.useMutation({
+    onSuccess: () => {
+      utils.workout.active.invalidate();
+      router.push("/workout/active");
+    },
+    onError: (e) =>
+      alertWorkoutConflict(
+        e,
+        () => router.push("/workout/active"),
+        async () => {
+          await discardActive.mutateAsync();
+          await utils.workout.active.invalidate();
+          copyWorkout.mutate({ workoutId: id! });
+        },
+      ),
+  });
+
   const confirmDelete = () => {
     if (!id) return;
     Alert.alert("Delete workout?", "This permanently removes it from your history.", [
@@ -137,9 +156,24 @@ export default function WorkoutDetailScreen() {
         onBack={() => router.back()}
         right={
           <View style={styles.headerActions}>
-            <Pressable hitSlop={8} onPress={() => setEditing((v) => !v)}>
-              <Ionicons name="create-outline" size={22} color={colors.text} />
-            </Pressable>
+            {workout.finishedAt ? (
+              <>
+                <Pressable hitSlop={8} onPress={() => router.push(`/workout/edit/${id}`)}>
+                  <Ionicons name="create-outline" size={22} color={colors.text} />
+                </Pressable>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => copyWorkout.mutate({ workoutId: id! })}
+                  disabled={copyWorkout.isPending}
+                >
+                  <Ionicons name="copy-outline" size={21} color={colors.text} />
+                </Pressable>
+              </>
+            ) : (
+              <Pressable hitSlop={8} onPress={() => setEditing((v) => !v)}>
+                <Ionicons name="create-outline" size={22} color={colors.text} />
+              </Pressable>
+            )}
             <Pressable hitSlop={8} onPress={confirmDelete}>
               <Ionicons name="trash-outline" size={20} color={colors.danger} />
             </Pressable>
@@ -165,7 +199,15 @@ export default function WorkoutDetailScreen() {
           </Pressable>
         </View>
       ) : (
-        <Text style={styles.title}>{workout.name ?? "Workout"}</Text>
+        <Pressable
+          disabled={!workout.finishedAt}
+          onPress={() => workout.finishedAt && setEditing(true)}
+        >
+          <Text style={styles.title}>{workout.name ?? "Workout"}</Text>
+          {workout.finishedAt ? (
+            <Text style={styles.renameHint}>Tap name to rename</Text>
+          ) : null}
+        </Pressable>
       )}
       <Text style={styles.date}>
         {workout.finishedAt
@@ -257,6 +299,7 @@ const makeStyles = (colors: Palette) =>
     center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
     pad: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, gap: spacing.md },
     title: { fontSize: 26, fontWeight: "800", color: colors.text },
+    renameHint: { fontSize: 12, color: colors.textDim, marginTop: 2 },
     headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
     editRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
     editInput: {

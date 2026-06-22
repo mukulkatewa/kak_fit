@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { BarChart } from "../../src/components/charts";
 import { Button, EmptyState, Header, ListGroup, ListRow, Screen, SectionHeader } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
-import { useTheme, useThemedStyles, spacing, type Palette } from "../../src/lib/theme";
+import { radius, useTheme, useThemedStyles, spacing, type Palette } from "../../src/lib/theme";
 
 export default function ExerciseDetailScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -40,6 +40,7 @@ export default function ExerciseDetailScreen() {
 
   const primary = exercise.muscles.find((m) => m.isPrimary)?.muscle.name;
   const secondary = exercise.muscles.filter((m) => !m.isPrimary).map((m) => m.muscle.name);
+  const demoUrl = exercise.imageUrl ?? exercise.videoUrl;
 
   return (
     <Screen scroll>
@@ -48,6 +49,12 @@ export default function ExerciseDetailScreen() {
         subtitle={[primary, exercise.category?.name].filter(Boolean).join(" · ")}
         action={<Button label="Back" variant="ghost" size="sm" onPress={() => router.back()} />}
       />
+
+      {demoUrl ? (
+        <View style={styles.demoWrap}>
+          <Image source={{ uri: demoUrl }} style={styles.demoImage} resizeMode="contain" />
+        </View>
+      ) : null}
 
       {previous ? (
         <View style={styles.prevBox}>
@@ -118,6 +125,19 @@ export default function ExerciseDetailScreen() {
 }
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
+  demoWrap: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 220,
+  },
+  demoImage: {
+    width: "100%",
+    height: 240,
+    backgroundColor: colors.surfaceHover,
+  },
   prevBox: {
     backgroundColor: colors.surface,
     borderRadius: 12,

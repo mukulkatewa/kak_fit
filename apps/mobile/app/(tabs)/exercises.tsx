@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Button,
@@ -11,6 +11,7 @@ import {
   Screen,
   SearchBar,
 } from "../../src/components/ui";
+import { ListSkeleton } from "../../src/components/skeleton";
 import { trpc } from "../../src/lib/trpc";
 import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
@@ -22,7 +23,7 @@ export default function ExercisesTab() {
   const [muscleId, setMuscleId] = useState<string | null>(null);
   const [customOnly, setCustomOnly] = useState(false);
 
-  const { data: muscles } = trpc.exercise.muscles.useQuery();
+  const { data: muscles, isPending: musclesPending } = trpc.exercise.muscles.useQuery();
   const {
     data: exercises,
     isPending,
@@ -36,6 +37,8 @@ export default function ExercisesTab() {
     limit: 50,
   });
   const { data: count } = trpc.exerciseCount.useQuery();
+
+  const loading = (isPending && exercises === undefined) || (musclesPending && muscles === undefined);
 
   return (
     <Screen scroll>
@@ -54,25 +57,27 @@ export default function ExercisesTab() {
       />
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search exercises" />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-      >
-        <FilterChip label="All" active={!muscleId && !customOnly} onPress={() => { setMuscleId(null); setCustomOnly(false); }} />
-        <FilterChip label="Custom" active={customOnly} onPress={() => { setCustomOnly((v) => !v); setMuscleId(null); }} />
-        {(muscles ?? []).map((m) => (
-          <FilterChip
-            key={m.id}
-            label={m.name}
-            active={muscleId === m.id}
-            onPress={() => { setMuscleId((cur) => (cur === m.id ? null : m.id)); setCustomOnly(false); }}
-          />
-        ))}
-      </ScrollView>
+      {!loading ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          <FilterChip label="All" active={!muscleId && !customOnly} onPress={() => { setMuscleId(null); setCustomOnly(false); }} />
+          <FilterChip label="Custom" active={customOnly} onPress={() => { setCustomOnly((v) => !v); setMuscleId(null); }} />
+          {(muscles ?? []).map((m) => (
+            <FilterChip
+              key={m.id}
+              label={m.name}
+              active={muscleId === m.id}
+              onPress={() => { setMuscleId((cur) => (cur === m.id ? null : m.id)); setCustomOnly(false); }}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
 
-      {isPending && exercises === undefined ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
+      {loading ? (
+        <ListSkeleton rows={8} />
       ) : isError ? (
         <View style={{ marginTop: 24, gap: 12, alignItems: "center" }}>
           <EmptyState

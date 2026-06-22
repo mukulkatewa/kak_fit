@@ -13,12 +13,19 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+type CalendarWorkout = { id: string; name: string | null; date: string };
+
 function isoDateKey(d: Date) {
-  // Use local date to avoid UTC-shift bugs
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatDayHeading(key: string) {
+  const [y, m, d] = key.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 }
 
 export default function CalendarScreen() {
@@ -26,23 +33,27 @@ export default function CalendarScreen() {
   const { colors } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const styles = useThemedStyles(makeStyles);
-  // Horizontal padding from Screen (spacing.lg each side)
   const cellSize = Math.floor((screenWidth - spacing.lg * 2) / 7);
 
   const { data: workouts, isLoading } = trpc.progress.calendar.useQuery();
 
+  const todayKey = isoDateKey(new Date());
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
+  const [selectedKey, setSelectedKey] = useState(todayKey);
 
   const byDay = useMemo(() => {
-    const map = new Map<string, typeof workouts>();
+    const map = new Map<string, CalendarWorkout[]>();
     for (const w of workouts ?? []) {
       const k = isoDateKey(new Date(w.date));
       const arr = map.get(k) ?? [];
       arr.push(w);
       map.set(k, arr);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }
     return map;
   }, [workouts]);
@@ -55,29 +66,28 @@ export default function CalendarScreen() {
     const cells: Array<{ day: number; key: string } | null> = [];
     for (let i = 0; i < firstDay; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) {
-      cells.push({
-        day: d,
-        key: isoDateKey(new Date(year, month, d)),
-      });
+      cells.push({ day: d, key: isoDateKey(new Date(year, month, d)) });
     }
     return cells;
   }, [cursor]);
 
-  const monthWorkouts = useMemo(() => {
+  const monthWorkoutCount = useMemo(() => {
     const year = cursor.getFullYear();
     const month = cursor.getMonth();
-    return (workouts ?? [])
-      .filter((w) => {
-        const d = new Date(w.date);
-        return d.getFullYear() === year && d.getMonth() === month;
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return (workouts ?? []).filter((w) => {
+      const d = new Date(w.date);
+      return d.getFullYear() === year && d.getMonth() === month;
+    }).length;
   }, [workouts, cursor]);
 
-  const shiftMonth = (delta: number) =>
-    setCursor((c) => new Date(c.getFullYear(), c.getMonth() + delta, 1));
+  const selectedWorkouts = byDay.get(selectedKey) ?? [];
 
-  const todayKey = isoDateKey(new Date());
+  const shiftMonth = (delta: number) => {
+    setCursor((c) => {
+      const next = new Date(c.getFullYear(), c.getMonth() + delta, 1);
+      return next;
+    });
+  };
 
   return (
     <Screen scroll>
@@ -95,7 +105,6 @@ export default function CalendarScreen() {
         </Pressable>
       </View>
 
-      {/* Day-of-week header */}
       <View style={styles.weekRow}>
         {DAYS.map((d) => (
           <View key={d} style={[styles.dayCell, { width: cellSize }]}>
@@ -104,24 +113,22 @@ export default function CalendarScreen() {
         ))}
       </View>
 
-      {/* Grid */}
       {isLoading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />
       ) : (
         <View style={styles.grid}>
           {monthCells.map((cell, i) => {
             if (!cell) return <View key={`e-${i}`} style={{ width: cellSize, height: cellSize }} />;
-            const hasWorkout = Boolean(byDay.get(cell.key)?.length);
+            const dayWorkouts = byDay.get(cell.key) ?? [];
+            const hasWorkout = dayWorkouts.length > 0;
             const isToday = cell.key === todayKey;
             const isFuture = cell.key > todayKey;
+            const isSelected = cell.key === selectedKey;
             return (
               <Pressable
                 key={cell.key}
                 style={[styles.dayCell, { width: cellSize, height: cellSize }]}
-                onPress={() => {
-                  const wks = byDay.get(cell.key);
-                  if (wks?.length === 1) router.push(`/workout/${wks[0].id}`);
-                }}
+                onPress={() => setSelectedKey(cell.key)}
               >
                 <View
                   style={[
@@ -129,18 +136,25 @@ export default function CalendarScreen() {
                     hasWorkout && styles.dayDotActive,
                     isToday && !hasWorkout && styles.dayToday,
                     isToday && hasWorkout && styles.dayTodayActive,
+                    isSelected && styles.daySelected,
                   ]}
                 >
                   <Text
                     style={[
                       styles.dayText,
                       hasWorkout && styles.dayTextActive,
-                      isFuture && styles.dayTextFuture,
+                      isFuture && !hasWorkout && styles.dayTextFuture,
+                      isSelected && !hasWorkout && styles.dayTextSelected,
                     ]}
                   >
                     {cell.day}
                   </Text>
                 </View>
+                {dayWorkouts.length > 1 ? (
+                  <View style={[styles.multiDot, { right: Math.max(2, (cellSize - 36) / 2 - 2) }]}>
+                    <Text style={styles.multiDotText}>{dayWorkouts.length}</Text>
+                  </View>
+                ) : null}
               </Pressable>
             );
           })}
@@ -151,29 +165,34 @@ export default function CalendarScreen() {
         <View style={styles.legendDot} />
         <Text style={styles.legendText}>Workout completed</Text>
         <Text style={styles.monthCount}>
-          {monthWorkouts.length > 0 ? `${monthWorkouts.length} this month` : ""}
+          {monthWorkoutCount > 0 ? `${monthWorkoutCount} this month` : ""}
         </Text>
       </View>
 
-      {monthWorkouts.length === 0 && !isLoading ? (
+      <Text style={styles.selectedHeading}>{formatDayHeading(selectedKey)}</Text>
+
+      {isLoading ? null : selectedWorkouts.length === 0 ? (
         <EmptyState
-          icon="calendar-outline"
-          title="No workouts this month"
-          message="Complete a workout to see it here."
+          icon="barbell-outline"
+          title="No workouts"
+          message={
+            selectedKey > todayKey
+              ? "This date is in the future."
+              : "No workouts logged on this day."
+          }
         />
       ) : (
         <ListGroup>
-          {monthWorkouts.map((w, i) => (
+          {selectedWorkouts.map((w, i) => (
             <ListRow
               key={w.id}
               title={w.name ?? "Workout"}
-              subtitle={new Date(w.date).toLocaleDateString(undefined, {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
+              subtitle={new Date(w.date).toLocaleTimeString(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
               })}
               onPress={() => router.push(`/workout/${w.id}`)}
-              last={i === monthWorkouts.length - 1}
+              last={i === selectedWorkouts.length - 1}
             />
           ))}
         </ListGroup>
@@ -200,11 +219,31 @@ const makeStyles = (colors: Palette) =>
     dayDotActive: { backgroundColor: colors.accent },
     dayToday: { borderWidth: 1.5, borderColor: colors.accent },
     dayTodayActive: { borderWidth: 2, borderColor: colors.onAccent },
+    daySelected: { borderWidth: 2, borderColor: colors.text },
     dayText: { fontSize: 14, color: colors.text, fontWeight: "500" },
     dayTextActive: { color: colors.onAccent, fontWeight: "800" },
     dayTextFuture: { color: colors.textDim },
+    dayTextSelected: { fontWeight: "800" },
+    multiDot: {
+      position: "absolute",
+      bottom: 2,
+      minWidth: 14,
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: colors.gold,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 3,
+    },
+    multiDotText: { fontSize: 9, fontWeight: "800", color: colors.bg },
     legend: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginVertical: spacing.md },
     legendDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.accent },
     legendText: { fontSize: 13, color: colors.textMuted, flex: 1 },
     monthCount: { fontSize: 13, color: colors.accent, fontWeight: "700" },
+    selectedHeading: {
+      fontSize: 16,
+      fontWeight: "800",
+      color: colors.text,
+      marginBottom: spacing.sm,
+    },
   });

@@ -107,3 +107,69 @@ export async function syncPersonalRecords(
 
   return created;
 }
+
+/** Rebuild PRs for one exercise after editing historical sets. */
+export async function recalculatePersonalRecordsForExercise(
+  prisma: PrismaClient,
+  userId: string,
+  exerciseId: string,
+): Promise<void> {
+  await prisma.personalRecord.deleteMany({ where: { userId, exerciseId } });
+
+  const sets = await prisma.workoutSet.findMany({
+    where: {
+      isCompleted: true,
+      workoutExercise: {
+        exerciseId,
+        workout: { userId, finishedAt: { not: null } },
+      },
+    },
+    select: { id: true, weight: true, reps: true, duration: true },
+  });
+
+  if (sets.length === 0) return;
+
+  type Best = { value: number; setId: string };
+  const best: Record<PersonalRecordType, Best> = {
+    MAX_WEIGHT: { value: 0, setId: "" },
+    MAX_REPS: { value: 0, setId: "" },
+    MAX_VOLUME: { value: 0, setId: "" },
+    MAX_DURATION: { value: 0, setId: "" },
+    ESTIMATED_1RM: { value: 0, setId: "" },
+  };
+
+  for (const set of sets) {
+    if (set.weight && set.weight > best.MAX_WEIGHT.value) {
+      best.MAX_WEIGHT = { value: set.weight, setId: set.id };
+    }
+    if (set.reps && set.reps > best.MAX_REPS.value) {
+      best.MAX_REPS = { value: set.reps, setId: set.id };
+    }
+    const volume = setVolume(set.weight, set.reps);
+    if (volume > best.MAX_VOLUME.value) {
+      best.MAX_VOLUME = { value: volume, setId: set.id };
+    }
+    if (set.duration && set.duration > best.MAX_DURATION.value) {
+      best.MAX_DURATION = { value: set.duration, setId: set.id };
+    }
+    if (set.weight && set.reps) {
+      const oneRm = estimateOneRepMax(set.weight, set.reps);
+      if (oneRm > best.ESTIMATED_1RM.value) {
+        best.ESTIMATED_1RM = { value: oneRm, setId: set.id };
+      }
+    }
+  }
+
+  for (const [type, record] of Object.entries(best) as [PersonalRecordType, Best][]) {
+    if (record.value <= 0 || !record.setId) continue;
+    await prisma.personalRecord.create({
+      data: {
+        userId,
+        exerciseId,
+        type,
+        value: record.value,
+        workoutSetId: record.setId,
+      },
+    });
+  }
+}

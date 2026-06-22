@@ -52,6 +52,7 @@ function ThemedApp() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="workout" />
           <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
+          <Stack.Screen name="exercise/create" options={{ presentation: "modal" }} />
           <Stack.Screen name="exercise/[id]" />
           <Stack.Screen name="measurements" />
           <Stack.Screen name="settings" options={{ presentation: "modal" }} />

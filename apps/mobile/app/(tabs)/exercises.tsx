@@ -1,24 +1,75 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, View } from "react-native";
-import { EmptyState, Header, ListGroup, ListRow, Screen, SearchBar, Button } from "../../src/components/ui";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  Button,
+  EmptyState,
+  Header,
+  ListGroup,
+  ListRow,
+  Screen,
+  SearchBar,
+} from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
-import { useTheme } from "../../src/lib/theme";
+import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 export default function ExercisesTab() {
   const router = useRouter();
   const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [search, setSearch] = useState("");
-  const { data: exercises, isPending, isError, error, refetch } = trpc.exercise.list.useQuery({
+  const [muscleId, setMuscleId] = useState<string | null>(null);
+  const [customOnly, setCustomOnly] = useState(false);
+
+  const { data: muscles } = trpc.exercise.muscles.useQuery();
+  const {
+    data: exercises,
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = trpc.exercise.list.useQuery({
     search: search || undefined,
+    muscleId: muscleId || undefined,
+    customOnly: customOnly || undefined,
     limit: 50,
   });
   const { data: count } = trpc.exerciseCount.useQuery();
 
   return (
     <Screen scroll>
-      <Header title="Exercises" subtitle={`${count?.count ?? 0} exercises`} />
+      <Header
+        title="Exercises"
+        subtitle={`${count?.count ?? 0} exercises`}
+        action={
+          <Pressable
+            style={styles.addBtn}
+            hitSlop={8}
+            onPress={() => router.push("/exercise/create")}
+          >
+            <Ionicons name="add" size={22} color={colors.onAccent} />
+          </Pressable>
+        }
+      />
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search exercises" />
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRow}
+      >
+        <FilterChip label="All" active={!muscleId && !customOnly} onPress={() => { setMuscleId(null); setCustomOnly(false); }} />
+        <FilterChip label="Custom" active={customOnly} onPress={() => { setCustomOnly((v) => !v); setMuscleId(null); }} />
+        {(muscles ?? []).map((m) => (
+          <FilterChip
+            key={m.id}
+            label={m.name}
+            active={muscleId === m.id}
+            onPress={() => { setMuscleId((cur) => (cur === m.id ? null : m.id)); setCustomOnly(false); }}
+          />
+        ))}
+      </ScrollView>
 
       {isPending && exercises === undefined ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
@@ -32,7 +83,11 @@ export default function ExercisesTab() {
           <Button label="Retry" variant="secondary" onPress={() => refetch()} />
         </View>
       ) : (exercises ?? []).length === 0 ? (
-        <EmptyState icon="search-outline" title="No exercises found" message="Try a different search." />
+        <EmptyState
+          icon="search-outline"
+          title="No exercises found"
+          message={customOnly ? "Create your first custom exercise with +." : "Try a different search or filter."}
+        />
       ) : (
         <ListGroup>
           {exercises?.map((item, index) => {
@@ -41,7 +96,9 @@ export default function ExercisesTab() {
               <ListRow
                 key={item.id}
                 title={item.name}
-                subtitle={[primary, item.category?.name].filter(Boolean).join(" · ")}
+                subtitle={[primary, item.category?.name, item.isCustom ? "Custom" : null]
+                  .filter(Boolean)
+                  .join(" · ")}
                 onPress={() => router.push(`/exercise/${item.id}`)}
                 last={index === (exercises?.length ?? 0) - 1}
               />
@@ -52,3 +109,38 @@ export default function ExercisesTab() {
     </Screen>
   );
 }
+
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    addBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    filterRow: { gap: spacing.sm, paddingVertical: spacing.xs, paddingRight: spacing.lg },
+    chip: {
+      backgroundColor: colors.surface,
+      borderRadius: radiusFull,
+      paddingVertical: 7,
+      paddingHorizontal: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+    chipText: { color: colors.textMuted, fontSize: 13, fontWeight: "500" },
+    chipTextActive: { color: colors.onAccent, fontWeight: "700" },
+  });
+
+const radiusFull = 999;

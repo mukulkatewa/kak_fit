@@ -142,7 +142,9 @@ SUPABASE_PROJECT_REF="your-project-ref"
 SUPABASE_DB_PASSWORD="your-database-password"
 SUPABASE_POOLER_HOST="aws-1-ap-northeast-1.pooler.supabase.com"
 # Auto-written by `pnpm sync:ip` from the above (Prisma + Supabase pattern):
-DATABASE_URL="postgresql://postgres.REF:PASSWORD@HOST:6543/postgres?pgbouncer=true&schema=public&sslmode=require"
+# Runtime uses the SESSION pooler (:5432) — the API is a long-lived server, so a
+# persistent connection is 3-5x faster than the transaction pooler (:6543).
+DATABASE_URL="postgresql://postgres.REF:PASSWORD@HOST:5432/postgres?schema=public&sslmode=require&connection_limit=5"
 DIRECT_URL="postgresql://postgres.REF:PASSWORD@HOST:5432/postgres?schema=public&sslmode=require"
 NEXT_PUBLIC_SUPABASE_URL="https://xxxxx.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGci..."
@@ -153,7 +155,11 @@ SUPABASE_SERVICE_ROLE_KEY="eyJhbGci..."
 |----------|-----------------|
 | `SUPABASE_DB_PASSWORD` | Dashboard → Project Settings → **Database** → Database password |
 | `SUPABASE_POOLER_HOST` | Dashboard → **Connect** → **ORMs** → **Prisma** (host in connection string) |
-| `DATABASE_URL` / `DIRECT_URL` | Auto-built by `sync:ip` — transaction pooler `:6543` + session pooler `:5432` |
+| `DATABASE_URL` / `DIRECT_URL` | Auto-built by `sync:ip` — both use the session pooler `:5432` (faster for a long-lived server) |
+
+> **Latency tip:** request speed is dominated by the database region. If the API
+> feels slow, host the Supabase project in the region closest to you (e.g.
+> `ap-south-1` / Mumbai) or use local Docker Postgres for development.
 | `SUPABASE_PROJECT_REF` | Subdomain in your project URL (`https://REF.supabase.co`) |
 | `NEXT_PUBLIC_SUPABASE_*` | Dashboard → Project Settings → **API** (use the `anon` JWT key, not `sb_publishable_…`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Same API page (server-only, never ship to mobile) |

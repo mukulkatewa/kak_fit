@@ -510,10 +510,19 @@ No Clerk, no paid analytics, no paid email — use Resend free tier or self-host
 | Set types (warm-up, drop, failure) | ✅ |
 | Nutrition / USDA meal logging | ✅ |
 | Food cache (local DB on log) | ✅ |
-| Muscle heatmap visual | 🔲 Placeholder (bar chart) |
-| Reanimated animations | 🔲 Phase 2+ |
+| Muscle heatmap visual | ✅ Body silhouette heatmap |
+| Light + dark theme (system + manual) | ✅ |
+| Read-only workout detail view | ✅ |
+| Green & white theme redesign | ✅ |
+| API loading perf (session pooler, indexes, caching) | ✅ |
+| Reanimated animations | 🔲 Removed (Expo Go incompatibility) |
 
 **Exit criteria:** Log a meal + workout in same day; see macros and training stats on dashboard.
+
+> **Demo note:** Free-tier limits (routines, custom exercises, history) are
+> currently **disabled** — every feature is free. See
+> [HEVY_COMPARISON.md](./HEVY_COMPARISON.md) for the live feature matrix and the
+> prioritized gap backlog driving the next phase.
 
 ---
 
@@ -645,4 +654,4 @@ Media         → workoutId, url, type (image|video)
 
 ---
 
-*Last updated: June 20, 2026*
+*Last updated: June 22, 2026*

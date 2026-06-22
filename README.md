@@ -1,18 +1,24 @@
 # Kak Fit
 
-A mobile-first workout tracker — Hevy-style, at a lower price. **Core focus: logging + progress. Social comes later.**
+A mobile-first workout tracker — Hevy-style. **Core focus: logging + progress. Social comes later.**
+
+> **Demo build: everything is free.** No paywall or subscription limits — all
+> routines, custom exercises, and full history are unlocked.
 
 ## Stack
 
-- **Mobile:** React Native + Expo Router + TypeScript
+- **Mobile:** React Native + Expo Router + TypeScript (light + dark theme)
 - **Backend:** Next.js + tRPC + TypeScript
-- **Database:** PostgreSQL + Prisma
+- **Database:** PostgreSQL + Prisma (Supabase)
 - **Auth:** Better Auth (email + bearer tokens for mobile)
 - **Exercise data:** [Wger API](https://wger.readthedocs.io/en/latest/api/api.html) (855 exercises imported)
+- **Nutrition:** USDA FoodData Central (food search + macro tracking)
 
 ## Docs
 
-See [docs/PROJECT_ROADMAP.md](./docs/PROJECT_ROADMAP.md) for competitive research and phased roadmap.
+- [docs/PROJECT_ROADMAP.md](./docs/PROJECT_ROADMAP.md) — competitive research and phased roadmap
+- [docs/HEVY_COMPARISON.md](./docs/HEVY_COMPARISON.md) — current end-to-end feature comparison vs Hevy + gap backlog
+- [docs/ENV_SETUP.md](./docs/ENV_SETUP.md) — environment variables and database setup
 
 ## Quick Start
 
@@ -48,14 +54,19 @@ pnpm --filter @kak-fit/mobile start
 | Email | `demo@kakfit.app` |
 | Password | `password123` |
 
-## Phase 1 Features (Live)
+## Features (Live)
 
-- Email auth (sign up / sign in)
-- Exercise library (855 Wger exercises, searchable)
-- Routine builder (create, duplicate, delete)
-- Workout logger (start empty / from routine, log sets, finish)
-- Personal records (auto-detected on workout finish)
-- Workout history + PR list
+- Email auth (sign up / sign in), persistent mobile sessions
+- Exercise library (855 Wger exercises, searchable) + per-exercise detail & charts
+- Routine builder (create, duplicate, delete) + program/category templates
+- Workout logger (empty / from routine, set types, rest timer, previous values, copy set)
+- Personal records (auto-detected on finish) + workout history & read-only detail view
+- Progress: volume / duration / reps charts, streak, muscle heatmap, PRs
+- Nutrition: USDA food search, meal logging, daily calorie + macro rings
+- Body measurements (log + weight trend)
+- Light + dark theme (system default, manual toggle in Settings)
+
+See [docs/HEVY_COMPARISON.md](./docs/HEVY_COMPARISON.md) for the full feature matrix and what's next.
 
 ## API Endpoints
 

@@ -27,6 +27,8 @@ export default function MeasurementsScreen() {
   const { data: latest } = trpc.bodyMeasurement.latest.useQuery();
   const { data: history } = trpc.bodyMeasurement.list.useQuery({ limit: 20 });
   const { data: photos } = trpc.progressPhoto.list.useQuery({ limit: 30 });
+  const { data: storage } = trpc.progressPhoto.storageEnabled.useQuery();
+  const photosEnabled = storage?.enabled ?? false;
 
   const uploadPhoto = trpc.progressPhoto.upload.useMutation({
     onSuccess: () => utils.progressPhoto.list.invalidate(),
@@ -179,18 +181,22 @@ export default function MeasurementsScreen() {
 
       <View style={styles.photosHeader}>
         <SectionHeader title="Progress Photos" />
-        <Pressable style={styles.photoAddBtn} onPress={addPhoto} disabled={uploadPhoto.isPending}>
-          {uploadPhoto.isPending ? (
-            <ActivityIndicator color={colors.onAccent} size="small" />
-          ) : (
-            <>
-              <Ionicons name="camera-outline" size={16} color={colors.onAccent} />
-              <Text style={styles.photoAddText}>Add</Text>
-            </>
-          )}
-        </Pressable>
+        {photosEnabled ? (
+          <Pressable style={styles.photoAddBtn} onPress={addPhoto} disabled={uploadPhoto.isPending}>
+            {uploadPhoto.isPending ? (
+              <ActivityIndicator color={colors.onAccent} size="small" />
+            ) : (
+              <>
+                <Ionicons name="camera-outline" size={16} color={colors.onAccent} />
+                <Text style={styles.photoAddText}>Add</Text>
+              </>
+            )}
+          </Pressable>
+        ) : null}
       </View>
-      {(photos ?? []).length === 0 ? (
+      {!photosEnabled ? (
+        <Text style={styles.photoEmpty}>Photo storage isn&apos;t configured on the server yet.</Text>
+      ) : (photos ?? []).length === 0 ? (
         <Text style={styles.photoEmpty}>Add photos to track visual progress over time.</Text>
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>

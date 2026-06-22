@@ -142,10 +142,28 @@ export default function ActiveWorkoutScreen() {
     );
   }, [workout]);
 
-  if (isLoading || !workout) {
+  if (isLoading) {
     return (
       <Screen>
-        <ActivityIndicator color={colors.accent} size="large" />
+        <ActivityIndicator color={colors.accent} size="large" style={{ marginTop: 48 }} />
+      </Screen>
+    );
+  }
+
+  if (!workout) {
+    return (
+      <Screen>
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={22} color={colors.accent} />
+          </Pressable>
+        </View>
+        <View style={{ alignItems: "center", marginTop: 64, gap: spacing.lg, paddingHorizontal: spacing.xl }}>
+          <Ionicons name="barbell-outline" size={48} color={colors.textDim} />
+          <Text style={styles.workoutTitle}>No active workout</Text>
+          <Text style={styles.meta}>Start one from the Home or Workout tab.</Text>
+          <Button label="Go back" onPress={() => router.back()} />
+        </View>
       </Screen>
     );
   }

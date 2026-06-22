@@ -108,7 +108,7 @@ export default function NutritionScreen() {
         ) : summary ? (
           <View style={styles.summaryCard}>
             <View style={styles.calBlock}>
-              <ProgressRing size={132} progress={cals / calTarget} ticks={56} tickLength={14}>
+              <ProgressRing size={132} progress={cals / Math.max(calTarget, 1)} ticks={56} tickLength={14}>
                 <Text style={styles.calValue}>{cals.toLocaleString()}</Text>
                 <Text style={styles.calTarget}>/ {calTarget.toLocaleString()}</Text>
                 <Text style={styles.calUnit}>Calories</Text>
@@ -237,10 +237,11 @@ function MacroRingRow({
   color: string;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const pct = Math.round((value / target) * 100);
+  const safeTarget = Math.max(target, 1);
+  const pct = Math.round((value / safeTarget) * 100);
   return (
     <View style={styles.macroRow}>
-      <ProgressRing size={52} progress={value / target} color={color} ticks={28} tickLength={7} tickWidth={2}>
+      <ProgressRing size={52} progress={value / safeTarget} color={color} ticks={28} tickLength={7} tickWidth={2}>
         <Text style={[styles.macroPct, { color }]}>{pct}%</Text>
       </ProgressRing>
       <View>

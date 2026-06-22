@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { BarChart } from "../../src/components/charts";
-import { Button, Header, ListGroup, ListRow, Screen, SectionHeader } from "../../src/components/ui";
+import { Button, EmptyState, Header, ListGroup, ListRow, Screen, SectionHeader } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
 import { useTheme, useThemedStyles, spacing, type Palette } from "../../src/lib/theme";
 
@@ -10,7 +10,10 @@ export default function ExerciseDetailScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: exercise, isLoading } = trpc.exercise.getById.useQuery({ id: id! }, { enabled: !!id });
+  const { data: exercise, isLoading, isError } = trpc.exercise.getById.useQuery(
+    { id: id! },
+    { enabled: !!id },
+  );
   const { data: chart } = trpc.progress.exerciseChart.useQuery(
     { exerciseId: id!, limit: 10 },
     { enabled: !!id },
@@ -18,10 +21,19 @@ export default function ExerciseDetailScreen() {
   const { data: prs } = trpc.personalRecord.byExercise.useQuery({ exerciseId: id! }, { enabled: !!id });
   const { data: previous } = trpc.exercise.previousPerformance.useQuery({ exerciseId: id! }, { enabled: !!id });
 
-  if (isLoading || !exercise) {
+  if (isLoading) {
     return (
       <Screen>
-        <ActivityIndicator color={colors.accent} size="large" />
+        <ActivityIndicator color={colors.accent} size="large" style={{ marginTop: 48 }} />
+      </Screen>
+    );
+  }
+
+  if (isError || !exercise) {
+    return (
+      <Screen>
+        <Header title="Exercise" action={<Button label="Back" variant="ghost" size="sm" onPress={() => router.back()} />} />
+        <EmptyState icon="alert-circle-outline" title="Exercise not found" message="It may have been removed." />
       </Screen>
     );
   }

@@ -1,4 +1,5 @@
 import "react-native-gesture-handler";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   DarkTheme as NavDarkTheme,
@@ -62,6 +63,7 @@ function ThemedApp() {
     },
   };
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <NavThemeProvider value={navTheme}>
       <StatusBar style={isDark ? "light" : "dark"} />
       <AuthGate>
@@ -77,10 +79,14 @@ function ThemedApp() {
           <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
           <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
           <Stack.Screen name="photos" />
+          <Stack.Screen name="photos/compare" />
           <Stack.Screen name="calendar" />
+          <Stack.Screen name="tools" options={{ presentation: "modal" }} />
+          <Stack.Screen name="routine/share/[token]" />
         </Stack>
       </AuthGate>
     </NavThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 

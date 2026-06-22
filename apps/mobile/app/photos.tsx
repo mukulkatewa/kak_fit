@@ -55,20 +55,27 @@ export default function PhotosScreen() {
         title="Progress Photos"
         onBack={() => router.back()}
         right={
-          enabled ? (
-            <Pressable
-              hitSlop={8}
-              onPress={addPhoto}
-              disabled={upload.isPending}
-              style={styles.addBtn}
-            >
-              {upload.isPending ? (
-                <ActivityIndicator color={colors.onAccent} size="small" />
-              ) : (
-                <Ionicons name="add" size={20} color={colors.onAccent} />
-              )}
-            </Pressable>
-          ) : undefined
+          <View style={styles.headerRight}>
+            {(photos ?? []).length >= 2 ? (
+              <Pressable hitSlop={8} onPress={() => router.push("/photos/compare")} style={styles.iconBtn}>
+                <Ionicons name="git-compare-outline" size={20} color={colors.text} />
+              </Pressable>
+            ) : null}
+            {enabled ? (
+              <Pressable
+                hitSlop={8}
+                onPress={addPhoto}
+                disabled={upload.isPending}
+                style={styles.addBtn}
+              >
+                {upload.isPending ? (
+                  <ActivityIndicator color={colors.onAccent} size="small" />
+                ) : (
+                  <Ionicons name="add" size={20} color={colors.onAccent} />
+                )}
+              </Pressable>
+            ) : null}
+          </View>
         }
       />
 
@@ -110,6 +117,15 @@ export default function PhotosScreen() {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
+    headerRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    iconBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.surface,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     addBtn: {
       width: 36,
       height: 36,

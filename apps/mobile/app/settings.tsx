@@ -1,10 +1,12 @@
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Button, Screen } from "../src/components/ui";
 import { HevyStackHeader } from "../src/components/hevy-ui";
 import { useAuth } from "../src/lib/auth-context";
 import { trpc } from "../src/lib/trpc";
+import { formatRestTime } from "../src/lib/rest-timer";
 import {
   radius,
   spacing,
@@ -20,12 +22,37 @@ const THEME_OPTIONS: Array<{ key: ThemeMode; label: string; icon: keyof typeof I
   { key: "dark", label: "Dark", icon: "moon-outline" },
 ];
 
+const UNIT_OPTIONS = [
+  { key: "KG" as const, label: "Kilograms (kg)" },
+  { key: "LBS" as const, label: "Pounds (lbs)" },
+];
+
+const REST_PRESETS = [60, 90, 120, 180, 300];
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { colors, mode, setMode } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const utils = trpc.useUtils();
   const { data: user } = trpc.auth.me.useQuery();
+
+  const [weightUnit, setWeightUnit] = useState<"KG" | "LBS">("KG");
+  const [restSeconds, setRestSeconds] = useState(90);
+
+  useEffect(() => {
+    if (user?.weightUnit) setWeightUnit(user.weightUnit);
+    if (user?.defaultRestSeconds) setRestSeconds(user.defaultRestSeconds);
+  }, [user?.weightUnit, user?.defaultRestSeconds]);
+
+  const savePrefs = trpc.auth.updatePreferences.useMutation({
+    onSuccess: () => utils.auth.me.invalidate(),
+    onError: (e) => alert(e.message),
+  });
+
+  const persist = (patch: { weightUnit?: "KG" | "LBS"; defaultRestSeconds?: number }) => {
+    savePrefs.mutate(patch);
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -56,6 +83,58 @@ export default function SettingsScreen() {
             </Pressable>
           );
         })}
+      </View>
+
+      <Text style={styles.sectionLabel}>Workout</Text>
+      <View style={styles.group}>
+        {UNIT_OPTIONS.map((opt, i) => {
+          const active = weightUnit === opt.key;
+          return (
+            <Pressable
+              key={opt.key}
+              onPress={() => {
+                setWeightUnit(opt.key);
+                persist({ weightUnit: opt.key });
+              }}
+              style={[styles.row, i < UNIT_OPTIONS.length - 1 && styles.rowBorder]}
+            >
+              <Ionicons name="barbell-outline" size={20} color={colors.textMuted} />
+              <Text style={styles.rowLabel}>{opt.label}</Text>
+              {active ? (
+                <Ionicons name="checkmark-circle" size={22} color={colors.accent} />
+              ) : (
+                <View style={styles.radioEmpty} />
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={styles.sectionLabel}>Default rest timer</Text>
+      <View style={styles.restRow}>
+        {REST_PRESETS.map((sec) => (
+          <Pressable
+            key={sec}
+            onPress={() => {
+              setRestSeconds(sec);
+              persist({ defaultRestSeconds: sec });
+            }}
+            style={[styles.restChip, restSeconds === sec && styles.restChipActive]}
+          >
+            <Text style={[styles.restChipText, restSeconds === sec && styles.restChipTextActive]}>
+              {formatRestTime(sec)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={styles.sectionLabel}>Tools</Text>
+      <View style={styles.group}>
+        <Pressable style={styles.row} onPress={() => router.push("/tools")}>
+          <Ionicons name="calculator-outline" size={20} color={colors.textMuted} />
+          <Text style={styles.rowLabel}>Plate & warm-up calculator</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
+        </Pressable>
       </View>
 
       <Text style={styles.sectionLabel}>Account</Text>
@@ -121,4 +200,16 @@ const makeStyles = (colors: Palette) =>
       borderWidth: 2,
       borderColor: colors.border,
     },
+    restRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    restChip: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    restChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+    restChipText: { fontSize: 14, fontWeight: "600", color: colors.textMuted },
+    restChipTextActive: { color: colors.onAccent },
   });

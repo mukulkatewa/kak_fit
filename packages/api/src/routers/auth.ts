@@ -1,14 +1,23 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
+const userSelect = {
+  id: true,
+  name: true,
+  email: true,
+  image: true,
+  bio: true,
+  subscriptionTier: true,
+  weightUnit: true,
+  defaultRestSeconds: true,
+} as const;
+
 export const authRouter = router({
   me: protectedProcedure.query(async ({ ctx }) => {
-    // Read fresh (not from the cached session user) so profile edits show
-    // immediately rather than after the session-cache TTL.
     const user =
       (await ctx.prisma.user.findUnique({
         where: { id: ctx.user.id },
-        select: { id: true, name: true, email: true, image: true, bio: true, subscriptionTier: true },
+        select: userSelect,
       })) ?? ctx.user;
     return {
       id: user.id,
@@ -17,6 +26,8 @@ export const authRouter = router({
       image: user.image,
       bio: user.bio,
       subscriptionTier: user.subscriptionTier,
+      weightUnit: "weightUnit" in user ? user.weightUnit : "KG",
+      defaultRestSeconds: "defaultRestSeconds" in user ? user.defaultRestSeconds : 90,
     };
   }),
 
@@ -35,6 +46,26 @@ export const authRouter = router({
           ...(input.bio !== undefined ? { bio: input.bio } : {}),
         },
         select: { id: true, name: true, email: true, image: true, bio: true },
+      });
+    }),
+
+  updatePreferences: protectedProcedure
+    .input(
+      z.object({
+        weightUnit: z.enum(["KG", "LBS"]).optional(),
+        defaultRestSeconds: z.number().int().min(15).max(600).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.user.update({
+        where: { id: ctx.user.id },
+        data: {
+          ...(input.weightUnit !== undefined ? { weightUnit: input.weightUnit } : {}),
+          ...(input.defaultRestSeconds !== undefined
+            ? { defaultRestSeconds: input.defaultRestSeconds }
+            : {}),
+        },
+        select: userSelect,
       });
     }),
 

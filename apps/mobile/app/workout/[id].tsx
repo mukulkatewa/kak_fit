@@ -113,6 +113,17 @@ export default function WorkoutDetailScreen() {
       ),
   });
 
+  const createRoutine = trpc.workout.createRoutineFromWorkout.useMutation({
+    onSuccess: () => {
+      utils.routine.list.invalidate();
+      Alert.alert("Routine saved", "Find it in My Routines.", [
+        { text: "View", onPress: () => router.push("/workout/my-routines") },
+        { text: "OK" },
+      ]);
+    },
+    onError: (e) => Alert.alert("Couldn't save routine", e.message),
+  });
+
   const confirmDelete = () => {
     if (!id) return;
     Alert.alert("Delete workout?", "This permanently removes it from your history.", [
@@ -225,6 +236,19 @@ export default function WorkoutDetailScreen() {
         <Stat label="Sets" value={String(totalSets)} />
       </View>
 
+      {workout.finishedAt && workout.exercises.length > 0 ? (
+        <Pressable
+          style={styles.routineBtn}
+          onPress={() => id && createRoutine.mutate({ workoutId: id })}
+          disabled={createRoutine.isPending}
+        >
+          <Ionicons name="bookmark-outline" size={18} color={colors.accent} />
+          <Text style={styles.routineBtnText}>
+            {createRoutine.isPending ? "Saving routine…" : "Save as routine"}
+          </Text>
+        </Pressable>
+      ) : null}
+
       {workout.exercises.map((ex) => (
         <View key={ex.id} style={styles.exerciseCard}>
           <Text style={styles.exerciseName}>{ex.exercise.name}</Text>
@@ -330,6 +354,16 @@ const makeStyles = (colors: Palette) =>
     stat: { flex: 1, alignItems: "center", gap: 2 },
     statValue: { fontSize: 17, fontWeight: "800", color: colors.text },
     statLabel: { fontSize: 12, color: colors.textMuted },
+    routineBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.accentMuted,
+      borderRadius: radius.lg,
+      paddingVertical: spacing.md,
+    },
+    routineBtnText: { fontSize: 15, fontWeight: "700", color: colors.accent },
     exerciseCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,

@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, SearchBar } from "../../src/components/ui";
 import { HevyInfoStrip, HevyModalHeader, HevyUnderlineInput } from "../../src/components/hevy-ui";
+import { ReorderableExerciseList } from "../../src/components/reorderable-exercises";
 import { trpc } from "../../src/lib/trpc";
 import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
 
@@ -92,6 +93,7 @@ export default function CreateRoutineScreen() {
           id: `optimistic-${Date.now()}`,
           userId: "",
           folderId: null,
+          shareToken: null,
           name: input.name,
           notes: input.notes ?? null,
           createdAt: new Date(),
@@ -161,22 +163,6 @@ export default function CreateRoutineScreen() {
     }
   };
 
-  const move = (index: number, delta: number) => {
-    const target = index + delta;
-    if (target < 0 || target >= selected.length) return;
-    setSelected((prev) => {
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-    setSuperLinks((prev) => {
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      next[0] = false;
-      return next;
-    });
-  };
-
   const removeAt = (index: number) => {
     setSelected((prev) => prev.filter((_, idx) => idx !== index));
     setSuperLinks((prev) => {
@@ -226,42 +212,16 @@ export default function CreateRoutineScreen() {
         <HevyUnderlineInput placeholder="Routine title" value={name} onChangeText={setName} />
 
         {selected.length > 0 ? (
-          <View style={styles.selectedList}>
-            {selected.map((ex, i) => (
-              <View key={ex.exerciseId}>
-                {i > 0 ? (
-                  <Pressable style={styles.linkRow} onPress={() => toggleLink(i)} hitSlop={6}>
-                    <Ionicons
-                      name={superLinks[i] ? "git-merge" : "link-outline"}
-                      size={14}
-                      color={superLinks[i] ? colors.accent : colors.textDim}
-                    />
-                    <Text style={[styles.linkText, superLinks[i] && styles.linkTextActive]}>
-                      {superLinks[i] ? "Superset" : "Make superset"}
-                    </Text>
-                  </Pressable>
-                ) : null}
-                <View style={[styles.selectedRow, superLinks[i] && styles.selectedRowLinked]}>
-                  <Text style={styles.selectedIndex}>{i + 1}</Text>
-                  <Text style={styles.selectedName}>{ex.name}</Text>
-                  <Pressable onPress={() => move(i, -1)} disabled={i === 0} hitSlop={6} style={i === 0 && styles.dim}>
-                    <Ionicons name="chevron-up" size={20} color={colors.textMuted} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => move(i, 1)}
-                    disabled={i === selected.length - 1}
-                    hitSlop={6}
-                    style={i === selected.length - 1 && styles.dim}
-                  >
-                    <Ionicons name="chevron-down" size={20} color={colors.textMuted} />
-                  </Pressable>
-                  <Pressable onPress={() => removeAt(i)} hitSlop={6}>
-                    <Ionicons name="close-circle" size={20} color={colors.textDim} />
-                  </Pressable>
-                </View>
-              </View>
-            ))}
-          </View>
+          <ReorderableExerciseList
+            items={selected}
+            superLinks={superLinks}
+            onReorder={(items, links) => {
+              setSelected(items);
+              setSuperLinks(links);
+            }}
+            onToggleLink={toggleLink}
+            onRemove={removeAt}
+          />
         ) : (
           <View style={styles.empty}>
             <Ionicons name="barbell-outline" size={48} color={colors.textDim} />

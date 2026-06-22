@@ -42,11 +42,11 @@
 | Workout detail view (read-only) | ✅ | ✅ |
 | Rename / delete past workouts | ✅ | ✅ |
 | Edit past workouts (modify sets) | ✅ | ✅ |
-| RPE per set | ✅ | 🟡 DB field only |
+| RPE per set | ✅ | ✅ |
 | Copy workout → new session | ✅ | ✅ |
-| Create routine from workout | ✅ | 🔲 |
+| Create routine from workout | ✅ | ✅ |
 | Offline logging | ✅ | 🔲 |
-| Plate / warm-up calculator | ✅ Pro | 🔲 |
+| Plate / warm-up calculator | ✅ Pro | ✅ |
 
 ## 2. Routine Builder
 
@@ -58,8 +58,8 @@
 | Supersets | ✅ | ✅ |
 | Unlimited routines | Pro only | ✅ free |
 | Pre-made programs (26) | ✅ | 🟡 Static templates |
-| Share routine link | ✅ | 🔲 |
-| Drag-to-reorder (gesture) | ✅ | 🔲 (Reanimated removed) |
+| Share routine link | ✅ | ✅ |
+| Drag-to-reorder (gesture) | ✅ | ✅ |
 
 ## 3. Exercise Library
 
@@ -94,7 +94,7 @@
 | Per-metric trend charts | ✅ | ✅ |
 | Progress photos (dedicated screen) | ✅ | ✅ |
 | Photos attached to workouts | ✅ | ✅ |
-| Side-by-side photo compare | ✅ | 🔲 |
+| Side-by-side photo compare | ✅ | ✅ |
 
 ## 6. Nutrition (Kak Fit advantage ➕)
 
@@ -137,11 +137,12 @@
 ## Remaining backlog (priority order)
 
 **Medium effort — connect what's in the DB:**
-1. Copy workout → new session
-2. Edit past workout sets (not just rename)
-3. Exercise GIFs (Wger provides URLs, just display them)
-4. Drag-to-reorder exercises (needs Reanimated + device build)
+1. ~~Copy workout → new session~~ ✅
+2. ~~Edit past workout sets~~ ✅
+3. ~~Exercise GIFs~~ ✅
+4. ~~Drag-to-reorder exercises~~ ✅
 5. Custom food management screen
+6. ~~Settings (units, rest timer)~~ ✅
 
 **Larger:**
 6. Social feed (follow/like/comment) — Phase 5

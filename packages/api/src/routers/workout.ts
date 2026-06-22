@@ -231,6 +231,7 @@ export const workoutRouter = router({
         notes: z.string().optional(),
         setType: z.enum(["NORMAL", "WARMUP", "DROP", "FAILURE"]).optional(),
         isCompleted: z.boolean().optional(),
+        rpe: z.number().min(6).max(10).nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -256,6 +257,7 @@ export const workoutRouter = router({
           notes: input.notes,
           setType: input.setType,
           isCompleted: input.isCompleted,
+          ...(input.rpe !== undefined ? { rpe: input.rpe } : {}),
         },
       });
     }),
@@ -483,6 +485,63 @@ export const workoutRouter = router({
       });
     }),
 
+  /** Save a finished workout as a reusable routine template. */
+  createRoutineFromWorkout: protectedProcedure
+    .input(
+      z.object({
+        workoutId: z.string(),
+        name: z.string().min(2).max(100).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const workout = await ctx.prisma.workout.findFirst({
+        where: { id: input.workoutId, userId: ctx.user.id, finishedAt: { not: null } },
+        include: {
+          exercises: {
+            orderBy: { order: "asc" },
+            include: {
+              sets: { where: { isCompleted: true }, orderBy: { setNumber: "asc" } },
+            },
+          },
+        },
+      });
+      if (!workout) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
+      }
+      if (workout.exercises.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Workout has no exercises" });
+      }
+
+      return ctx.prisma.routine.create({
+        data: {
+          userId: ctx.user.id,
+          name: input.name?.trim() || `${workout.name ?? "Workout"} Routine`,
+          exercises: {
+            create: workout.exercises.map((ex) => {
+              const sets =
+                ex.sets.length > 0
+                  ? ex.sets
+                  : [{ setNumber: 1, weight: null, reps: 10, duration: null, setType: "NORMAL" as const }];
+              return {
+                exerciseId: ex.exerciseId,
+                order: ex.order,
+                supersetGroup: ex.supersetGroup ?? null,
+                sets: {
+                  create: sets.map((s) => ({
+                    setNumber: s.setNumber,
+                    targetWeight: s.weight ?? undefined,
+                    targetReps: s.reps ?? undefined,
+                    targetDuration: s.duration ?? undefined,
+                    setType: s.setType,
+                  })),
+                },
+              };
+            }),
+          },
+        },
+      });
+    }),
+
   updateFinishedSet: protectedProcedure
     .input(
       z.object({
@@ -493,6 +552,7 @@ export const workoutRouter = router({
         notes: z.string().optional(),
         setType: z.enum(["NORMAL", "WARMUP", "DROP", "FAILURE"]).optional(),
         isCompleted: z.boolean().optional(),
+        rpe: z.number().min(6).max(10).nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -518,6 +578,7 @@ export const workoutRouter = router({
           notes: input.notes,
           setType: input.setType,
           isCompleted: input.isCompleted,
+          ...(input.rpe !== undefined ? { rpe: input.rpe } : {}),
         },
       });
 

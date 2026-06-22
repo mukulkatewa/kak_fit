@@ -40,6 +40,11 @@ enum MealType {
   SNACK
 }
 
+enum WeightUnit {
+  KG
+  LBS
+}
+
 model User {
   id               String           @id @default(cuid())
   name             String
@@ -49,11 +54,13 @@ model User {
   bio              String?
   isPrivate        Boolean          @default(false)
   subscriptionTier SubscriptionTier @default(FREE)
-  calorieGoal      Int?
-  proteinGoal      Int?
-  carbGoal         Int?
-  fatGoal          Int?
-  createdAt        DateTime         @default(now())
+  calorieGoal          Int?
+  proteinGoal          Int?
+  carbGoal             Int?
+  fatGoal              Int?
+  weightUnit           WeightUnit @default(KG)
+  defaultRestSeconds   Int        @default(90)
+  createdAt            DateTime   @default(now())
   updatedAt        DateTime         @updatedAt
 
   sessions         Session[]
@@ -228,9 +235,10 @@ model Routine {
   id        String   @id @default(cuid())
   userId    String
   folderId  String?
-  name      String
-  notes     String?
-  createdAt DateTime @default(now())
+  name       String
+  notes      String?
+  shareToken String?  @unique
+  createdAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)

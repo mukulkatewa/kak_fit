@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
@@ -47,6 +48,14 @@ const routineDetailInclude = {
   folder: true,
   ...routineListInclude,
 } as const;
+
+function shareUrl(token: string) {
+  return `kakfit://routine/share/${token}`;
+}
+
+function newShareToken() {
+  return randomBytes(9).toString("base64url");
+}
 
 export const routineRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -268,6 +277,98 @@ export const routineRouter = router({
       return ctx.prisma.routine.update({
         where: { id: input.routineId },
         data: { folderId: input.folderId },
+      });
+    }),
+
+  /** Enable sharing and return a deep-link URL for this routine. */
+  share: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const routine = await ctx.prisma.routine.findFirst({
+        where: { id: input.id, userId: ctx.user.id },
+        select: { id: true, shareToken: true, name: true },
+      });
+      if (!routine) throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });
+
+      const token =
+        routine.shareToken ??
+        (
+          await ctx.prisma.routine.update({
+            where: { id: routine.id },
+            data: { shareToken: newShareToken() },
+            select: { shareToken: true },
+          })
+        ).shareToken!;
+
+      return { token, url: shareUrl(token), name: routine.name };
+    }),
+
+  /** Preview a shared routine (any authenticated user). */
+  previewShare: protectedProcedure
+    .input(z.object({ token: z.string().min(8) }))
+    .query(async ({ ctx, input }) => {
+      const routine = await ctx.prisma.routine.findFirst({
+        where: { shareToken: input.token },
+        include: {
+          user: { select: { name: true } },
+          exercises: {
+            orderBy: { order: "asc" },
+            include: {
+              exercise: { select: { name: true } },
+              sets: { orderBy: { setNumber: "asc" } },
+            },
+          },
+        },
+      });
+      if (!routine) throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });
+      return {
+        id: routine.id,
+        name: routine.name,
+        authorName: routine.user.name,
+        exerciseCount: routine.exercises.length,
+        exercises: routine.exercises.map((ex) => ({
+          name: ex.exercise.name,
+          setCount: ex.sets.length,
+        })),
+        isOwn: routine.userId === ctx.user.id,
+      };
+    }),
+
+  /** Copy a shared routine into the current user's library. */
+  importShare: protectedProcedure
+    .input(z.object({ token: z.string().min(8) }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.prisma.routine.findFirst({
+        where: { shareToken: input.token },
+        include: { exercises: { include: { sets: true }, orderBy: { order: "asc" } } },
+      });
+      if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });
+
+      return ctx.prisma.routine.create({
+        data: {
+          userId: ctx.user.id,
+          name: source.userId === ctx.user.id ? `${source.name} (Copy)` : source.name,
+          notes: source.notes,
+          exercises: {
+            create: source.exercises.map((ex) => ({
+              exerciseId: ex.exerciseId,
+              order: ex.order,
+              restSeconds: ex.restSeconds,
+              notes: ex.notes,
+              supersetGroup: ex.supersetGroup ?? null,
+              sets: {
+                create: ex.sets.map((set) => ({
+                  setNumber: set.setNumber,
+                  targetWeight: set.targetWeight,
+                  targetReps: set.targetReps,
+                  targetDuration: set.targetDuration,
+                  setType: set.setType,
+                })),
+              },
+            })),
+          },
+        },
+        include: routineListInclude,
       });
     }),
 });

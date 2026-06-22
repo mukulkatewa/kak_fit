@@ -24,6 +24,9 @@ import {
 import { formatPreviousSet, pickPreviousForSet, type PreviousExerciseSession } from "../../src/lib/previous-set";
 import { trpc } from "../../src/lib/trpc";
 import { parseOptionalNumber } from "../../src/lib/workout-errors";
+import { cycleRpe, formatRpe } from "../../src/lib/rpe";
+import { useUserPreferences } from "../../src/lib/use-preferences";
+import { fromKg, toKg, weightLabel } from "../../src/lib/units";
 import { formatRestTime, useRestTimer } from "../../src/lib/rest-timer";
 import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
 
@@ -47,6 +50,7 @@ const setTypeColor = (colors: Palette): Record<SetType, string> => ({
 export default function ActiveWorkoutScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
+  const { weightUnit } = useUserPreferences();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
@@ -92,7 +96,7 @@ export default function ActiveWorkoutScreen() {
 
   const handleSetUpdate = (
     setId: string,
-    data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType },
+    data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType; rpe?: number | null },
   ) => {
     if (data.isCompleted === true) start();
     updateSet.mutate({ setId, ...data });
@@ -212,6 +216,7 @@ export default function ActiveWorkoutScreen() {
             }
             onAddSet={() => addSet.mutate({ workoutExerciseId: exercise.id })}
             onDeleteSet={(setId) => deleteSet.mutate({ setId })}
+            weightUnit={weightUnit}
           />
         ))}
 
@@ -278,6 +283,7 @@ function ExerciseBlock({
   onCycleSetType,
   onAddSet,
   onDeleteSet,
+  weightUnit,
 }: {
   name: string;
   supersetGroup?: number | null;
@@ -286,17 +292,19 @@ function ExerciseBlock({
     setNumber: number;
     weight: number | null;
     reps: number | null;
+    rpe: number | null;
     setType: SetType;
     isCompleted: boolean;
   }>;
   previous: PreviousExerciseSession | null;
   onUpdateSet: (
     setId: string,
-    data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType },
+    data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType; rpe?: number | null },
   ) => void;
   onCycleSetType: (setId: string, setType: SetType) => void;
   onAddSet: () => void;
   onDeleteSet: (setId: string) => void;
+  weightUnit: "KG" | "LBS";
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
@@ -343,14 +351,16 @@ function ExerciseBlock({
       <View style={styles.setHeader}>
         <Text style={[styles.setCol, styles.setColNarrow]}>SET</Text>
         <Text style={[styles.setCol, styles.setColPrev]}>PREV</Text>
-        <Text style={styles.setCol}>KG</Text>
+        <Text style={styles.setCol}>{weightLabel(weightUnit).toUpperCase()}</Text>
         <Text style={styles.setCol}>REPS</Text>
+        <Text style={[styles.setCol, styles.setColRpe]}>RPE</Text>
         <Text style={[styles.setCol, styles.setColNarrow]}>✓</Text>
       </View>
       {sets.map((set) => (
         <SetRow
           key={set.id}
           set={set}
+          weightUnit={weightUnit}
           previousValues={pickPreviousForSet(previous, set.setNumber)}
           onUpdateSet={onUpdateSet}
           onCycleSetType={onCycleSetType}
@@ -367,6 +377,7 @@ function ExerciseBlock({
 
 function SetRow({
   set,
+  weightUnit,
   previousValues,
   onUpdateSet,
   onCycleSetType,
@@ -377,38 +388,44 @@ function SetRow({
     setNumber: number;
     weight: number | null;
     reps: number | null;
+    rpe: number | null;
     setType: SetType;
     isCompleted: boolean;
   };
+  weightUnit: "KG" | "LBS";
   previousValues: ReturnType<typeof pickPreviousForSet>;
   onUpdateSet: (
     setId: string,
-    data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType },
+    data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType; rpe?: number | null },
   ) => void;
   onCycleSetType: (setId: string, setType: SetType) => void;
   onDeleteSet: (setId: string) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const [weight, setWeight] = useState(set.weight?.toString() ?? "");
+  const [weight, setWeight] = useState(
+    set.weight != null ? String(fromKg(set.weight, weightUnit)) : "",
+  );
   const [reps, setReps] = useState(set.reps?.toString() ?? "");
   const typeLabel = SET_TYPE_LABEL[set.setType] || String(set.setNumber);
 
   useEffect(() => {
-    setWeight(set.weight?.toString() ?? "");
+    setWeight(set.weight != null ? String(fromKg(set.weight, weightUnit)) : "");
     setReps(set.reps?.toString() ?? "");
-  }, [set.weight, set.reps]);
+  }, [set.weight, set.reps, weightUnit]);
 
   const commit = () => {
+    const w = parseOptionalNumber(weight);
     onUpdateSet(set.id, {
-      weight: parseOptionalNumber(weight),
+      weight: w !== undefined ? toKg(w, weightUnit) : undefined,
       reps: parseOptionalNumber(reps),
     });
   };
 
   const copyPrevious = () => {
     if (!previousValues) return;
-    const w = previousValues.weight?.toString() ?? "";
+    const w =
+      previousValues.weight != null ? String(fromKg(previousValues.weight, weightUnit)) : "";
     const r = previousValues.reps?.toString() ?? "";
     setWeight(w);
     setReps(r);
@@ -455,6 +472,12 @@ function SetRow({
         placeholderTextColor={colors.textDim}
       />
       <Pressable
+        onPress={() => onUpdateSet(set.id, { rpe: cycleRpe(set.rpe) })}
+        style={styles.rpeCell}
+      >
+        <Text style={styles.rpeText}>{formatRpe(set.rpe)}</Text>
+      </Pressable>
+      <Pressable
         style={[styles.check, set.isCompleted && styles.checkDone]}
         onPress={() => onUpdateSet(set.id, { isCompleted: !set.isCompleted })}
       >
@@ -499,18 +522,28 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   setHeader: { flexDirection: "row", gap: spacing.xs, paddingHorizontal: 2, marginTop: spacing.sm },
   setCol: { flex: 1, color: colors.textDim, fontSize: 11, fontWeight: "600", textAlign: "center" },
   setColNarrow: { flex: 0, width: 28 },
-  setColPrev: { flex: 0, width: 52 },
+  setColPrev: { flex: 0, width: 48 },
+  setColRpe: { flex: 0, width: 36 },
   setRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   setRowDone: { opacity: 0.85 },
   setNumber: { fontSize: 14, fontWeight: "700", textAlign: "center" },
   setTypeBtn: { width: 28, alignItems: "center" },
   prevCell: {
-    width: 52,
+    width: 48,
     paddingVertical: 8,
     paddingHorizontal: 2,
     alignItems: "center",
     justifyContent: "center",
   },
+  rpeCell: {
+    width: 36,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceHover,
+    borderRadius: radius.sm,
+  },
+  rpeText: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
   prevCellDisabled: { opacity: 0.35 },
   prevText: { fontSize: 11, color: colors.textMuted, fontWeight: "500", textAlign: "center" },
   setInput: {

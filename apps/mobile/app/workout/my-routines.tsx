@@ -5,6 +5,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -57,6 +58,7 @@ export default function MyRoutinesScreen() {
     onSuccess: () => utils.routine.list.invalidate(),
     onError: (e) => Alert.alert("Error", e.message),
   });
+  const shareRoutine = trpc.routine.share.useMutation();
   const remove = trpc.routine.delete.useMutation({
     onSuccess: () => utils.routine.list.invalidate(),
     onError: (e) => Alert.alert("Error", e.message),
@@ -136,6 +138,18 @@ export default function MyRoutinesScreen() {
     ]);
   };
 
+  const handleShare = async (item: RoutineItem) => {
+    try {
+      const result = await shareRoutine.mutateAsync({ id: item.id });
+      await Share.share({
+        message: `Check out my "${result.name}" routine on Kak Fit!\n${result.url}`,
+        url: result.url,
+      });
+    } catch (e) {
+      Alert.alert("Share failed", e instanceof Error ? e.message : "Try again.");
+    }
+  };
+
   const renderRoutine = (item: RoutineItem) => (
     <View key={item.id} style={styles.routineWrap}>
       <ListGroup>
@@ -149,6 +163,7 @@ export default function MyRoutinesScreen() {
       </ListGroup>
       <View style={styles.actions}>
         <Action icon="create-outline" label="Edit" onPress={() => router.push(`/routine/create?id=${item.id}`)} />
+        <Action icon="share-outline" label="Share" onPress={() => handleShare(item)} />
         <Action icon="folder-outline" label="Move" onPress={() => moveRoutine(item)} />
         <Action icon="copy-outline" label="Copy" onPress={() => duplicate.mutate({ id: item.id })} />
         <Action

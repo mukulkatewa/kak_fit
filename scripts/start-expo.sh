@@ -18,7 +18,7 @@ IP=$(hostname -I | awk '{print $1}')
 
 export REACT_NATIVE_PACKAGER_HOSTNAME="$IP"
 export EXPO_DEVTOOLS_LISTEN_ADDRESS="$IP"
-export EXPO_NO_METRO_WORKSPACE_ROOT="${EXPO_NO_METRO_WORKSPACE_ROOT:-1}"
+unset EXPO_NO_METRO_WORKSPACE_ROOT
 
 echo ""
 echo "============================================"

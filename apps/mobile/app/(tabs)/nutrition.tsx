@@ -92,6 +92,7 @@ export default function NutritionScreen() {
       mealType,
       items: [
         {
+          foodId: item.id ?? undefined,
           fdcId: item.fdcId > 0 ? item.fdcId : undefined,
           name: item.name,
           calories: item.calories,
@@ -124,10 +125,16 @@ export default function NutritionScreen() {
       <View style={styles.pad}>
         <View style={styles.titleRow}>
           <Text style={styles.pageTitle}>Nutrition</Text>
-          <Pressable hitSlop={8} onPress={() => router.push("/nutrition-goals")} style={styles.goalsBtn}>
-            <Ionicons name="options-outline" size={16} color={colors.accent} />
-            <Text style={styles.goalsBtnText}>Goals</Text>
-          </Pressable>
+          <View style={styles.titleActions}>
+            <Pressable hitSlop={8} onPress={() => router.push("/nutrition-foods")} style={styles.goalsBtn}>
+              <Ionicons name="fast-food-outline" size={16} color={colors.accent} />
+              <Text style={styles.goalsBtnText}>Foods</Text>
+            </Pressable>
+            <Pressable hitSlop={8} onPress={() => router.push("/nutrition-goals")} style={styles.goalsBtn}>
+              <Ionicons name="options-outline" size={16} color={colors.accent} />
+              <Text style={styles.goalsBtnText}>Goals</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Daily calories + macro rings */}
@@ -333,8 +340,9 @@ function MacroRingRow({
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.xs },
-  pageTitle: { fontSize: 30, fontWeight: "800", color: colors.text },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xs },
+  titleActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  pageTitle: { flex: 1, fontSize: 30, fontWeight: "800", color: colors.text },
   goalsBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.accentMuted, borderRadius: radius.full, paddingVertical: 6, paddingHorizontal: 12 },
   goalsBtnText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
 

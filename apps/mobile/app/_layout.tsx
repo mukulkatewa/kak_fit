@@ -75,6 +75,7 @@ function ThemedApp() {
           <Stack.Screen name="measurements" />
           <Stack.Screen name="settings" options={{ presentation: "modal" }} />
           <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
+          <Stack.Screen name="nutrition-foods" options={{ presentation: "modal" }} />
           <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
           <Stack.Screen name="photos" />
           <Stack.Screen name="photos/compare" />

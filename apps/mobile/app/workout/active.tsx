@@ -28,6 +28,12 @@ import { cycleRpe, formatRpe } from "../../src/lib/rpe";
 import { useUserPreferences } from "../../src/lib/use-preferences";
 import { fromKg, toKg, weightLabel } from "../../src/lib/units";
 import { formatRestTime, useRestTimer } from "../../src/lib/rest-timer";
+import {
+  enqueueWorkoutMutation,
+  getQueuedWorkoutMutationCount,
+  isNetworkError,
+  syncQueuedWorkoutMutations,
+} from "../../src/lib/offline-workouts";
 import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
 
 const SET_TYPES = ["NORMAL", "WARMUP", "DROP", "FAILURE"] as const;
@@ -56,6 +62,10 @@ export default function ActiveWorkoutScreen() {
   const utils = trpc.useUtils();
   const { data: workout, isLoading, refetch } = trpc.workout.active.useQuery();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [finishName, setFinishName] = useState("");
+  const [finishNotes, setFinishNotes] = useState("");
+  const [pendingOffline, setPendingOffline] = useState(0);
   const [search, setSearch] = useState("");
 
   const exerciseIds = useMemo(
@@ -81,9 +91,36 @@ export default function ActiveWorkoutScreen() {
     return () => clearInterval(id);
   }, [isRunning, tick]);
 
+  useEffect(() => {
+    let mounted = true;
+    async function syncOffline() {
+      const before = await getQueuedWorkoutMutationCount();
+      if (mounted) setPendingOffline(before);
+      const result = await syncQueuedWorkoutMutations();
+      if (!mounted) return;
+      setPendingOffline(result.remaining);
+      if (result.synced > 0) {
+        refetch();
+        utils.workout.history.invalidate();
+        utils.personalRecord.list.invalidate();
+      }
+    }
+    syncOffline().catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, [refetch, utils]);
+
   const updateSet = trpc.workout.updateSet.useMutation({
     onSuccess: () => refetch(),
-    onError: (e) => Alert.alert("Couldn't save set", e.message),
+    onError: async (e, variables) => {
+      if (!isNetworkError(e)) {
+        Alert.alert("Couldn't save set", e.message);
+        return;
+      }
+      await enqueueWorkoutMutation("updateSet", variables);
+      setPendingOffline(await getQueuedWorkoutMutationCount());
+    },
   });
   const addSet = trpc.workout.addSet.useMutation({
     onSuccess: () => refetch(),
@@ -92,6 +129,17 @@ export default function ActiveWorkoutScreen() {
   const deleteSet = trpc.workout.deleteSet.useMutation({
     onSuccess: () => refetch(),
     onError: (e) => Alert.alert("Couldn't delete set", e.message),
+  });
+  const updateExerciseNotes = trpc.workout.updateExerciseNotes.useMutation({
+    onSuccess: () => refetch(),
+    onError: async (e, variables) => {
+      if (!isNetworkError(e)) {
+        Alert.alert("Couldn't save notes", e.message);
+        return;
+      }
+      await enqueueWorkoutMutation("updateExerciseNotes", variables);
+      setPendingOffline(await getQueuedWorkoutMutationCount());
+    },
   });
 
   const handleSetUpdate = (
@@ -127,13 +175,26 @@ export default function ActiveWorkoutScreen() {
       utils.progress.muscleDistribution.invalidate();
       utils.auth.stats.invalidate();
       const prCount = result.newRecords.length;
+      const summary = result.summary;
       Alert.alert(
-        "Workout saved!",
-        prCount > 0 ? `You hit ${prCount} new personal record${prCount > 1 ? "s" : ""}!` : "Great session.",
+        "Workout saved",
+        `${summary.completedSets} sets · ${summary.totalVolume} kg · ${summary.durationMinutes} min${
+          prCount > 0 ? ` · ${prCount} PR${prCount > 1 ? "s" : ""}` : ""
+        }`,
         [{ text: "Done", onPress: () => router.back() }],
       );
     },
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: async (e, variables) => {
+      if (!isNetworkError(e)) {
+        Alert.alert("Error", e.message);
+        return;
+      }
+      await enqueueWorkoutMutation("finishWorkout", variables);
+      setPendingOffline(await getQueuedWorkoutMutationCount());
+      Alert.alert("Saved offline", "This workout will sync automatically when the API is reachable.", [
+        { text: "Done", onPress: () => router.back() },
+      ]);
+    },
   });
 
   const cancel = trpc.workout.cancel.useMutation({
@@ -155,6 +216,25 @@ export default function ActiveWorkoutScreen() {
       0,
     );
   }, [workout]);
+
+  const completedSetCount = useMemo(() => {
+    if (!workout) return 0;
+    return workout.exercises.reduce(
+      (sum, ex) => sum + ex.sets.filter((set) => set.isCompleted).length,
+      0,
+    );
+  }, [workout]);
+
+  const elapsedMinutes = useMemo(() => {
+    if (!workout) return 0;
+    return Math.max(1, Math.round((Date.now() - new Date(workout.startedAt).getTime()) / 60000));
+  }, [workout]);
+
+  useEffect(() => {
+    if (!workout) return;
+    setFinishName(workout.name ?? "Workout");
+    setFinishNotes(workout.notes ?? "");
+  }, [workout?.id]);
 
   if (isLoading) {
     return (
@@ -192,7 +272,9 @@ export default function ActiveWorkoutScreen() {
       </View>
 
       <Text style={styles.workoutTitle}>{workout.name ?? "Workout"}</Text>
-      <Text style={styles.meta}>{workout.exercises.length} exercises</Text>
+      <Text style={styles.meta}>
+        {workout.exercises.length} exercises{pendingOffline > 0 ? ` · ${pendingOffline} offline edits` : ""}
+      </Text>
 
       {isRunning ? (
         <Pressable style={styles.restBar} onPress={stop}>
@@ -208,7 +290,9 @@ export default function ActiveWorkoutScreen() {
             key={exercise.id}
             name={exercise.exercise.name}
             supersetGroup={exercise.supersetGroup ?? null}
+            workoutExerciseId={exercise.id}
             sets={exercise.sets}
+            notes={exercise.notes ?? null}
             previous={previousMap?.[exercise.exercise.id] ?? null}
             onUpdateSet={handleSetUpdate}
             onCycleSetType={(setId, setType) =>
@@ -216,6 +300,7 @@ export default function ActiveWorkoutScreen() {
             }
             onAddSet={() => addSet.mutate({ workoutExerciseId: exercise.id })}
             onDeleteSet={(setId) => deleteSet.mutate({ setId })}
+            onUpdateNotes={(notes) => updateExerciseNotes.mutate({ workoutExerciseId: exercise.id, notes })}
             weightUnit={weightUnit}
           />
         ))}
@@ -250,12 +335,50 @@ export default function ActiveWorkoutScreen() {
         ) : (
           <Button label="Add Exercise" icon="add" fullWidth onPress={() => setPickerOpen(true)} variant="secondary" />
         )}
+
+        {finishOpen ? (
+          <Card>
+            <SectionHeader title="Finish Workout" />
+            <View style={styles.summaryGrid}>
+              <SummaryItem label="Sets" value={completedSetCount} />
+              <SummaryItem label="Volume" value={`${Math.round(volume)} kg`} />
+              <SummaryItem label="Time" value={`${elapsedMinutes} min`} />
+            </View>
+            <TextInput
+              style={styles.finishInput}
+              value={finishName}
+              onChangeText={setFinishName}
+              placeholder="Workout name"
+              placeholderTextColor={colors.textDim}
+            />
+            <TextInput
+              style={[styles.finishInput, styles.finishNotes]}
+              value={finishNotes}
+              onChangeText={setFinishNotes}
+              placeholder="Session notes"
+              placeholderTextColor={colors.textDim}
+              multiline
+            />
+            <HevyButton
+              label="Save Workout"
+              onPress={() =>
+                finish.mutate({
+                  workoutId: workout.id,
+                  name: finishName.trim() || workout.name || "Workout",
+                  notes: finishNotes.trim() || undefined,
+                })
+              }
+              loading={finish.isPending}
+            />
+            <Button label="Keep logging" variant="ghost" fullWidth onPress={() => setFinishOpen(false)} />
+          </Card>
+        ) : null}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
         <HevyButton
           label="Finish Workout"
-          onPress={() => finish.mutate({ workoutId: workout.id })}
+          onPress={() => setFinishOpen(true)}
           loading={finish.isPending}
         />
         <Button
@@ -274,19 +397,35 @@ export default function ActiveWorkoutScreen() {
   );
 }
 
+
+function SummaryItem({ label, value }: { label: string; value: string | number }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.summaryItem}>
+      <Text style={styles.summaryValue}>{value}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function ExerciseBlock({
   name,
+  workoutExerciseId,
   supersetGroup,
   sets,
+  notes,
   previous,
   onUpdateSet,
   onCycleSetType,
   onAddSet,
   onDeleteSet,
+  onUpdateNotes,
   weightUnit,
 }: {
   name: string;
+  workoutExerciseId: string;
   supersetGroup?: number | null;
+  notes?: string | null;
   sets: Array<{
     id: string;
     setNumber: number;
@@ -304,11 +443,19 @@ function ExerciseBlock({
   onCycleSetType: (setId: string, setType: SetType) => void;
   onAddSet: () => void;
   onDeleteSet: (setId: string) => void;
+  onUpdateNotes: (notes: string | null) => void;
   weightUnit: "KG" | "LBS";
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const lastSet = sets[sets.length - 1];
+  const [notesOpen, setNotesOpen] = useState(Boolean(notes));
+  const [draftNotes, setDraftNotes] = useState(notes ?? "");
+
+  useEffect(() => {
+    setDraftNotes(notes ?? "");
+    setNotesOpen(Boolean(notes));
+  }, [notes, workoutExerciseId]);
 
   const copyLastSet = () => {
     if (!lastSet) return;
@@ -333,13 +480,30 @@ function ExerciseBlock({
       ) : null}
       <View style={styles.exerciseHeader}>
         <Text style={styles.exerciseName}>{name}</Text>
-        {previous ? (
-          <Pressable onPress={copyLastSet} hitSlop={8} style={styles.copyBtn}>
-            <Ionicons name="copy-outline" size={16} color={colors.accent} />
-            <Text style={styles.copyBtnText}>Copy prev</Text>
+        <View style={styles.exerciseActions}>
+          <Pressable onPress={() => setNotesOpen((open) => !open)} hitSlop={8} style={styles.iconBtn}>
+            <Ionicons name={notesOpen ? "document-text" : "document-text-outline"} size={17} color={colors.accent} />
           </Pressable>
-        ) : null}
+          {previous ? (
+            <Pressable onPress={copyLastSet} hitSlop={8} style={styles.copyBtn}>
+              <Ionicons name="copy-outline" size={16} color={colors.accent} />
+              <Text style={styles.copyBtnText}>Copy prev</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
+
+      {notesOpen ? (
+        <TextInput
+          style={styles.exerciseNotesInput}
+          value={draftNotes}
+          onChangeText={setDraftNotes}
+          onBlur={() => onUpdateNotes(draftNotes.trim() || null)}
+          placeholder="Exercise notes"
+          placeholderTextColor={colors.textDim}
+          multiline
+        />
+      ) : null}
 
       {previous?.finishedAt ? (
         <Text style={styles.prevMeta}>
@@ -514,11 +678,22 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   scrollContent: { gap: spacing.md, paddingBottom: spacing.xl },
   exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   exerciseName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: "600" },
+  exerciseActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  iconBtn: { padding: 2 },
   copyBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   copyBtnText: { color: colors.accent, fontSize: 13, fontWeight: "600" },
   supersetBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginBottom: 4 },
   supersetBadgeText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
   prevMeta: { color: colors.textDim, fontSize: 12, marginTop: -4 },
+  exerciseNotesInput: {
+    backgroundColor: colors.surfaceHover,
+    borderRadius: radius.md,
+    color: colors.text,
+    fontSize: 14,
+    minHeight: 64,
+    padding: spacing.sm,
+    textAlignVertical: "top",
+  },
   setHeader: { flexDirection: "row", gap: spacing.xs, paddingHorizontal: 2, marginTop: spacing.sm },
   setCol: { flex: 1, color: colors.textDim, fontSize: 11, fontWeight: "600", textAlign: "center" },
   setColNarrow: { flex: 0, width: 28 },
@@ -581,5 +756,23 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginBottom: 6,
   },
   pickerText: { color: colors.text, fontSize: 15, fontWeight: "500", flex: 1 },
+  summaryGrid: { flexDirection: "row", gap: spacing.sm },
+  summaryItem: {
+    flex: 1,
+    backgroundColor: colors.surfaceHover,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: "center",
+  },
+  summaryValue: { color: colors.text, fontSize: 18, fontWeight: "800" },
+  summaryLabel: { color: colors.textDim, fontSize: 12, fontWeight: "600", marginTop: 2 },
+  finishInput: {
+    backgroundColor: colors.surfaceHover,
+    borderRadius: radius.md,
+    color: colors.text,
+    fontSize: 16,
+    padding: spacing.md,
+  },
+  finishNotes: { minHeight: 86, textAlignVertical: "top" },
   footer: { gap: spacing.sm, paddingTop: spacing.sm },
 });

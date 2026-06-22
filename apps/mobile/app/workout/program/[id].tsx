@@ -1,14 +1,13 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HevyButton, ListGroup, ListRow, Screen, ThemedDialog } from "../../../src/components/ui";
 import { HevyProgramCard, HevyStackHeader } from "../../../src/components/hevy-ui";
 import { getProgram } from "../../../src/lib/explore-data";
-import { buildRoutinePayload, resolveExerciseIds } from "../../../src/lib/import-template";
 import { trpc } from "../../../src/lib/trpc";
-import { useTheme, useThemedStyles, spacing, type Palette } from "../../../src/lib/theme";
+import { spacing, useTheme, useThemedStyles, type Palette } from "../../../src/lib/theme";
 
 export default function ProgramDetailScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -18,7 +17,6 @@ export default function ProgramDetailScreen() {
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const program = getProgram(id ?? "");
-  const [saving, setSaving] = useState(false);
   const [dialog, setDialog] = useState<{
     title: string;
     message: string;
@@ -26,7 +24,30 @@ export default function ProgramDetailScreen() {
     onPrimary?: () => void;
   } | null>(null);
 
-  const createRoutine = trpc.routine.create.useMutation();
+  const importProgram = trpc.routine.importProgram.useMutation({
+    onSuccess: async (result) => {
+      await utils.routine.list.invalidate();
+      const missing = result.missingExerciseNames.length;
+      if (result.saved > 0) {
+        setDialog({
+          title: "Program saved",
+          message: `${result.saved} routine${result.saved === 1 ? "" : "s"} added to My Routines${
+            missing > 0 ? `. ${missing} exercise${missing === 1 ? "" : "s"} were not found.` : "."
+          }`,
+          primaryLabel: "OK",
+          onPrimary: () => router.push("/workout/my-routines"),
+        });
+      } else {
+        setDialog({
+          title: "Could not save",
+          message: "No matching exercises found in the library.",
+        });
+      }
+    },
+    onError: (error) => {
+      setDialog({ title: "Error", message: error.message });
+    },
+  });
 
   if (!program) {
     return (
@@ -37,40 +58,14 @@ export default function ProgramDetailScreen() {
     );
   }
 
-  const saveProgram = async () => {
-    setSaving(true);
-    try {
-      let saved = 0;
-      for (const template of program.routines) {
-        const exercises = await resolveExerciseIds(utils, template.exerciseNames);
-        if (exercises.length === 0) continue;
-        await createRoutine.mutateAsync(
-          buildRoutinePayload(`${program.title.split("(")[0]?.trim()} · ${template.name}`, exercises),
-        );
-        saved += 1;
-      }
-      await utils.routine.list.invalidate();
-      if (saved > 0) {
-        setDialog({
-          title: "Program saved",
-          message: `${saved} routine${saved === 1 ? "" : "s"} added to My Routines.`,
-          primaryLabel: "OK",
-          onPrimary: () => router.push("/workout/my-routines"),
-        });
-      } else {
-        setDialog({
-          title: "Could not save",
-          message: "No matching exercises found in the library.",
-        });
-      }
-    } catch (e) {
-      setDialog({
-        title: "Error",
-        message: e instanceof Error ? e.message : "Failed to save program",
-      });
-    } finally {
-      setSaving(false);
-    }
+  const saveProgram = () => {
+    importProgram.mutate({
+      programTitle: program.title,
+      routines: program.routines.map((routine) => ({
+        name: routine.name,
+        exerciseNames: routine.exerciseNames,
+      })),
+    });
   };
 
   return (
@@ -95,9 +90,9 @@ export default function ProgramDetailScreen() {
         </View>
 
         <HevyButton
-          label={saving ? "Saving…" : "Save to My Routines"}
+          label={importProgram.isPending ? "Saving..." : "Save to My Routines"}
           onPress={saveProgram}
-          loading={saving}
+          loading={importProgram.isPending}
         />
 
         <Text style={styles.sectionTitle}>Routines in this program</Text>

@@ -70,6 +70,22 @@ model User {
   bodyMeasurements BodyMeasurement[]
   mealLogs         MealLog[]
   customFoods      Food[]           @relation("CustomFoods")
+  progressPhotos   ProgressPhoto[]
+}
+
+model ProgressPhoto {
+  id        String   @id @default(cuid())
+  userId    String
+  url       String
+  path      String
+  note      String?
+  weight    Float?
+  takenAt   DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, takenAt])
 }
 
 model Session {

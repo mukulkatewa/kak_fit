@@ -144,7 +144,7 @@ export default function DashboardScreen() {
                     icon="fitness"
                     title={w.name ?? "Workout"}
                     subtitle={`${w.exerciseCount} exercises · ${Math.round(w.volume)} kg`}
-                    onPress={() => router.push("/(tabs)/profile")}
+                    onPress={() => router.push(`/workout/${w.id}`)}
                   />
                 ))}
               </View>

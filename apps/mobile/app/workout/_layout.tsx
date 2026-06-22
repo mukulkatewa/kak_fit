@@ -10,6 +10,7 @@ export default function WorkoutLayout() {
       <Stack.Screen name="programs" />
       <Stack.Screen name="program/[id]" />
       <Stack.Screen name="category/[id]" />
+      <Stack.Screen name="[id]" />
     </Stack>
   );
 }

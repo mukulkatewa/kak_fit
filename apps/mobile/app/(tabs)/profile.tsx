@@ -142,6 +142,7 @@ export default function ProfileScreen() {
                 key={item.id}
                 title={item.name ?? "Workout"}
                 subtitle={`${Math.round(item.volume)} kg · ${item.finishedAt ? new Date(item.finishedAt).toLocaleDateString() : ""}`}
+                onPress={() => router.push(`/workout/${item.id}`)}
                 last={index === (workouts?.length ?? 0) - 1}
               />
             ))}

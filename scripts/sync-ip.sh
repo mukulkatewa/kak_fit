@@ -14,8 +14,17 @@ source "$ENV_FILE"
 
 IP=$(hostname -I | awk '{print $1}')
 if [[ -n "$IP" ]]; then
-  sed -i "s|^EXPO_PUBLIC_API_URL=.*|EXPO_PUBLIC_API_URL=\"http://${IP}:3000\"|" "$ENV_FILE"
-  sed -i "s|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=\"http://${IP}:3000\"|" "$ENV_FILE"
+  if grep -q '^EXPO_PUBLIC_API_URL=' "$ENV_FILE"; then
+    sed -i "s|^EXPO_PUBLIC_API_URL=.*|EXPO_PUBLIC_API_URL=\"http://${IP}:3000\"|" "$ENV_FILE"
+  else
+    echo "EXPO_PUBLIC_API_URL=\"http://${IP}:3000\"" >> "$ENV_FILE"
+  fi
+
+  if grep -q '^BETTER_AUTH_URL=' "$ENV_FILE"; then
+    sed -i "s|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=\"http://${IP}:3000\"|" "$ENV_FILE"
+  else
+    echo "BETTER_AUTH_URL=\"http://${IP}:3000\"" >> "$ENV_FILE"
+  fi
 fi
 
 # Supabase Postgres — Prisma pattern (Dashboard → Connect → ORMs → Prisma)

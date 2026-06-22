@@ -3,15 +3,22 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Free port 8081
-fuser -k 8081/tcp 8082/tcp 2>/dev/null || true
+fuser -k 8081/tcp 8082/tcp >/dev/null 2>&1 || true
 sleep 1
 
 bash "$ROOT/scripts/sync-ip.sh"
 bash "$ROOT/scripts/ensure-dev-limits.sh"
+INOTIFY_LIMIT="$(cat /proc/sys/fs/inotify/max_user_watches 2>/dev/null || echo 0)"
+if [[ "$INOTIFY_LIMIT" -lt 524288 ]]; then
+  export WATCHPACK_POLLING="${WATCHPACK_POLLING:-true}"
+  export CHOKIDAR_USEPOLLING="${CHOKIDAR_USEPOLLING:-true}"
+  export METRO_NO_WATCHMAN="${METRO_NO_WATCHMAN:-1}"
+fi
 IP=$(hostname -I | awk '{print $1}')
 
 export REACT_NATIVE_PACKAGER_HOSTNAME="$IP"
 export EXPO_DEVTOOLS_LISTEN_ADDRESS="$IP"
+export EXPO_NO_METRO_WORKSPACE_ROOT="${EXPO_NO_METRO_WORKSPACE_ROOT:-1}"
 
 echo ""
 echo "============================================"

@@ -7,6 +7,7 @@
     "dev:api": "bash scripts/start-api.sh",
     "dev:mobile": "bash scripts/start-expo.sh",
     "sync:ip": "bash scripts/sync-ip.sh",
+    "reinstall": "bash scripts/reinstall-deps.sh",
     "kill:ports": "fuser -k 3000/tcp 3001/tcp 8081/tcp 2>/dev/null || true",
     "build": "turbo build",
     "lint": "turbo lint",

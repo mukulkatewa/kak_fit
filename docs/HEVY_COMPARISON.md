@@ -15,13 +15,13 @@ _Last updated: June 22, 2026_
 | Pillar | Hevy | Kak Fit today | Verdict |
 |--------|------|---------------|---------|
 | Workout logging | Best-in-class | Live logger, prev values, copy set, set types, rest timer | ✅ Strong parity |
-| Routine builder | Folders, reorder, programs | Create/duplicate/delete + static program/category templates | 🟡 Missing folders, edit, drag-reorder |
-| Exercise library | 400+, custom, detail page | 855 exercises, search, detail, charts | 🟡 Missing custom-exercise UI |
-| Progress tracking | Charts, streak, muscle map | Volume/duration/reps charts, streak, muscle heatmap, PRs | ✅ Strong parity |
-| Body measurements | Weight + 14 fields + photos | Log + weight trend | 🟡 Only weight charted |
-| Nutrition | ❌ none | USDA food search + macro rings + meal log | ➕ Beyond Hevy |
+| Routine builder | Folders, reorder, programs | Create / edit / duplicate / delete + templates | 🟡 Missing folders, drag-reorder |
+| Exercise library | 400+, custom, detail page | 855 exercises, search, filters, custom create, detail, charts | ✅ Strong parity |
+| Progress tracking | Charts, streak, muscle map, calendar | Volume/duration/reps charts, streak, muscle heatmap, PRs, calendar | ✅ Strong parity |
+| Body measurements | Weight + 14 fields + photos | Log all fields + per-metric charts + history | 🟡 No photos |
+| Nutrition | ❌ none | USDA food search + macro rings + meal log + editable goals | ➕ Beyond Hevy |
 | Social | Feed, follow, like, comment | DB models exist, no UI | 🔲 Deferred (Phase 5) |
-| Theming | Light + dark | Light + dark (system/manual) | ✅ Parity |
+| Theming | Light + dark | Light (green/white) + dark (black/blue, system/manual) | ✅ Parity |
 | Platforms | iOS/Android/Web/Watch | iOS/Android/Web (Expo) | 🟡 No Watch |
 
 ---
@@ -126,26 +126,28 @@ the core logger + progress experience is polished.
 
 ## Prioritized gap backlog (next features to build)
 
-**High value, low effort (connect what already exists):**
-1. Custom exercise creation screen → `exercise.createCustom`
-2. Routine folders UI → `routine.folders` / `routine.createFolder`
-3. Edit existing routine (reuse the create builder)
-4. Body-measurement history list + multi-field charts → `bodyMeasurement.list`
-5. Muscle/category filter UI on the exercise list (API already supports it)
-6. Editable nutrition targets (per-user goal instead of fixed 2500 kcal)
+**Done (June 22, 2026):**
+- ✅ Custom exercise creation screen → `exercise.createCustom`
+- ✅ Edit existing routine → `routine.update` + builder edit mode
+- ✅ Body-measurement history list + per-metric charts → `bodyMeasurement.list/chart`
+- ✅ Muscle filter UI on the exercise list
+- ✅ Editable nutrition targets (per-user goals) → `nutrition.getTargets/setTargets`
+- ✅ Edit / delete past workouts → `workout.update` / `workout.delete`
+- ✅ Workout calendar → `progress.calendar`
+- ✅ Hevy-style black + blue dark theme
 
-**Medium effort:**
-7. Edit / delete past workouts from the detail view
-8. Workout calendar + history heat-grid
-9. Drag-to-reorder exercises in routine builder
-10. Supersets
-11. Progress photos (needs S3/Supabase storage wiring)
+**Still open — medium effort:**
+1. Routine folders UI → `routine.folders` / `routine.createFolder`
+2. Drag-to-reorder exercises in routine builder
+3. Supersets
+4. Progress photos (needs S3/Supabase storage wiring)
+5. Category filter UI on the exercise list (muscle filter shipped)
 
 **Larger / later:**
-12. Social feed (follow / like / comment / profiles) — Phase 5
-13. Offline logging with local SQLite + sync
-14. Apple Watch / Wear OS companions
-15. CSV export, monthly report, year-in-review
+6. Social feed (follow / like / comment / profiles) — Phase 5
+7. Offline logging with local SQLite + sync
+8. Apple Watch / Wear OS companions
+9. CSV export, monthly report, year-in-review
 
 ---
 

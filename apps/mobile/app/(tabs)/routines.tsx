@@ -24,7 +24,7 @@ import {
 } from "../../src/lib/explore-data";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { trpc } from "../../src/lib/trpc";
-import { colors, spacing } from "../../src/lib/theme";
+import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type FilterKey = "level" | "goal" | "equipment" | null;
 
@@ -32,6 +32,8 @@ const PREVIEW_COUNT = 4;
 
 export default function WorkoutExploreScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const [openFilter, setOpenFilter] = useState<FilterKey>(null);
@@ -202,7 +204,7 @@ export default function WorkoutExploreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   topActions: { flexDirection: "row", gap: spacing.sm },

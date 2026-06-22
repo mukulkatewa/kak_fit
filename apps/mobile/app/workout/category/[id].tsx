@@ -7,9 +7,10 @@ import { HevyStackHeader } from "../../../src/components/hevy-ui";
 import { getCategory } from "../../../src/lib/explore-data";
 import { buildRoutinePayload, resolveExerciseIds } from "../../../src/lib/import-template";
 import { trpc } from "../../../src/lib/trpc";
-import { colors, spacing } from "../../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, type Palette } from "../../../src/lib/theme";
 
 export default function CategoryDetailScreen() {
+  const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -82,7 +83,7 @@ export default function CategoryDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg },
   error: { color: colors.textMuted, textAlign: "center", marginTop: 40 },
   hero: { alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg },

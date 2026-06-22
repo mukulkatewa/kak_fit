@@ -1,10 +1,12 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet } from "react-native";
-import { colors } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 /** Green & white tab bar: Home, Workout, Meals, Profile */
 export default function TabsLayout() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <Tabs
       screenOptions={{
@@ -58,7 +60,7 @@ export default function TabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   tabBar: {
     backgroundColor: colors.bg,
     borderTopColor: colors.separator,

@@ -1,8 +1,9 @@
 import { Animated, Easing, StyleSheet, View, type ViewStyle } from "react-native";
 import { useEffect, useRef } from "react";
-import { colors, radius, spacing } from "../lib/theme";
+import { radius, spacing, useThemedStyles, type Palette } from "../lib/theme";
 
 function ShimmerBox({ style }: { style: ViewStyle }) {
+  const styles = useThemedStyles(makeStyles);
   const opacity = useRef(new Animated.Value(0.35)).current;
 
   useEffect(() => {
@@ -31,6 +32,7 @@ function ShimmerBox({ style }: { style: ViewStyle }) {
 
 /** Hevy-style feed row skeleton (avatar + text lines) */
 export function FeedSkeleton({ rows = 3 }: { rows?: number }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.feed}>
       {Array.from({ length: rows }).map((_, i) => (
@@ -49,6 +51,7 @@ export function FeedSkeleton({ rows = 3 }: { rows?: number }) {
 }
 
 export function CardSkeleton() {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.card}>
       <ShimmerBox style={styles.chartArea} />
@@ -57,6 +60,7 @@ export function CardSkeleton() {
 }
 
 export function ListSkeleton({ rows = 4 }: { rows?: number }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.list}>
       {Array.from({ length: rows }).map((_, i) => (
@@ -66,7 +70,7 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   box: { backgroundColor: colors.surfaceHover, borderRadius: radius.sm },
   feed: { gap: spacing.xl, paddingVertical: spacing.md },
   feedRow: { flexDirection: "row", gap: spacing.md },

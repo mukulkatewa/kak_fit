@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
-import { colors, radius, shadows, spacing } from "../lib/theme";
+import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../lib/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -16,6 +16,8 @@ export function HevyTopBar({
   onPressTitle?: () => void;
   right?: React.ReactNode;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.topBar}>
       <Pressable style={styles.titleRow} onPress={onPressTitle} disabled={!onPressTitle}>
@@ -34,6 +36,8 @@ export function HevyIconButton({
   icon: IconName;
   onPress?: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable onPress={onPress} style={styles.iconBtn} hitSlop={8}>
       <Ionicons name={icon} size={22} color={colors.text} />
@@ -47,6 +51,7 @@ export function HevyStatsRow({
 }: {
   items: Array<{ value: string | number; label: string }>;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.statsRow}>
       {items.map((item) => (
@@ -59,8 +64,9 @@ export function HevyStatsRow({
   );
 }
 
-/** Dark blue profile completion banner */
+/** Green profile completion banner */
 export function HevyBanner({ text, onPress, onDismiss }: { text: string; onPress?: () => void; onDismiss?: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable style={styles.banner} onPress={onPress}>
       <Text style={styles.bannerText}>{text}</Text>
@@ -84,6 +90,7 @@ export function HevySegmentedControl<T extends string>({
   value: T;
   onChange: (key: T) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.segmented}>
       {options.map((opt) => {
@@ -108,6 +115,8 @@ export function HevyDashboardGrid({
 }: {
   items: Array<{ icon: IconName; label: string; onPress: () => void }>;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.grid}>
       {items.map((item) => (
@@ -134,6 +143,7 @@ export function HevyModalHeader({
   saveDisabled?: boolean;
   saveLoading?: boolean;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.modalHeader}>
       <Pressable onPress={onCancel} hitSlop={8}>
@@ -151,6 +161,7 @@ export function HevyModalHeader({
 
 /** Yellow info strip on create routine */
 export function HevyInfoStrip({ text, onDismiss }: { text: string; onDismiss?: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.infoStrip}>
       <Text style={styles.infoText}>{text}</Text>
@@ -172,6 +183,8 @@ export function HevyUnderlineInput({
   value: string;
   onChangeText: (t: string) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <TextInput
       placeholder={placeholder}
@@ -193,6 +206,8 @@ export function HevyStackHeader({
   onBack?: () => void;
   right?: React.ReactNode;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.stackHeader}>
       {onBack ? (
@@ -220,6 +235,8 @@ export function HevyFilterBar({
     onPress: () => void;
   }>;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.filterRow}>
       {chips.map((chip) => (
@@ -253,6 +270,7 @@ export function HevyProgramCard({
   routineCount: number;
   onPress: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable style={styles.programCard} onPress={onPress}>
       <View style={[styles.programBadge, { backgroundColor: badgeColor }]}>
@@ -269,6 +287,7 @@ export function HevyProgramCard({
 
 /** Personalized program promo card */
 export function HevyTrainerCard({ onPress }: { onPress?: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.trainerCard}>
       <Text style={styles.trainerTitle}>Personalized Program</Text>
@@ -290,6 +309,7 @@ export function HevyCategoryTile({
   icon: string;
   onPress: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable style={styles.categoryTile} onPress={onPress}>
       <Text style={styles.categoryLabel}>{label}</Text>
@@ -300,6 +320,7 @@ export function HevyCategoryTile({
 
 /** Full-width secondary button */
 export function HevyOutlineButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable style={styles.outlineBtn} onPress={onPress}>
       <Text style={styles.outlineBtnText}>{label}</Text>
@@ -307,187 +328,188 @@ export function HevyOutlineButton({ label, onPress }: { label: string; onPress: 
   );
 }
 
-const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: 44,
-    marginBottom: spacing.sm,
-  },
-  titleRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  title: { fontSize: 28, fontWeight: "700", color: colors.text },
-  actions: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  iconBtn: { padding: 4 },
-  statsRow: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.sm },
-  statCol: { gap: 2 },
-  statValue: { fontSize: 16, fontWeight: "700", color: colors.text },
-  statLabel: { fontSize: 13, color: colors.textMuted },
-  banner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.accent,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-  },
-  bannerText: { flex: 1, color: "#fff", fontSize: 15, fontWeight: "500" },
-  bannerDismiss: { marginLeft: spacing.xs },
-  segmented: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderRadius: radius.full,
-    padding: 4,
-    gap: 4,
-  },
-  segment: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: radius.full,
-    alignItems: "center",
-  },
-  segmentActive: { backgroundColor: colors.accent },
-  segmentText: { fontSize: 14, fontWeight: "600", color: colors.textMuted },
-  segmentTextActive: { color: "#fff" },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  gridItem: {
-    width: "48%",
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    minHeight: 56,
-  },
-  gridLabel: { fontSize: 16, fontWeight: "500", color: colors.text },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.separator,
-  },
-  cancelText: { color: colors.accent, fontSize: 17, fontWeight: "400", minWidth: 70 },
-  modalTitle: { fontSize: 17, fontWeight: "600", color: colors.text },
-  saveBtn: {
-    backgroundColor: colors.surfaceHover,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    minWidth: 70,
-    alignItems: "center",
-  },
-  saveBtnDisabled: { opacity: 0.45 },
-  saveText: { color: colors.text, fontSize: 15, fontWeight: "600" },
-  infoStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f5e6a3",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    gap: spacing.md,
-  },
-  infoText: { flex: 1, color: "#1a1a1a", fontSize: 14, fontWeight: "500" },
-  underlineInput: {
-    fontSize: 17,
-    color: colors.text,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.separator,
-  },
-  stackHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: 44,
-    marginBottom: spacing.md,
-  },
-  stackBack: { width: 44, alignItems: "flex-start" },
-  stackTitle: { fontSize: 17, fontWeight: "600", color: colors.text, textAlign: "center", flex: 1 },
-  stackRight: { width: 44, alignItems: "flex-end" },
-  filterRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.surface,
-    borderRadius: radius.full,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  filterChipActive: { backgroundColor: colors.accent },
-  filterChipText: { color: colors.text, fontSize: 14, fontWeight: "500" },
-  filterChipTextActive: { color: "#fff" },
-  programCard: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.md,
-    alignItems: "center",
-  },
-  programBadge: {
-    width: 88,
-    height: 88,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    justifyContent: "space-between",
-    overflow: "hidden",
-  },
-  programBadgeText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#1a1a1a",
-    fontStyle: "italic",
-    lineHeight: 13,
-  },
-  programBadgeIcon: { alignSelf: "flex-end", opacity: 0.5 },
-  programInfo: { flex: 1, gap: 6 },
-  programTitle: { fontSize: 16, fontWeight: "600", color: colors.text, lineHeight: 22 },
-  programMeta: { fontSize: 14, color: colors.textMuted },
-  trainerCard: {
-    backgroundColor: colors.bg,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    gap: spacing.sm,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.card,
-  },
-  trainerTitle: { fontSize: 20, fontWeight: "800", color: colors.accent, textAlign: "center" },
-  trainerSubtitle: { fontSize: 14, fontWeight: "500", color: colors.textMuted, textAlign: "center" },
-  trainerCta: {
-    alignSelf: "stretch",
-    marginTop: spacing.md,
-    backgroundColor: colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  trainerCtaText: { fontSize: 16, fontWeight: "700", color: "#fff" },
-  categoryTile: {
-    flexBasis: "48%",
-    flexGrow: 1,
-    maxWidth: "48%",
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: 64,
-  },
-  categoryLabel: { fontSize: 16, fontWeight: "500", color: colors.text, flex: 1 },
-  categoryIcon: { fontSize: 28 },
-  outlineBtn: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  outlineBtnText: { fontSize: 16, fontWeight: "600", color: colors.text },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    topBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 44,
+      marginBottom: spacing.sm,
+    },
+    titleRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+    title: { fontSize: 28, fontWeight: "700", color: colors.text },
+    actions: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+    iconBtn: { padding: 4 },
+    statsRow: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.sm },
+    statCol: { gap: 2 },
+    statValue: { fontSize: 16, fontWeight: "700", color: colors.text },
+    statLabel: { fontSize: 13, color: colors.textMuted },
+    banner: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.accent,
+      borderRadius: radius.lg,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      gap: spacing.sm,
+    },
+    bannerText: { flex: 1, color: "#fff", fontSize: 15, fontWeight: "500" },
+    bannerDismiss: { marginLeft: spacing.xs },
+    segmented: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      borderRadius: radius.full,
+      padding: 4,
+      gap: 4,
+    },
+    segment: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: radius.full,
+      alignItems: "center",
+    },
+    segmentActive: { backgroundColor: colors.accent },
+    segmentText: { fontSize: 14, fontWeight: "600", color: colors.textMuted },
+    segmentTextActive: { color: "#fff" },
+    grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    gridItem: {
+      width: "48%",
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      minHeight: 56,
+    },
+    gridLabel: { fontSize: 16, fontWeight: "500", color: colors.text },
+    modalHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.separator,
+    },
+    cancelText: { color: colors.accent, fontSize: 17, fontWeight: "400", minWidth: 70 },
+    modalTitle: { fontSize: 17, fontWeight: "600", color: colors.text },
+    saveBtn: {
+      backgroundColor: colors.surfaceHover,
+      borderRadius: radius.full,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      minWidth: 70,
+      alignItems: "center",
+    },
+    saveBtnDisabled: { opacity: 0.45 },
+    saveText: { color: colors.text, fontSize: 15, fontWeight: "600" },
+    infoStrip: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#f5e6a3",
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      gap: spacing.md,
+    },
+    infoText: { flex: 1, color: "#1a1a1a", fontSize: 14, fontWeight: "500" },
+    underlineInput: {
+      fontSize: 17,
+      color: colors.text,
+      paddingVertical: spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.separator,
+    },
+    stackHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 44,
+      marginBottom: spacing.md,
+    },
+    stackBack: { width: 44, alignItems: "flex-start" },
+    stackTitle: { fontSize: 17, fontWeight: "600", color: colors.text, textAlign: "center", flex: 1 },
+    stackRight: { width: 44, alignItems: "flex-end" },
+    filterRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
+    filterChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: colors.surface,
+      borderRadius: radius.full,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+    },
+    filterChipActive: { backgroundColor: colors.accent },
+    filterChipText: { color: colors.text, fontSize: 14, fontWeight: "500" },
+    filterChipTextActive: { color: "#fff" },
+    programCard: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.md,
+      gap: spacing.md,
+      alignItems: "center",
+    },
+    programBadge: {
+      width: 88,
+      height: 88,
+      borderRadius: radius.md,
+      padding: spacing.sm,
+      justifyContent: "space-between",
+      overflow: "hidden",
+    },
+    programBadgeText: {
+      fontSize: 11,
+      fontWeight: "800",
+      color: "#1a1a1a",
+      fontStyle: "italic",
+      lineHeight: 13,
+    },
+    programBadgeIcon: { alignSelf: "flex-end", opacity: 0.5 },
+    programInfo: { flex: 1, gap: 6 },
+    programTitle: { fontSize: 16, fontWeight: "600", color: colors.text, lineHeight: 22 },
+    programMeta: { fontSize: 14, color: colors.textMuted },
+    trainerCard: {
+      backgroundColor: colors.bg,
+      borderRadius: radius.xl,
+      padding: spacing.xl,
+      gap: spacing.sm,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...shadows.card,
+    },
+    trainerTitle: { fontSize: 20, fontWeight: "800", color: colors.accent, textAlign: "center" },
+    trainerSubtitle: { fontSize: 14, fontWeight: "500", color: colors.textMuted, textAlign: "center" },
+    trainerCta: {
+      alignSelf: "stretch",
+      marginTop: spacing.md,
+      backgroundColor: colors.accent,
+      borderRadius: radius.md,
+      paddingVertical: 14,
+      alignItems: "center",
+    },
+    trainerCtaText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+    categoryTile: {
+      flexBasis: "48%",
+      flexGrow: 1,
+      maxWidth: "48%",
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 64,
+    },
+    categoryLabel: { fontSize: 16, fontWeight: "500", color: colors.text, flex: 1 },
+    categoryIcon: { fontSize: 28 },
+    outlineBtn: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    outlineBtnText: { fontSize: 16, fontWeight: "600", color: colors.text },
+  });

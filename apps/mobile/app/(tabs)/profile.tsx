@@ -22,12 +22,14 @@ import {
 } from "../../src/components/hevy-ui";
 import { useAuth } from "../../src/lib/auth-context";
 import { trpc } from "../../src/lib/trpc";
-import { colors, spacing } from "../../src/lib/theme";
+import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type ChartMode = "duration" | "volume" | "reps";
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { signOut } = useAuth();
   const [chartMode, setChartMode] = useState<ChartMode>("volume");
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -71,9 +73,7 @@ export default function ProfileScreen() {
           title={username}
           right={
             <>
-              <HevyIconButton icon="create-outline" />
-              <HevyIconButton icon="share-outline" />
-              <HevyIconButton icon="settings-outline" />
+              <HevyIconButton icon="settings-outline" onPress={() => router.push("/settings")} />
             </>
           }
         />
@@ -154,7 +154,7 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxxl },
   profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.xl },
   noDataCard: {

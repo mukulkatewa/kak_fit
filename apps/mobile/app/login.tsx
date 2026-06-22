@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../src/lib/auth-context";
 import { BrandMark, Button, HevyButton, Input } from "../src/components/ui";
-import { colors, spacing } from "../src/lib/theme";
+import { useThemedStyles, spacing, type Palette } from "../src/lib/theme";
 
 const DEMO_EMAIL = "demo@kakfit.app";
 const DEMO_PASSWORD = "password123";
@@ -20,6 +20,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signIn, signUp } = useAuth();
+  const styles = useThemedStyles(makeStyles);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -114,7 +115,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   content: {

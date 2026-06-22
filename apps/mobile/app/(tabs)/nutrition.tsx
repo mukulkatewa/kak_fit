@@ -11,7 +11,7 @@ import {
 import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
 import { trpc } from "../../src/lib/trpc";
-import { colors, radius, shadows, spacing } from "../../src/lib/theme";
+import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 const MEAL_TYPES = [
   { key: "BREAKFAST" as const, label: "Breakfast", icon: "cafe-outline" as const },
@@ -23,6 +23,8 @@ const MEAL_TYPES = [
 type MealKey = (typeof MEAL_TYPES)[number]["key"];
 
 export default function NutritionScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [search, setSearch] = useState("");
   const [mealType, setMealType] = useState<MealKey>("LUNCH");
   const [logging, setLogging] = useState(false);
@@ -226,6 +228,7 @@ function MacroRingRow({
   target: number;
   color: string;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const pct = Math.round((value / target) * 100);
   return (
     <View style={styles.macroRow}>
@@ -242,7 +245,7 @@ function MacroRingRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
   pageTitle: { fontSize: 30, fontWeight: "800", color: colors.text, marginTop: spacing.xs },
 

@@ -6,9 +6,11 @@ import { Button, EmptyState, ListGroup, ListRow, Screen } from "../../src/compon
 import { HevyIconButton, HevyStackHeader } from "../../src/components/hevy-ui";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
-import { colors, spacing } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, type Palette } from "../../src/lib/theme";
 
 export default function MyRoutinesScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
@@ -98,7 +100,7 @@ export default function MyRoutinesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.lg },
   list: { gap: spacing.lg },
   routineWrap: { gap: spacing.sm },

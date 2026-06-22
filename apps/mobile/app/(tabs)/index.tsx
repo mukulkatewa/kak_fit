@@ -6,7 +6,7 @@ import { LineChart } from "../../src/components/charts";
 import { FeedSkeleton } from "../../src/components/skeleton";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
-import { colors, radius, shadows, spacing } from "../../src/lib/theme";
+import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -33,6 +33,8 @@ function buildLastSevenDaysChart(workouts: { finishedAt: Date | string | null; v
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const utils = trpc.useUtils();
   const { data: me } = trpc.auth.me.useQuery();
   const { data: stats } = trpc.auth.stats.useQuery();
@@ -80,7 +82,7 @@ export default function DashboardScreen() {
           <Pressable
             hitSlop={8}
             style={styles.gear}
-            onPress={() => router.push("/(tabs)/profile")}
+            onPress={() => router.push("/settings")}
           >
             <Ionicons name="settings-outline" size={24} color={colors.text} />
           </Pressable>
@@ -190,6 +192,7 @@ export default function DashboardScreen() {
 }
 
 function Stat({ value, label }: { value: string | number; label: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.statCol}>
       <Text style={styles.statValue}>{value}</Text>
@@ -209,6 +212,8 @@ function ActivityCard({
   subtitle: string;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       style={({ pressed }) => [styles.activityCard, pressed && styles.pressed]}
@@ -229,7 +234,7 @@ function ActivityCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
 
   statHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },

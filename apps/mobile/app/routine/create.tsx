@@ -14,9 +14,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, SearchBar } from "../../src/components/ui";
 import { HevyInfoStrip, HevyModalHeader, HevyUnderlineInput } from "../../src/components/hevy-ui";
 import { trpc } from "../../src/lib/trpc";
-import { colors, radius, spacing } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
 
 export default function CreateRoutineScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
@@ -179,7 +181,7 @@ export default function CreateRoutineScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   headerPad: { paddingHorizontal: spacing.lg },
   body: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.lg },

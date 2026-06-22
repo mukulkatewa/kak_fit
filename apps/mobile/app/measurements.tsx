@@ -4,9 +4,11 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { BarChart } from "../src/components/charts";
 import { Button, Header, Input, Screen, SectionHeader } from "../src/components/ui";
 import { trpc } from "../src/lib/trpc";
-import { colors, spacing } from "../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, type Palette } from "../src/lib/theme";
 
 export default function MeasurementsScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const router = useRouter();
   const utils = trpc.useUtils();
   const { data: latest } = trpc.bodyMeasurement.latest.useQuery();
@@ -94,7 +96,7 @@ export default function MeasurementsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   latest: {
     backgroundColor: colors.surface,
     borderRadius: 12,

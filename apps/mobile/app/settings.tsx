@@ -1,0 +1,124 @@
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Button, Screen } from "../src/components/ui";
+import { HevyStackHeader } from "../src/components/hevy-ui";
+import { useAuth } from "../src/lib/auth-context";
+import { trpc } from "../src/lib/trpc";
+import {
+  radius,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Palette,
+  type ThemeMode,
+} from "../src/lib/theme";
+
+const THEME_OPTIONS: Array<{ key: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { key: "system", label: "System", icon: "phone-portrait-outline" },
+  { key: "light", label: "Light", icon: "sunny-outline" },
+  { key: "dark", label: "Dark", icon: "moon-outline" },
+];
+
+export default function SettingsScreen() {
+  const router = useRouter();
+  const { signOut } = useAuth();
+  const { colors, mode, setMode } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { data: user } = trpc.auth.me.useQuery();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace("/login");
+  };
+
+  return (
+    <Screen scroll>
+      <HevyStackHeader title="Settings" onBack={() => router.back()} />
+
+      <Text style={styles.sectionLabel}>Appearance</Text>
+      <View style={styles.group}>
+        {THEME_OPTIONS.map((opt, i) => {
+          const active = mode === opt.key;
+          return (
+            <Pressable
+              key={opt.key}
+              onPress={() => setMode(opt.key)}
+              style={[styles.row, i < THEME_OPTIONS.length - 1 && styles.rowBorder]}
+            >
+              <Ionicons name={opt.icon} size={20} color={colors.textMuted} />
+              <Text style={styles.rowLabel}>{opt.label}</Text>
+              {active ? (
+                <Ionicons name="checkmark-circle" size={22} color={colors.accent} />
+              ) : (
+                <View style={styles.radioEmpty} />
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={styles.sectionLabel}>Account</Text>
+      <View style={styles.group}>
+        <View style={[styles.row, styles.rowBorder]}>
+          <Ionicons name="person-outline" size={20} color={colors.textMuted} />
+          <Text style={styles.rowLabel}>{user?.name ?? "Athlete"}</Text>
+        </View>
+        <View style={styles.row}>
+          <Ionicons name="mail-outline" size={20} color={colors.textMuted} />
+          <Text style={styles.rowLabel} numberOfLines={1}>
+            {user?.email ?? ""}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.sectionLabel}>About</Text>
+      <View style={styles.group}>
+        <View style={styles.row}>
+          <Ionicons name="information-circle-outline" size={20} color={colors.textMuted} />
+          <Text style={styles.rowLabel}>Kak Fit</Text>
+          <Text style={styles.rowValue}>v0.2.0 · Free</Text>
+        </View>
+      </View>
+
+      <Button label="Sign Out" variant="danger" fullWidth onPress={handleSignOut} />
+    </Screen>
+  );
+}
+
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    sectionLabel: {
+      fontSize: 13,
+      color: colors.textMuted,
+      fontWeight: "600",
+      marginTop: spacing.sm,
+      marginLeft: spacing.xs,
+    },
+    group: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      overflow: "hidden",
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      minHeight: 56,
+    },
+    rowBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.separator,
+    },
+    rowLabel: { flex: 1, fontSize: 16, color: colors.text },
+    rowValue: { fontSize: 14, color: colors.textMuted },
+    radioEmpty: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: colors.border,
+    },
+  });

@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { MUSCLE_ZONES, zoneIntensity, type BodyView } from "../lib/muscle-map";
-import { colors, radius, spacing } from "../lib/theme";
+import { radius, spacing, useThemedStyles, type Palette } from "../lib/theme";
 
 type HeatmapPoint = { muscle: string; volume: number; intensity: number };
 
@@ -11,6 +11,7 @@ function BodySilhouette({
   view: BodyView;
   heatmap: HeatmapPoint[];
 }) {
+  const styles = useThemedStyles(makeStyles);
   const zones = MUSCLE_ZONES.filter((z) => z.view === view);
 
   return (
@@ -49,6 +50,7 @@ function BodySilhouette({
 }
 
 export function MuscleHeatmap({ data }: { data: HeatmapPoint[] }) {
+  const styles = useThemedStyles(makeStyles);
   if (data.length === 0) {
     return <Text style={styles.empty}>Train more to see your muscle heatmap.</Text>;
   }
@@ -83,7 +85,7 @@ export function MuscleHeatmap({ data }: { data: HeatmapPoint[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

@@ -3,9 +3,11 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { BarChart } from "../../src/components/charts";
 import { Button, Header, ListGroup, ListRow, Screen, SectionHeader } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
-import { colors, spacing } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, type Palette } from "../../src/lib/theme";
 
 export default function ExerciseDetailScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: exercise, isLoading } = trpc.exercise.getById.useQuery({ id: id! }, { enabled: !!id });
@@ -103,7 +105,7 @@ export default function ExerciseDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   prevBox: {
     backgroundColor: colors.surface,
     borderRadius: 12,

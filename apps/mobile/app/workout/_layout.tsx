@@ -1,7 +1,8 @@
 import { Stack } from "expo-router";
-import { colors } from "../../src/lib/theme";
+import { useTheme } from "../../src/lib/theme";
 
 export default function WorkoutLayout() {
+  const { colors } = useTheme();
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="active" options={{ presentation: "fullScreenModal" }} />

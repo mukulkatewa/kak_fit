@@ -8,9 +8,11 @@ import { HevyProgramCard, HevyStackHeader } from "../../../src/components/hevy-u
 import { getProgram } from "../../../src/lib/explore-data";
 import { buildRoutinePayload, resolveExerciseIds } from "../../../src/lib/import-template";
 import { trpc } from "../../../src/lib/trpc";
-import { colors, spacing } from "../../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, type Palette } from "../../../src/lib/theme";
 
 export default function ProgramDetailScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -112,6 +114,7 @@ export default function ProgramDetailScreen() {
 }
 
 function MetaPill({ label }: { label: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.pill}>
       <Text style={styles.pillText}>{label}</Text>
@@ -119,7 +122,7 @@ function MetaPill({ label }: { label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg },
   error: { color: colors.textMuted, textAlign: "center", marginTop: 40 },
   metaRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },

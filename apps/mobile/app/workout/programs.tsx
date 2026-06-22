@@ -13,11 +13,12 @@ import {
   type ProgramGoal,
   type ProgramLevel,
 } from "../../src/lib/explore-data";
-import { colors, spacing } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, type Palette } from "../../src/lib/theme";
 
 type FilterKey = "level" | "goal" | "equipment" | null;
 
 export default function AllProgramsScreen() {
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [openFilter, setOpenFilter] = useState<FilterKey>(null);
@@ -126,7 +127,7 @@ export default function AllProgramsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   filterOption: {

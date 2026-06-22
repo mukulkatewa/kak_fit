@@ -24,7 +24,7 @@ import {
 import { formatPreviousSet, pickPreviousForSet, type PreviousExerciseSession } from "../../src/lib/previous-set";
 import { trpc } from "../../src/lib/trpc";
 import { formatRestTime, useRestTimer } from "../../src/lib/rest-timer";
-import { colors, radius, spacing } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
 
 const SET_TYPES = ["NORMAL", "WARMUP", "DROP", "FAILURE"] as const;
 type SetType = (typeof SET_TYPES)[number];
@@ -36,14 +36,16 @@ const SET_TYPE_LABEL: Record<SetType, string> = {
   FAILURE: "F",
 };
 
-const SET_TYPE_COLOR: Record<SetType, string> = {
+const setTypeColor = (colors: Palette): Record<SetType, string> => ({
   NORMAL: colors.textMuted,
   WARMUP: colors.gold,
   DROP: colors.accentBright,
   FAILURE: colors.danger,
-};
+});
 
 export default function ActiveWorkoutScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
@@ -265,6 +267,8 @@ function ExerciseBlock({
   onAddSet: () => void;
   onDeleteSet: (setId: string) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const lastSet = sets[sets.length - 1];
 
   const copyLastSet = () => {
@@ -347,6 +351,8 @@ function SetRow({
   onCycleSetType: (setId: string, setType: SetType) => void;
   onDeleteSet: (setId: string) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const [weight, setWeight] = useState(set.weight?.toString() ?? "");
   const [reps, setReps] = useState(set.reps?.toString() ?? "");
   const typeLabel = SET_TYPE_LABEL[set.setType] || String(set.setNumber);
@@ -380,7 +386,7 @@ function SetRow({
   return (
     <View style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
       <Pressable onPress={() => onCycleSetType(set.id, set.setType)} style={styles.setTypeBtn}>
-        <Text style={[styles.setNumber, { color: SET_TYPE_COLOR[set.setType] }]}>{typeLabel}</Text>
+        <Text style={[styles.setNumber, { color: setTypeColor(colors)[set.setType] }]}>{typeLabel}</Text>
       </Pressable>
 
       <Pressable
@@ -426,7 +432,7 @@ function SetRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   backBtn: { padding: 4 },
   volume: { color: colors.textMuted, fontSize: 15, fontWeight: "600" },

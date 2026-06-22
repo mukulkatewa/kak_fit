@@ -12,10 +12,12 @@ import {
   StatBlock,
 } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
-import { colors, spacing } from "../../src/lib/theme";
+import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 export default function ProgressScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { data: volume, isLoading: volLoading } = trpc.progress.volumeHistory.useQuery({ limit: 10 });
   const { data: muscleData, isLoading: muscleLoading } = trpc.progress.muscleDistribution.useQuery({ days: 30 });
   const { data: topExercises } = trpc.progress.topExercises.useQuery({ limit: 6 });
@@ -98,7 +100,7 @@ export default function ProgressScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     backgroundColor: colors.surface,

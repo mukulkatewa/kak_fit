@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { colors, radius, spacing } from "../lib/theme";
+import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../lib/theme";
 
 type ChartPoint = { label: string; value: number };
 
 export function BarChart({
   data,
-  color = colors.accent,
+  color,
   height = 140,
   unit = "",
 }: {
@@ -15,6 +15,10 @@ export function BarChart({
   height?: number;
   unit?: string;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const barColor = color ?? colors.accent;
+
   if (data.length === 0) {
     return <Text style={styles.empty}>No data yet — complete workouts to see charts.</Text>;
   }
@@ -32,7 +36,7 @@ export function BarChart({
                 {point.value}
                 {unit}
               </Text>
-              <View style={[styles.bar, { height: barH, backgroundColor: color }]} />
+              <View style={[styles.bar, { height: barH, backgroundColor: barColor }]} />
               <Text style={styles.barLabel} numberOfLines={1}>
                 {point.label}
               </Text>
@@ -51,9 +55,9 @@ export function BarChart({
 export function LineChart({
   data,
   height = 150,
-  lineColor = colors.onAccent,
-  dotColor = colors.onAccent,
-  gridColor = colors.onAccentFaint,
+  lineColor,
+  dotColor,
+  gridColor,
 }: {
   data: ChartPoint[];
   height?: number;
@@ -61,6 +65,10 @@ export function LineChart({
   dotColor?: string;
   gridColor?: string;
 }) {
+  const { colors } = useTheme();
+  const resolvedLine = lineColor ?? colors.onAccent;
+  const resolvedDot = dotColor ?? colors.onAccent;
+  const resolvedGrid = gridColor ?? colors.onAccentFaint;
   const [width, setWidth] = useState(0);
 
   const values = data.map((d) => d.value);
@@ -103,7 +111,7 @@ export function LineChart({
                       width: len,
                       height: line,
                       borderRadius: line,
-                      backgroundColor: lineColor,
+                      backgroundColor: resolvedLine,
                       transform: [{ rotate: `${angle}deg` }],
                     }}
                   />
@@ -121,7 +129,7 @@ export function LineChart({
                   top: p.y,
                   width: 1,
                   height: Math.max(height - p.y - 4, 0),
-                  backgroundColor: gridColor,
+                  backgroundColor: resolvedGrid,
                 }}
               />
               {segment}
@@ -134,7 +142,7 @@ export function LineChart({
                   width: dot,
                   height: dot,
                   borderRadius: dot / 2,
-                  backgroundColor: dotColor,
+                  backgroundColor: resolvedDot,
                 }}
               />
             </View>
@@ -151,8 +159,8 @@ export function LineChart({
 export function ProgressRing({
   size = 120,
   progress,
-  color = colors.accent,
-  track = colors.surfaceHover,
+  color,
+  track,
   ticks = 48,
   tickWidth = 3,
   tickLength = 12,
@@ -169,6 +177,10 @@ export function ProgressRing({
   inset?: number;
   children?: React.ReactNode;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const fillColor = color ?? colors.accent;
+  const trackColor = track ?? colors.surfaceHover;
   const pct = Math.min(Math.max(progress, 0), 1);
   const filled = Math.round(pct * ticks);
   const reach = size / 2 - tickLength / 2 - inset;
@@ -185,7 +197,7 @@ export function ProgressRing({
             width: tickWidth,
             height: tickLength,
             borderRadius: tickWidth,
-            backgroundColor: i < filled ? color : track,
+            backgroundColor: i < filled ? fillColor : trackColor,
             transform: [{ rotate: `${(i / ticks) * 360}deg` }, { translateY: -reach }],
           }}
         />
@@ -200,6 +212,7 @@ export function MuscleBars({
 }: {
   data: Array<{ muscle: string; volume: number; pct: number }>;
 }) {
+  const styles = useThemedStyles(makeStyles);
   if (data.length === 0) {
     return <Text style={styles.empty}>Train more to see muscle distribution.</Text>;
   }
@@ -221,7 +234,7 @@ export function MuscleBars({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   wrap: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg },
   bars: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
   barCol: { flex: 1, alignItems: "center", gap: 4 },

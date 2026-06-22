@@ -3,10 +3,11 @@ import { useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { EmptyState, Header, ListGroup, ListRow, Screen, SearchBar, Button } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
-import { colors } from "../../src/lib/theme";
+import { useTheme } from "../../src/lib/theme";
 
 export default function ExercisesTab() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [search, setSearch] = useState("");
   const { data: exercises, isPending, isError, error, refetch } = trpc.exercise.list.useQuery({
     search: search || undefined,

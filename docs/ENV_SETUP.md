@@ -160,6 +160,36 @@ SUPABASE_SERVICE_ROLE_KEY="eyJhbGci..."
 > **Latency tip:** request speed is dominated by the database region. If the API
 > feels slow, host the Supabase project in the region closest to you (e.g.
 > `ap-south-1` / Mumbai) or use local Docker Postgres for development.
+
+### Moving the database to a closer region (e.g. Tokyo → Mumbai)
+
+Supabase **cannot change a project's region** after creation — you create a new
+project in the target region and repoint the app.
+
+1. **Create a new project** at [supabase.com](https://supabase.com) → Region:
+   **South Asia (Mumbai) `ap-south-1`**. Set a DB password.
+2. **Copy the new credentials** into `.env` (only these change):
+   - `SUPABASE_PROJECT_REF` — the new project ref
+   - `SUPABASE_DB_PASSWORD` — the new password
+   - `SUPABASE_POOLER_HOST` — from Dashboard → **Connect → ORMs → Prisma**
+     (looks like `aws-0-ap-south-1.pooler.supabase.com`)
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+     `SUPABASE_SERVICE_ROLE_KEY` — from Dashboard → **Settings → API**
+3. **Rebuild env + schema + data:**
+   ```bash
+   pnpm sync:ip          # rewrites DATABASE_URL/DIRECT_URL to the new host
+   pnpm db:push          # creates the schema
+   pnpm db:import        # re-imports the 855 Wger exercises
+   pnpm db:seed          # recreates the demo user
+   ```
+4. **(Optional) keep existing user data** instead of re-seeding — copy old → new:
+   ```bash
+   pg_dump "OLD_DIRECT_URL" --data-only --no-owner > data.sql
+   psql "NEW_DIRECT_URL" < data.sql
+   ```
+5. **Storage:** the `progress-photos` bucket auto-creates on the first upload to
+   the new project; existing photos are not migrated automatically.
+6. Restart the API (`pnpm dev:api`). Expect every request to drop by ~70%.
 | `SUPABASE_PROJECT_REF` | Subdomain in your project URL (`https://REF.supabase.co`) |
 | `NEXT_PUBLIC_SUPABASE_*` | Dashboard → Project Settings → **API** (use the `anon` JWT key, not `sb_publishable_…`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Same API page (server-only, never ship to mobile) |

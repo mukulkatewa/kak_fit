@@ -1,7 +1,8 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
 import { EmptyState } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
@@ -36,6 +37,41 @@ export default function WorkoutDetailScreen() {
 
   const [editing, setEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+
+  const { data: photos } = trpc.progressPhoto.list.useQuery(
+    { workoutId: id! },
+    { enabled: Boolean(id) },
+  );
+  const { data: storage } = trpc.progressPhoto.storageEnabled.useQuery();
+
+  const uploadPhoto = trpc.progressPhoto.upload.useMutation({
+    onSuccess: () => utils.progressPhoto.list.invalidate({ workoutId: id! }),
+    onError: (e) => Alert.alert("Upload failed", e.message),
+  });
+  const deletePhoto = trpc.progressPhoto.delete.useMutation({
+    onSuccess: () => utils.progressPhoto.list.invalidate({ workoutId: id! }),
+    onError: (e) => Alert.alert("Error", e.message),
+  });
+
+  const addPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission needed", "Allow Kak Fit to access your photos.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.7,
+      base64: true,
+    });
+    if (result.canceled || !result.assets[0]?.base64) return;
+    const asset = result.assets[0];
+    uploadPhoto.mutate({
+      base64: asset.base64!,
+      contentType: asset.mimeType ?? "image/jpeg",
+      workoutId: id!,
+    });
+  };
   useEffect(() => {
     if (workout?.name) setNameDraft(workout.name);
   }, [workout?.name]);
@@ -165,6 +201,41 @@ export default function WorkoutDetailScreen() {
         </View>
       ))}
 
+      {/* Workout photos */}
+      {storage?.enabled ? (
+        <View style={styles.photosSection}>
+          <View style={styles.photosHeader}>
+            <Text style={styles.exerciseName}>Photos</Text>
+            <Pressable style={styles.photoAddBtn} onPress={addPhoto} disabled={uploadPhoto.isPending} hitSlop={8}>
+              {uploadPhoto.isPending ? (
+                <ActivityIndicator color={colors.onAccent} size="small" />
+              ) : (
+                <Ionicons name="camera-outline" size={16} color={colors.onAccent} />
+              )}
+            </Pressable>
+          </View>
+          {(photos ?? []).length === 0 ? (
+            <Text style={styles.photosEmpty}>Tap 📷 to add a photo to this workout.</Text>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photosRow}>
+              {photos?.map((p) => (
+                <Pressable
+                  key={p.id}
+                  onLongPress={() =>
+                    Alert.alert("Delete photo?", "", [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Delete", style: "destructive", onPress: () => deletePhoto.mutate({ id: p.id }) },
+                    ])
+                  }
+                >
+                  <Image source={{ uri: p.url }} style={styles.photoThumb} />
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      ) : null}
+
       <View style={{ height: spacing.xxxl }} />
     </ScrollView>
   );
@@ -234,4 +305,13 @@ const makeStyles = (colors: Palette) =>
     setRow: { flexDirection: "row", paddingVertical: spacing.xs },
     colSet: { width: 48, fontSize: 15, color: colors.textMuted },
     colVal: { flex: 1, fontSize: 15, color: colors.text },
+    photosSection: { marginTop: spacing.sm },
+    photosHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+    photoAddBtn: {
+      width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accent,
+      alignItems: "center", justifyContent: "center",
+    },
+    photosEmpty: { color: colors.textDim, fontSize: 13 },
+    photosRow: { gap: spacing.sm, paddingVertical: spacing.xs },
+    photoThumb: { width: 110, height: 145, borderRadius: radius.lg, backgroundColor: colors.surface },
   });

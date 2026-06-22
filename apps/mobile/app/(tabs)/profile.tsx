@@ -32,25 +32,14 @@ export default function ProfileScreen() {
   const styles = useThemedStyles(makeStyles);
   const { signOut } = useAuth();
   const [chartMode, setChartMode] = useState<ChartMode>("volume");
-  const [bannerDismissed, setBannerDismissed] = useState(false);
-
   const { data: user } = trpc.auth.me.useQuery();
   const { data: stats } = trpc.auth.stats.useQuery();
   const { data: volumeHistory, isLoading: chartLoading } = trpc.progress.volumeHistory.useQuery({ limit: 8 });
   const { data: workouts, isLoading } = trpc.workout.history.useQuery({ limit: 6 });
 
   const username = user?.name?.trim() || user?.email?.split("@")[0] || "athlete";
-  const profilePct = useMemo(() => {
-    const checks = [
-      Boolean(user?.name && user.name.trim().length > 0),
-      Boolean(user?.bio && user.bio.trim().length > 0),
-      (stats?.workoutCount ?? 0) > 0,
-      (stats?.routineCount ?? 0) > 0,
-      (stats?.prCount ?? 0) > 0,
-    ];
-    const done = checks.filter(Boolean).length;
-    return Math.round((done / checks.length) * 100);
-  }, [user, stats]);
+  // Banner: only show while bio is empty — the one thing we can guide them to add.
+  const showBanner = Boolean(user) && !user?.bio?.trim();
 
   const chartData = useMemo(() => {
     if (!volumeHistory?.length) return [];
@@ -96,11 +85,10 @@ export default function ProfileScreen() {
 
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
 
-        {!bannerDismissed && profilePct < 100 ? (
+        {showBanner ? (
           <HevyBanner
-            text={`Your profile is ${profilePct}% complete`}
+            text="Add a bio to complete your profile"
             onPress={() => router.push("/profile-edit")}
-            onDismiss={() => setBannerDismissed(true)}
           />
         ) : null}
 
@@ -130,10 +118,12 @@ export default function ProfileScreen() {
           items={[
             { icon: "stats-chart-outline", label: "Statistics", onPress: () => router.push("/(tabs)/progress") },
             { icon: "calendar-outline", label: "Calendar", onPress: () => router.push("/calendar") },
+            { icon: "camera-outline", label: "Photos", onPress: () => router.push("/photos") },
             { icon: "folder-outline", label: "Routines", onPress: () => router.push("/workout/my-routines") },
             { icon: "barbell-outline", label: "Exercises", onPress: () => router.push("/(tabs)/exercises") },
             { icon: "body-outline", label: "Measures", onPress: () => router.push("/measurements") },
             { icon: "restaurant-outline", label: "Meals", onPress: () => router.push("/(tabs)/nutrition") },
+            { icon: "settings-outline", label: "Settings", onPress: () => router.push("/settings") },
           ]}
         />
 

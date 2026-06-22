@@ -7,10 +7,18 @@ export const progressPhotoRouter = router({
   storageEnabled: protectedProcedure.query(() => ({ enabled: isStorageConfigured() })),
 
   list: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(60).default(30) }).optional())
+    .input(
+      z.object({
+        limit: z.number().min(1).max(60).default(30),
+        workoutId: z.string().optional(),
+      }).optional(),
+    )
     .query(async ({ ctx, input }) => {
       return ctx.prisma.progressPhoto.findMany({
-        where: { userId: ctx.user.id },
+        where: {
+          userId: ctx.user.id,
+          ...(input?.workoutId ? { workoutId: input.workoutId } : {}),
+        },
         orderBy: { takenAt: "desc" },
         take: input?.limit ?? 30,
       });
@@ -23,6 +31,7 @@ export const progressPhotoRouter = router({
         contentType: z.string().default("image/jpeg"),
         note: z.string().max(200).optional(),
         weight: z.number().positive().optional(),
+        workoutId: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -40,6 +49,7 @@ export const progressPhotoRouter = router({
           path,
           note: input.note,
           weight: input.weight,
+          workoutId: input.workoutId ?? null,
         },
       });
     }),

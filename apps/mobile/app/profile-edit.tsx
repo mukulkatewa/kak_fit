@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Avatar } from "../src/components/ui";
 import { HevyModalHeader } from "../src/components/hevy-ui";
@@ -15,9 +15,12 @@ export default function ProfileEditScreen() {
 
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
-
+  // Only initialize from server data once — don't overwrite mid-edit when the
+  // query re-fetches after invalidation.
+  const initialized = useRef(false);
   useEffect(() => {
-    if (user) {
+    if (user && !initialized.current) {
+      initialized.current = true;
       setName(user.name ?? "");
       setBio(user.bio ?? "");
     }

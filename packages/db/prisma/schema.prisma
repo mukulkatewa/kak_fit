@@ -76,6 +76,7 @@ model User {
 model ProgressPhoto {
   id        String   @id @default(cuid())
   userId    String
+  workoutId String?
   url       String
   path      String
   note      String?
@@ -83,9 +84,11 @@ model ProgressPhoto {
   takenAt   DateTime @default(now())
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
 
   @@index([userId, takenAt])
+  @@index([workoutId])
 }
 
 model Session {
@@ -276,11 +279,12 @@ model Workout {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercises WorkoutExercise[]
-  likes     Like[]
-  comments  Comment[]
-  media     Media[]
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises      WorkoutExercise[]
+  likes          Like[]
+  comments       Comment[]
+  media          Media[]
+  progressPhotos ProgressPhoto[]
 
   @@index([userId, finishedAt])
 }

@@ -85,7 +85,11 @@ export async function signOut() {
   if (token) {
     await fetch(`${getApiUrl()}/api/auth/sign-out`, {
       method: "POST",
-      headers: apiHeaders({ Authorization: `Bearer ${token}` }),
+      headers: apiHeaders({
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      }),
+      body: "{}",
     }).catch(() => undefined);
   }
   await clearToken();

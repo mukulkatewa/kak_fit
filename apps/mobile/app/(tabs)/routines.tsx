@@ -43,12 +43,23 @@ export default function WorkoutExploreScreen() {
 
   const { data: routines } = trpc.routine.list.useQuery();
 
+  const discardActive = trpc.workout.discardActive.useMutation();
+
   const startEmpty = trpc.workout.startEmpty.useMutation({
     onSuccess: () => {
       utils.workout.active.invalidate();
       router.push("/workout/active");
     },
-    onError: (e) => alertWorkoutConflict(e, () => router.push("/workout/active")),
+    onError: (e) =>
+      alertWorkoutConflict(
+        e,
+        () => router.push("/workout/active"),
+        async () => {
+          await discardActive.mutateAsync();
+          await utils.workout.active.invalidate();
+          startEmpty.mutate({});
+        },
+      ),
   });
 
   const filteredPrograms = useMemo(() => {

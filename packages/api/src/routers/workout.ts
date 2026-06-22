@@ -379,4 +379,54 @@ export const workoutRouter = router({
       await ctx.prisma.workout.delete({ where: { id: workout.id } });
       return { success: true };
     }),
+
+  /** Discard whatever active workout exists, no id needed (unblocks the user). */
+  discardActive: protectedProcedure.mutation(async ({ ctx }) => {
+    const active = await ctx.prisma.workout.findFirst({
+      where: { userId: ctx.user.id, finishedAt: null },
+    });
+    if (active) {
+      await ctx.prisma.workout.delete({ where: { id: active.id } });
+    }
+    return { success: true };
+  }),
+
+  /** Delete a finished workout from history. */
+  delete: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const workout = await ctx.prisma.workout.findFirst({
+        where: { id: input.id, userId: ctx.user.id },
+      });
+      if (!workout) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
+      }
+      await ctx.prisma.workout.delete({ where: { id: input.id } });
+      return { success: true };
+    }),
+
+  /** Rename / edit notes on a finished workout. */
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(120).optional(),
+        notes: z.string().max(2000).nullable().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const workout = await ctx.prisma.workout.findFirst({
+        where: { id: input.id, userId: ctx.user.id },
+      });
+      if (!workout) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
+      }
+      return ctx.prisma.workout.update({
+        where: { id: input.id },
+        data: {
+          ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        },
+      });
+    }),
 });

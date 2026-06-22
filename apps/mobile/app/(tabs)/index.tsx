@@ -45,12 +45,23 @@ export default function DashboardScreen() {
   const initialLoading =
     (activePending && active === undefined) || (recentPending && recent === undefined);
 
+  const discardActive = trpc.workout.discardActive.useMutation();
+
   const startEmpty = trpc.workout.startEmpty.useMutation({
     onSuccess: () => {
       utils.workout.active.invalidate();
       router.push("/workout/active");
     },
-    onError: (e) => alertWorkoutConflict(e, () => router.push("/workout/active")),
+    onError: (e) =>
+      alertWorkoutConflict(
+        e,
+        () => router.push("/workout/active"),
+        async () => {
+          await discardActive.mutateAsync();
+          await utils.workout.active.invalidate();
+          startEmpty.mutate({});
+        },
+      ),
   });
 
   const startRoutine = trpc.workout.startFromRoutine.useMutation({
@@ -58,7 +69,16 @@ export default function DashboardScreen() {
       utils.workout.active.invalidate();
       router.push("/workout/active");
     },
-    onError: (e) => alertWorkoutConflict(e, () => router.push("/workout/active")),
+    onError: (e, vars) =>
+      alertWorkoutConflict(
+        e,
+        () => router.push("/workout/active"),
+        async () => {
+          await discardActive.mutateAsync();
+          await utils.workout.active.invalidate();
+          startRoutine.mutate(vars);
+        },
+      ),
   });
 
   // Weekly progress — volume per calendar day for the last 7 days

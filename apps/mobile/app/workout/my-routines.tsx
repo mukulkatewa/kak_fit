@@ -16,12 +16,23 @@ export default function MyRoutinesScreen() {
   const utils = trpc.useUtils();
   const { data: routines, isPending, isFetching } = trpc.routine.list.useQuery();
 
+  const discardActive = trpc.workout.discardActive.useMutation();
+
   const startRoutine = trpc.workout.startFromRoutine.useMutation({
     onSuccess: () => {
       utils.workout.active.invalidate();
       router.push("/workout/active");
     },
-    onError: (e) => alertWorkoutConflict(e, () => router.push("/workout/active")),
+    onError: (e, vars) =>
+      alertWorkoutConflict(
+        e,
+        () => router.push("/workout/active"),
+        async () => {
+          await discardActive.mutateAsync();
+          await utils.workout.active.invalidate();
+          startRoutine.mutate(vars);
+        },
+      ),
   });
 
   const duplicate = trpc.routine.duplicate.useMutation({

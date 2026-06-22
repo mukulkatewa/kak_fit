@@ -480,7 +480,7 @@ const makeStyles = (colors: Palette) =>
       borderColor: colors.border,
       ...shadows.card,
     },
-    trainerTitle: { fontSize: 20, fontWeight: "800", color: colors.accent, textAlign: "center" },
+    trainerTitle: { fontSize: 20, fontWeight: "800", color: colors.text, textAlign: "center" },
     trainerSubtitle: { fontSize: 14, fontWeight: "500", color: colors.textMuted, textAlign: "center" },
     trainerCta: {
       alignSelf: "stretch",

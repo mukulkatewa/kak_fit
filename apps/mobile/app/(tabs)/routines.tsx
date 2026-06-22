@@ -221,7 +221,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   topActions: { flexDirection: "row", gap: spacing.sm },
   myRoutinesBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
   myRoutinesText: { color: colors.accent, fontSize: 15, fontWeight: "600" },
-  pageTitle: { fontSize: 34, fontWeight: "800", color: colors.accent, marginTop: -spacing.sm },
+  pageTitle: { fontSize: 34, fontWeight: "800", color: colors.text, marginTop: -spacing.sm },
   sectionTitle: { fontSize: 22, fontWeight: "700", color: colors.text },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   filterOption: {

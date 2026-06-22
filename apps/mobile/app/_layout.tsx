@@ -1,5 +1,4 @@
 import "react-native-gesture-handler";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   DarkTheme as NavDarkTheme,
@@ -63,7 +62,6 @@ function ThemedApp() {
     },
   };
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
     <NavThemeProvider value={navTheme}>
       <StatusBar style={isDark ? "light" : "dark"} />
       <AuthGate>
@@ -86,7 +84,6 @@ function ThemedApp() {
         </Stack>
       </AuthGate>
     </NavThemeProvider>
-    </GestureHandlerRootView>
   );
 }
 

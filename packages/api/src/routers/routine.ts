@@ -110,6 +110,49 @@ export const routineRouter = router({
       });
     }),
 
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(2).max(100),
+        notes: z.string().optional(),
+        folderId: z.string().nullable().optional(),
+        exercises: z.array(routineExerciseInput).min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.prisma.routine.findFirst({
+        where: { id: input.id, userId: ctx.user.id },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });
+      }
+
+      // Replace the exercise tree wholesale (simplest correct edit).
+      return ctx.prisma.$transaction(async (tx) => {
+        await tx.routineExercise.deleteMany({ where: { routineId: input.id } });
+        return tx.routine.update({
+          where: { id: input.id },
+          data: {
+            name: input.name.trim(),
+            notes: input.notes,
+            ...(input.folderId !== undefined ? { folderId: input.folderId } : {}),
+            exercises: {
+              create: input.exercises.map((ex) => ({
+                exerciseId: ex.exerciseId,
+                order: ex.order,
+                restSeconds: ex.restSeconds,
+                notes: ex.notes,
+                sets: { create: ex.sets },
+              })),
+            },
+          },
+          include: routineListInclude,
+        });
+      });
+    }),
+
   duplicate: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {

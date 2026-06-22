@@ -81,6 +81,14 @@ export default function MyRoutinesScreen() {
                 <View style={styles.actions}>
                   <Pressable
                     style={styles.actionBtn}
+                    onPress={() => router.push(`/routine/create?id=${item.id}`)}
+                    hitSlop={6}
+                  >
+                    <Ionicons name="create-outline" size={16} color={colors.textMuted} />
+                    <Text style={styles.actionText}>Edit</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.actionBtn}
                     onPress={() => duplicate.mutate({ id: item.id })}
                     hitSlop={6}
                   >

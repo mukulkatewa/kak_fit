@@ -1,5 +1,5 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,18 +20,54 @@ export default function CreateRoutineScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const router = useRouter();
+  const { id: editId } = useLocalSearchParams<{ id?: string }>();
+  const isEdit = Boolean(editId);
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const [name, setName] = useState("");
   const [showTip, setShowTip] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<Array<{ exerciseId: string; name: string }>>([]);
+  const [selected, setSelected] = useState<
+    Array<{ exerciseId: string; name: string; sets?: Array<{ setNumber: number; targetWeight?: number; targetReps?: number; targetDuration?: number }> }>
+  >([]);
+
+  const { data: editing } = trpc.routine.getById.useQuery(
+    { id: editId! },
+    { enabled: isEdit },
+  );
+
+  useEffect(() => {
+    if (editing) {
+      setName(editing.name);
+      setSelected(
+        editing.exercises.map((ex) => ({
+          exerciseId: ex.exercise.id,
+          name: ex.exercise.name,
+          sets: ex.sets.map((s) => ({
+            setNumber: s.setNumber,
+            targetWeight: s.targetWeight ?? undefined,
+            targetReps: s.targetReps ?? undefined,
+            targetDuration: s.targetDuration ?? undefined,
+          })),
+        })),
+      );
+    }
+  }, [editing]);
 
   const { data: exercises, isLoading } = trpc.exercise.list.useQuery(
     { search: search || undefined, limit: 40 },
     { enabled: pickerOpen },
   );
+
+  const update = trpc.routine.update.useMutation({
+    onSuccess: () => {
+      utils.routine.list.invalidate();
+      if (editId) utils.routine.getById.invalidate({ id: editId });
+      router.back();
+    },
+    onError: (e) => Alert.alert("Error", e.message),
+  });
 
   const create = trpc.routine.create.useMutation({
     onMutate: async (input) => {
@@ -82,14 +118,19 @@ export default function CreateRoutineScreen() {
 
   const save = () => {
     if (!canSave) return;
-    create.mutate({
-      name: name.trim(),
-      exercises: selected.map((item, index) => ({
-        exerciseId: item.exerciseId,
-        order: index,
-        sets: Array.from({ length: 3 }, (_, i) => ({ setNumber: i + 1, targetReps: 10 })),
-      })),
-    });
+    const exercises = selected.map((item, index) => ({
+      exerciseId: item.exerciseId,
+      order: index,
+      sets:
+        item.sets && item.sets.length > 0
+          ? item.sets
+          : Array.from({ length: 3 }, (_, i) => ({ setNumber: i + 1, targetReps: 10 })),
+    }));
+    if (isEdit && editId) {
+      update.mutate({ id: editId, name: name.trim(), exercises });
+    } else {
+      create.mutate({ name: name.trim(), exercises });
+    }
   };
 
   const addExercise = (exerciseId: string, exerciseName: string) => {
@@ -103,11 +144,11 @@ export default function CreateRoutineScreen() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.headerPad}>
         <HevyModalHeader
-          title="Create Routine"
+          title={isEdit ? "Edit Routine" : "Create Routine"}
           onCancel={() => router.back()}
           onSave={save}
           saveDisabled={!canSave}
-          saveLoading={create.isPending}
+          saveLoading={create.isPending || update.isPending}
         />
       </View>
 

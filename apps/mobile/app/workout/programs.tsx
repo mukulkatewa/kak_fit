@@ -50,7 +50,7 @@ export default function AllProgramsScreen() {
       label: hasFilters ? "Clear" : "Filters",
       icon: "options-outline" as const,
       active: hasFilters,
-      onPress: hasFilters ? clearFilters : () => setOpenFilter(null),
+      onPress: hasFilters ? clearFilters : () => setOpenFilter("level"),
     },
     {
       key: "level",

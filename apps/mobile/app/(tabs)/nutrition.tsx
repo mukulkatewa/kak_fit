@@ -30,9 +30,16 @@ export default function NutritionScreen() {
   const [search, setSearch] = useState("");
   const [mealType, setMealType] = useState<MealKey>("LUNCH");
   const [logging, setLogging] = useState(false);
+  const [loggingKey, setLoggingKey] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
-  const { data: summary, isLoading: summaryLoading } = trpc.nutrition.dailySummary.useQuery();
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    isError: summaryError,
+    error: summaryErr,
+    refetch: refetchSummary,
+  } = trpc.nutrition.dailySummary.useQuery();
   const { data: meals } = trpc.nutrition.todayMeals.useQuery();
   const {
     data: foods,
@@ -46,9 +53,21 @@ export default function NutritionScreen() {
     onSuccess: () => {
       utils.nutrition.dailySummary.invalidate();
       utils.nutrition.todayMeals.invalidate();
+      setLoggingKey(null);
       Alert.alert("Logged", "Food added to your daily macros.");
     },
-    onError: (err) => Alert.alert("Error", err.message),
+    onError: (err) => {
+      setLoggingKey(null);
+      Alert.alert("Error", err.message);
+    },
+  });
+
+  const deleteMeal = trpc.nutrition.deleteMeal.useMutation({
+    onSuccess: () => {
+      utils.nutrition.dailySummary.invalidate();
+      utils.nutrition.todayMeals.invalidate();
+    },
+    onError: (err) => Alert.alert("Couldn't remove", err.message),
   });
 
   // Per-meal calorie totals for "Today's Meals"
@@ -67,6 +86,8 @@ export default function NutritionScreen() {
   }, [meals]);
 
   const handleLogFood = (item: NonNullable<typeof foods>[number]) => {
+    const key = `${item.source}-${item.fdcId}-${item.name}`;
+    setLoggingKey(key);
     logMeal.mutate({
       mealType,
       items: [
@@ -81,6 +102,13 @@ export default function NutritionScreen() {
         },
       ],
     });
+  };
+
+  const confirmDeleteMeal = (mealId: string, label: string) => {
+    Alert.alert("Remove food?", `Remove ${label} from today's log?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: () => deleteMeal.mutate({ id: mealId }) },
+    ]);
   };
 
   const openLogger = (key: MealKey) => {
@@ -105,6 +133,14 @@ export default function NutritionScreen() {
         {/* Daily calories + macro rings */}
         {summaryLoading ? (
           <ListSkeleton rows={2} />
+        ) : summaryError ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorTitle}>Couldn't load summary</Text>
+            <Text style={styles.errorMsg}>{summaryErr.message}</Text>
+            <Text style={styles.errorHint} onPress={() => refetchSummary()}>
+              Tap to retry
+            </Text>
+          </View>
         ) : summary ? (
           <View style={styles.summaryCard}>
             <View style={styles.calBlock}>
@@ -167,6 +203,40 @@ export default function NutritionScreen() {
           })}
         </View>
 
+        {(meals ?? []).length > 0 ? (
+          <>
+            <Text style={styles.sectionTitle}>Logged Today</Text>
+            <ListGroup>
+              {(meals ?? []).flatMap((meal, mealIndex) =>
+                meal.items.map((item, itemIndex) => {
+                  const ratio = item.quantity / (item.food.servingSize ?? 100);
+                  const cal = Math.round(item.food.calories * ratio);
+                  const mealLabel = MEAL_TYPES.find((m) => m.key === meal.mealType)?.label ?? meal.mealType;
+                  const isLast =
+                    mealIndex === (meals?.length ?? 0) - 1 && itemIndex === meal.items.length - 1;
+                  return (
+                    <ListRow
+                      key={`${meal.id}-${item.id}`}
+                      title={item.food.name}
+                      subtitle={`${mealLabel} · ${Math.round(item.quantity)}g · ${cal} cal`}
+                      icon="restaurant-outline"
+                      right={
+                        <Pressable
+                          hitSlop={8}
+                          onPress={() => confirmDeleteMeal(meal.id, item.food.name)}
+                        >
+                          <Ionicons name="trash-outline" size={18} color={colors.textDim} />
+                        </Pressable>
+                      }
+                      last={isLast}
+                    />
+                  );
+                }),
+              )}
+            </ListGroup>
+          </>
+        ) : null}
+
         {/* Food logger (revealed when adding to a meal) */}
         {logging ? (
           <View style={styles.loggerSection}>
@@ -205,17 +275,24 @@ export default function NutritionScreen() {
               <EmptyState icon="search-outline" title="No foods found" message="Try chicken, rice, banana, or egg." />
             ) : (
               <ListGroup>
-                {foods?.map((item, index) => (
-                  <ListRow
-                    key={`${item.source}-${item.fdcId}-${item.name}`}
-                    title={item.name}
-                    subtitle={`${Math.round(item.calories)} cal · P${Math.round(item.protein)} C${Math.round(item.carbs)} F${Math.round(item.fat)} · ${item.source}`}
-                    icon="restaurant-outline"
-                    onPress={() => handleLogFood(item)}
-                    right={<Text style={styles.addLabel}>{logMeal.isPending ? "…" : "+100g"}</Text>}
-                    last={index === (foods?.length ?? 0) - 1}
-                  />
-                ))}
+                {foods?.map((item, index) => {
+                  const key = `${item.source}-${item.fdcId}-${item.name}`;
+                  return (
+                    <ListRow
+                      key={key}
+                      title={item.name}
+                      subtitle={`${Math.round(item.calories)} cal · P${Math.round(item.protein)} C${Math.round(item.carbs)} F${Math.round(item.fat)} · ${item.source}`}
+                      icon="restaurant-outline"
+                      onPress={() => handleLogFood(item)}
+                      right={
+                        <Text style={styles.addLabel}>
+                          {loggingKey === key ? "…" : "+100g"}
+                        </Text>
+                      }
+                      last={index === (foods?.length ?? 0) - 1}
+                    />
+                  );
+                })}
               </ListGroup>
             )}
           </View>

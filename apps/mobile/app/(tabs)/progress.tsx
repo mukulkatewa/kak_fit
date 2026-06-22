@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { BarChart } from "../../src/components/charts";
 import { MuscleHeatmap } from "../../src/components/muscle-heatmap";
 import {
+  EmptyState,
   Header,
   ListGroup,
   ListRow,
@@ -18,11 +19,11 @@ export default function ProgressScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { data: volume, isLoading: volLoading } = trpc.progress.volumeHistory.useQuery({ limit: 10 });
-  const { data: muscleData, isLoading: muscleLoading } = trpc.progress.muscleDistribution.useQuery({ days: 30 });
+  const { data: volume, isLoading: volLoading, isError: volError } = trpc.progress.volumeHistory.useQuery({ limit: 10 });
+  const { data: muscleData, isLoading: muscleLoading, isError: muscleError } = trpc.progress.muscleDistribution.useQuery({ days: 30 });
   const { data: topExercises } = trpc.progress.topExercises.useQuery({ limit: 6 });
   const { data: prs } = trpc.personalRecord.list.useQuery({ limit: 8 });
-  const { data: dashboard } = trpc.progress.dashboard.useQuery();
+  const { data: dashboard, isError: dashError } = trpc.progress.dashboard.useQuery();
 
   return (
     <Screen scroll>
@@ -34,11 +35,15 @@ export default function ProgressScreen() {
           <StatBlock value={`${(dashboard.weekVolume / 1000).toFixed(1)}k`} label="Week vol (kg)" />
           <StatBlock value={dashboard.monthPrs} label="PRs (month)" />
         </View>
+      ) : dashError ? (
+        <Text style={styles.empty}>Couldn't load stats. Pull to refresh.</Text>
       ) : null}
 
       <SectionHeader title="Volume" />
       {volLoading ? (
         <ActivityIndicator color={colors.accent} />
+      ) : volError ? (
+        <Text style={styles.empty}>Couldn't load volume chart.</Text>
       ) : (
         <BarChart
           data={(volume ?? []).map((v) => ({ label: v.label, value: v.volume }))}
@@ -53,6 +58,8 @@ export default function ProgressScreen() {
       </Text>
       {muscleLoading ? (
         <ActivityIndicator color={colors.accent} />
+      ) : muscleError ? (
+        <Text style={styles.empty}>Couldn't load muscle data.</Text>
       ) : (
         <MuscleHeatmap data={muscleData?.heatmap ?? []} />
       )}

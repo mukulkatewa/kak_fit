@@ -25,6 +25,7 @@ export default function ProgramDetailScreen() {
   if (!program) {
     return (
       <Screen>
+        <HevyStackHeader title="Program" onBack={() => router.back()} />
         <Text style={styles.error}>Program not found</Text>
       </Screen>
     );

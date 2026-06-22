@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { HevyStackHeader } from "../../../src/components/hevy-ui";
 import { EmptyState } from "../../../src/components/ui";
 import { trpc } from "../../../src/lib/trpc";
+import { parseOptionalNumber } from "../../../src/lib/workout-errors";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../../../src/lib/theme";
 
 const SET_TYPES = ["NORMAL", "WARMUP", "DROP", "FAILURE"] as const;
@@ -46,7 +47,10 @@ export default function EditWorkoutScreen() {
     },
     onError: (e) => Alert.alert("Couldn't save set", e.message),
   });
-  const addSet = trpc.workout.addFinishedSet.useMutation({ onSuccess: () => refetch() });
+  const addSet = trpc.workout.addFinishedSet.useMutation({
+    onSuccess: () => refetch(),
+    onError: (e) => Alert.alert("Couldn't add set", e.message),
+  });
   const deleteSet = trpc.workout.deleteFinishedSet.useMutation({
     onSuccess: () => {
       refetch();
@@ -158,8 +162,8 @@ function EditableSetRow({
 
   const commit = () => {
     onUpdate({
-      weight: weight ? Number(weight) : undefined,
-      reps: reps ? Number(reps) : undefined,
+      weight: parseOptionalNumber(weight),
+      reps: parseOptionalNumber(reps),
     });
   };
 

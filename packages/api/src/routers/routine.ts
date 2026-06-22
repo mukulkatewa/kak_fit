@@ -183,6 +183,7 @@ export const routineRouter = router({
               order: ex.order,
               restSeconds: ex.restSeconds,
               notes: ex.notes,
+              supersetGroup: ex.supersetGroup ?? null,
               sets: {
                 create: ex.sets.map((set) => ({
                   setNumber: set.setNumber,

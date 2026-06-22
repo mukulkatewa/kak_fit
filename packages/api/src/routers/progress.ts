@@ -130,6 +130,43 @@ export const progressRouter = router({
         });
     }),
 
+  /** Volume per calendar day for the last 7 days (home dashboard chart). */
+  weeklyVolume: protectedProcedure.query(async ({ ctx }) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const since = new Date(today);
+    since.setDate(since.getDate() - 6);
+
+    const workouts = await ctx.prisma.workout.findMany({
+      where: { userId: ctx.user.id, finishedAt: { gte: since, not: null } },
+      include: { exercises: { include: { sets: { where: { isCompleted: true } } } } },
+    });
+
+    const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date(today);
+      date.setDate(date.getDate() - (6 - i));
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      return { key, label: weekdayLabels[date.getDay()], value: 0 };
+    });
+    const byKey = new Map(days.map((d) => [d.key, d]));
+
+    for (const w of workouts) {
+      if (!w.finishedAt) continue;
+      const d = new Date(w.finishedAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const day = byKey.get(key);
+      if (!day) continue;
+      day.value += w.exercises.reduce(
+        (sum, ex) =>
+          sum + ex.sets.reduce((s, set) => s + (set.weight ?? 0) * (set.reps ?? 0), 0),
+        0,
+      );
+    }
+
+    return days.map(({ label, value }) => ({ label, value: Math.round(value) }));
+  }),
+
   exerciseChart: protectedProcedure
     .input(z.object({ exerciseId: z.string(), limit: z.number().min(1).max(30).default(12) }))
     .query(async ({ ctx, input }) => {

@@ -8,29 +8,6 @@ import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function buildLastSevenDaysChart(workouts: { finishedAt: Date | string | null; volume: number }[]) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date(today);
-    date.setDate(date.getDate() - (6 - i));
-    return { label: WEEKDAYS[date.getDay()], value: 0, key: date.getTime() };
-  });
-
-  for (const workout of workouts) {
-    if (!workout.finishedAt) continue;
-    const finished = new Date(workout.finishedAt);
-    finished.setHours(0, 0, 0, 0);
-    const day = days.find((d) => d.key === finished.getTime());
-    if (day) day.value += workout.volume;
-  }
-
-  return days.map(({ label, value }) => ({ label, value: Math.round(value) }));
-}
-
 export default function DashboardScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -40,6 +17,7 @@ export default function DashboardScreen() {
   const { data: stats } = trpc.auth.stats.useQuery();
   const { data: active, isPending: activePending } = trpc.workout.active.useQuery();
   const { data: recent, isPending: recentPending } = trpc.workout.history.useQuery({ limit: 8 });
+  const { data: weeklyChart } = trpc.progress.weeklyVolume.useQuery();
   const { data: routines, isPending: routinesPending } = trpc.routine.list.useQuery();
 
   const initialLoading =
@@ -81,9 +59,9 @@ export default function DashboardScreen() {
       ),
   });
 
-  // Weekly progress — volume per calendar day for the last 7 days
+  // Weekly progress — all workouts in the last 7 calendar days
   const finished = (recent ?? []).filter((w) => w.finishedAt);
-  const chartData = buildLastSevenDaysChart(finished);
+  const chartData = weeklyChart ?? [];
   const totalVolume = chartData.reduce((sum, d) => sum + d.value, 0);
 
   return (

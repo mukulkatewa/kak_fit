@@ -32,14 +32,20 @@ export function HevyTopBar({
 export function HevyIconButton({
   icon,
   onPress,
+  disabled,
 }: {
   icon: IconName;
   onPress?: () => void;
+  disabled?: boolean;
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   return (
-    <Pressable onPress={onPress} style={styles.iconBtn} hitSlop={8}>
+    <Pressable
+      onPress={disabled ? undefined : onPress}
+      style={[styles.iconBtn, disabled && { opacity: 0.4 }]}
+      hitSlop={8}
+    >
       <Ionicons name={icon} size={22} color={colors.text} />
     </Pressable>
   );

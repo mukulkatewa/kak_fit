@@ -347,4 +347,17 @@ export const nutritionRouter = router({
       orderBy: { createdAt: "asc" },
     });
   }),
+
+  deleteMeal: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const meal = await ctx.prisma.mealLog.findFirst({
+        where: { id: input.id, userId: ctx.user.id },
+      });
+      if (!meal) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Meal not found" });
+      }
+      await ctx.prisma.mealLog.delete({ where: { id: input.id } });
+      return { success: true };
+    }),
 });

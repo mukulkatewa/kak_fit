@@ -23,6 +23,7 @@ import {
 } from "../../src/components/ui";
 import { formatPreviousSet, pickPreviousForSet, type PreviousExerciseSession } from "../../src/lib/previous-set";
 import { trpc } from "../../src/lib/trpc";
+import { parseOptionalNumber } from "../../src/lib/workout-errors";
 import { formatRestTime, useRestTimer } from "../../src/lib/rest-timer";
 import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
 
@@ -76,9 +77,18 @@ export default function ActiveWorkoutScreen() {
     return () => clearInterval(id);
   }, [isRunning, tick]);
 
-  const updateSet = trpc.workout.updateSet.useMutation({ onSuccess: () => refetch() });
-  const addSet = trpc.workout.addSet.useMutation({ onSuccess: () => refetch() });
-  const deleteSet = trpc.workout.deleteSet.useMutation({ onSuccess: () => refetch() });
+  const updateSet = trpc.workout.updateSet.useMutation({
+    onSuccess: () => refetch(),
+    onError: (e) => Alert.alert("Couldn't save set", e.message),
+  });
+  const addSet = trpc.workout.addSet.useMutation({
+    onSuccess: () => refetch(),
+    onError: (e) => Alert.alert("Couldn't add set", e.message),
+  });
+  const deleteSet = trpc.workout.deleteSet.useMutation({
+    onSuccess: () => refetch(),
+    onError: (e) => Alert.alert("Couldn't delete set", e.message),
+  });
 
   const handleSetUpdate = (
     setId: string,
@@ -391,8 +401,8 @@ function SetRow({
 
   const commit = () => {
     onUpdateSet(set.id, {
-      weight: weight ? Number(weight) : undefined,
-      reps: reps ? Number(reps) : undefined,
+      weight: parseOptionalNumber(weight),
+      reps: parseOptionalNumber(reps),
     });
   };
 

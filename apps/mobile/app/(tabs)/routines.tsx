@@ -163,6 +163,7 @@ export default function WorkoutExploreScreen() {
             <HevyIconButton
               icon="play-circle-outline"
               onPress={() => startEmpty.mutate({})}
+              disabled={startEmpty.isPending}
             />
           </View>
         </View>

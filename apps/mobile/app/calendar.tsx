@@ -35,7 +35,7 @@ export default function CalendarScreen() {
   const styles = useThemedStyles(makeStyles);
   const cellSize = Math.floor((screenWidth - spacing.lg * 2) / 7);
 
-  const { data: workouts, isLoading } = trpc.progress.calendar.useQuery();
+  const { data: workouts, isLoading, isError, error, refetch } = trpc.progress.calendar.useQuery();
 
   const todayKey = isoDateKey(new Date());
   const [cursor, setCursor] = useState(() => {
@@ -115,6 +115,12 @@ export default function CalendarScreen() {
 
       {isLoading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />
+      ) : isError ? (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Couldn't load calendar"
+          message={error.message}
+        />
       ) : (
         <View style={styles.grid}>
           {monthCells.map((cell, i) => {
@@ -171,7 +177,7 @@ export default function CalendarScreen() {
 
       <Text style={styles.selectedHeading}>{formatDayHeading(selectedKey)}</Text>
 
-      {isLoading ? null : selectedWorkouts.length === 0 ? (
+      {isLoading ? null : isError ? null : selectedWorkouts.length === 0 ? (
         <EmptyState
           icon="barbell-outline"
           title="No workouts"

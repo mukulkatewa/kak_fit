@@ -23,6 +23,7 @@ export default function CategoryDetailScreen() {
   if (!category) {
     return (
       <Screen>
+        <HevyStackHeader title="Category" onBack={() => router.back()} />
         <Text style={styles.error}>Category not found</Text>
       </Screen>
     );

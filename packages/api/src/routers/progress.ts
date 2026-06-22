@@ -216,6 +216,22 @@ export const progressRouter = router({
       };
     }),
 
+  /** Finished-workout dates + ids for the calendar (last ~12 months). */
+  calendar: protectedProcedure.query(async ({ ctx }) => {
+    const since = new Date();
+    since.setMonth(since.getMonth() - 12);
+    const workouts = await ctx.prisma.workout.findMany({
+      where: { userId: ctx.user.id, finishedAt: { gte: since, not: null } },
+      select: { id: true, name: true, finishedAt: true },
+      orderBy: { finishedAt: "desc" },
+    });
+    return workouts.map((w) => ({
+      id: w.id,
+      name: w.name,
+      date: w.finishedAt!.toISOString(),
+    }));
+  }),
+
   topExercises: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(20).default(8) }).optional())
     .query(async ({ ctx, input }) => {

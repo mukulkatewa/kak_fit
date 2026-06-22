@@ -1,5 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
 import { EmptyState } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
@@ -26,10 +28,43 @@ export default function WorkoutDetailScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
+  const utils = trpc.useUtils();
   const { data: workout, isLoading, isError } = trpc.workout.getById.useQuery(
     { id: id! },
     { enabled: Boolean(id) },
   );
+
+  const [editing, setEditing] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  useEffect(() => {
+    if (workout?.name) setNameDraft(workout.name);
+  }, [workout?.name]);
+
+  const update = trpc.workout.update.useMutation({
+    onSuccess: () => {
+      if (id) utils.workout.getById.invalidate({ id });
+      utils.workout.history.invalidate();
+      setEditing(false);
+    },
+    onError: (e) => Alert.alert("Couldn't rename", e.message),
+  });
+
+  const remove = trpc.workout.delete.useMutation({
+    onSuccess: () => {
+      utils.workout.history.invalidate();
+      utils.progress.volumeHistory.invalidate();
+      router.back();
+    },
+    onError: (e) => Alert.alert("Couldn't delete", e.message),
+  });
+
+  const confirmDelete = () => {
+    if (!id) return;
+    Alert.alert("Delete workout?", "This permanently removes it from your history.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => remove.mutate({ id }) },
+    ]);
+  };
 
   if (isLoading) {
     return (
@@ -61,9 +96,41 @@ export default function WorkoutDetailScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
-      <HevyStackHeader title="Workout" onBack={() => router.back()} />
+      <HevyStackHeader
+        title="Workout"
+        onBack={() => router.back()}
+        right={
+          <View style={styles.headerActions}>
+            <Pressable hitSlop={8} onPress={() => setEditing((v) => !v)}>
+              <Ionicons name="create-outline" size={22} color={colors.text} />
+            </Pressable>
+            <Pressable hitSlop={8} onPress={confirmDelete}>
+              <Ionicons name="trash-outline" size={20} color={colors.danger} />
+            </Pressable>
+          </View>
+        }
+      />
 
-      <Text style={styles.title}>{workout.name ?? "Workout"}</Text>
+      {editing ? (
+        <View style={styles.editRow}>
+          <TextInput
+            value={nameDraft}
+            onChangeText={setNameDraft}
+            style={styles.editInput}
+            placeholder="Workout name"
+            placeholderTextColor={colors.textDim}
+            autoFocus
+          />
+          <Pressable
+            style={styles.saveChip}
+            onPress={() => id && update.mutate({ id, name: nameDraft.trim() || "Workout" })}
+          >
+            <Text style={styles.saveChipText}>{update.isPending ? "…" : "Save"}</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Text style={styles.title}>{workout.name ?? "Workout"}</Text>
+      )}
       <Text style={styles.date}>
         {workout.finishedAt
           ? new Date(workout.finishedAt).toLocaleDateString(undefined, {
@@ -119,6 +186,25 @@ const makeStyles = (colors: Palette) =>
     center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
     pad: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, gap: spacing.md },
     title: { fontSize: 26, fontWeight: "800", color: colors.text },
+    headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
+    editRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    editInput: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      color: colors.text,
+      fontSize: 20,
+      fontWeight: "700",
+    },
+    saveChip: {
+      backgroundColor: colors.accent,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 10,
+    },
+    saveChipText: { color: colors.onAccent, fontWeight: "700", fontSize: 15 },
     date: { fontSize: 14, color: colors.textMuted, marginTop: -spacing.xs },
     statsRow: {
       flexDirection: "row",

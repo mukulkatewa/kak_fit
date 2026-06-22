@@ -121,9 +121,11 @@ export default function ProfileScreen() {
         <HevyDashboardGrid
           items={[
             { icon: "stats-chart-outline", label: "Statistics", onPress: () => router.push("/(tabs)/progress") },
+            { icon: "calendar-outline", label: "Calendar", onPress: () => router.push("/calendar") },
             { icon: "folder-outline", label: "Routines", onPress: () => router.push("/workout/my-routines") },
             { icon: "barbell-outline", label: "Exercises", onPress: () => router.push("/(tabs)/exercises") },
-            { icon: "calendar-outline", label: "Meals", onPress: () => router.push("/(tabs)/nutrition") },
+            { icon: "body-outline", label: "Measures", onPress: () => router.push("/measurements") },
+            { icon: "restaurant-outline", label: "Meals", onPress: () => router.push("/(tabs)/nutrition") },
           ]}
         />
 

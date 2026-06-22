@@ -222,12 +222,13 @@ model Routine {
 }
 
 model RoutineExercise {
-  id          String @id @default(cuid())
-  routineId   String
-  exerciseId  String
-  order       Int
-  restSeconds Int?
-  notes       String?
+  id            String @id @default(cuid())
+  routineId     String
+  exerciseId    String
+  order         Int
+  restSeconds   Int?
+  notes         String?
+  supersetGroup Int?
 
   routine  Routine      @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercise Exercise     @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
@@ -269,11 +270,12 @@ model Workout {
 }
 
 model WorkoutExercise {
-  id         String @id @default(cuid())
-  workoutId  String
-  exerciseId String
-  order      Int
-  notes      String?
+  id            String @id @default(cuid())
+  workoutId     String
+  exerciseId    String
+  order         Int
+  notes         String?
+  supersetGroup Int?
 
   workout  Workout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise Exercise     @relation(fields: [exerciseId], references: [id], onDelete: Cascade)

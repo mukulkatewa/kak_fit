@@ -31,6 +31,8 @@ export default function CreateRoutineScreen() {
   const [selected, setSelected] = useState<
     Array<{ exerciseId: string; name: string; sets?: Array<{ setNumber: number; targetWeight?: number; targetReps?: number; targetDuration?: number }> }>
   >([]);
+  // superLinks[i] === true means exercise i is supersetted with exercise i-1.
+  const [superLinks, setSuperLinks] = useState<boolean[]>([]);
 
   const { data: editing } = trpc.routine.getById.useQuery(
     { id: editId! },
@@ -51,6 +53,18 @@ export default function CreateRoutineScreen() {
             targetDuration: s.targetDuration ?? undefined,
           })),
         })),
+      );
+      // Linked when this exercise shares a superset group with the previous one.
+      setSuperLinks(
+        editing.exercises.map((ex, i) => {
+          const prev = editing.exercises[i - 1];
+          return (
+            i > 0 &&
+            ex.supersetGroup != null &&
+            prev?.supersetGroup != null &&
+            ex.supersetGroup === prev.supersetGroup
+          );
+        }),
       );
     }
   }, [editing]);
@@ -87,6 +101,7 @@ export default function CreateRoutineScreen() {
             order: ex.order,
             restSeconds: ex.restSeconds ?? null,
             notes: ex.notes ?? null,
+            supersetGroup: ex.supersetGroup ?? null,
             exercise: { id: ex.exerciseId, name: "Saving…" },
             sets: ex.sets.map((set) => ({
               id: `optimistic-set-${set.setNumber}`,
@@ -118,9 +133,22 @@ export default function CreateRoutineScreen() {
 
   const save = () => {
     if (!canSave) return;
+    // Build superset group ids from consecutive linked exercises.
+    const groups: Array<number | null> = new Array(selected.length).fill(null);
+    let gid = 0;
+    for (let i = 0; i < selected.length; i++) {
+      if (superLinks[i]) {
+        if (groups[i - 1] == null) {
+          gid += 1;
+          groups[i - 1] = gid;
+        }
+        groups[i] = groups[i - 1];
+      }
+    }
     const exercises = selected.map((item, index) => ({
       exerciseId: item.exerciseId,
       order: index,
+      supersetGroup: groups[index],
       sets:
         item.sets && item.sets.length > 0
           ? item.sets
@@ -133,9 +161,44 @@ export default function CreateRoutineScreen() {
     }
   };
 
+  const move = (index: number, delta: number) => {
+    const target = index + delta;
+    if (target < 0 || target >= selected.length) return;
+    setSelected((prev) => {
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    setSuperLinks((prev) => {
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      next[0] = false;
+      return next;
+    });
+  };
+
+  const removeAt = (index: number) => {
+    setSelected((prev) => prev.filter((_, idx) => idx !== index));
+    setSuperLinks((prev) => {
+      const next = prev.filter((_, idx) => idx !== index);
+      if (next.length) next[0] = false;
+      return next;
+    });
+  };
+
+  const toggleLink = (index: number) => {
+    if (index === 0) return;
+    setSuperLinks((prev) => {
+      const next = [...prev];
+      next[index] = !next[index];
+      return next;
+    });
+  };
+
   const addExercise = (exerciseId: string, exerciseName: string) => {
     if (selected.some((s) => s.exerciseId === exerciseId)) return;
     setSelected((prev) => [...prev, { exerciseId, name: exerciseName }]);
+    setSuperLinks((prev) => [...prev, false]);
     setPickerOpen(false);
     setSearch("");
   };
@@ -165,14 +228,37 @@ export default function CreateRoutineScreen() {
         {selected.length > 0 ? (
           <View style={styles.selectedList}>
             {selected.map((ex, i) => (
-              <View key={ex.exerciseId} style={styles.selectedRow}>
-                <Text style={styles.selectedName}>{ex.name}</Text>
-                <Pressable
-                  onPress={() => setSelected((prev) => prev.filter((_, idx) => idx !== i))}
-                  hitSlop={8}
-                >
-                  <Ionicons name="close-circle" size={20} color={colors.textDim} />
-                </Pressable>
+              <View key={ex.exerciseId}>
+                {i > 0 ? (
+                  <Pressable style={styles.linkRow} onPress={() => toggleLink(i)} hitSlop={6}>
+                    <Ionicons
+                      name={superLinks[i] ? "git-merge" : "link-outline"}
+                      size={14}
+                      color={superLinks[i] ? colors.accent : colors.textDim}
+                    />
+                    <Text style={[styles.linkText, superLinks[i] && styles.linkTextActive]}>
+                      {superLinks[i] ? "Superset" : "Make superset"}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                <View style={[styles.selectedRow, superLinks[i] && styles.selectedRowLinked]}>
+                  <Text style={styles.selectedIndex}>{i + 1}</Text>
+                  <Text style={styles.selectedName}>{ex.name}</Text>
+                  <Pressable onPress={() => move(i, -1)} disabled={i === 0} hitSlop={6} style={i === 0 && styles.dim}>
+                    <Ionicons name="chevron-up" size={20} color={colors.textMuted} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => move(i, 1)}
+                    disabled={i === selected.length - 1}
+                    hitSlop={6}
+                    style={i === selected.length - 1 && styles.dim}
+                  >
+                    <Ionicons name="chevron-down" size={20} color={colors.textMuted} />
+                  </Pressable>
+                  <Pressable onPress={() => removeAt(i)} hitSlop={6}>
+                    <Ionicons name="close-circle" size={20} color={colors.textDim} />
+                  </Pressable>
+                </View>
               </View>
             ))}
           </View>
@@ -247,7 +333,24 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md,
   },
+  selectedIndex: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.surfaceHover,
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 22,
+    overflow: "hidden",
+  },
   selectedName: { flex: 1, color: colors.text, fontSize: 16 },
+  selectedRowLinked: { borderLeftWidth: 3, borderLeftColor: colors.accent },
+  dim: { opacity: 0.3 },
+  linkRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4, paddingLeft: spacing.sm },
+  linkText: { fontSize: 12, color: colors.textDim, fontWeight: "600" },
+  linkTextActive: { color: colors.accent },
   picker: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: colors.bg,

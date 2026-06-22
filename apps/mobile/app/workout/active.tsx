@@ -175,6 +175,7 @@ export default function ActiveWorkoutScreen() {
           <ExerciseBlock
             key={exercise.id}
             name={exercise.exercise.name}
+            supersetGroup={exercise.supersetGroup ?? null}
             sets={exercise.sets}
             previous={previousMap?.[exercise.exercise.id] ?? null}
             onUpdateSet={handleSetUpdate}
@@ -242,6 +243,7 @@ export default function ActiveWorkoutScreen() {
 
 function ExerciseBlock({
   name,
+  supersetGroup,
   sets,
   previous,
   onUpdateSet,
@@ -250,6 +252,7 @@ function ExerciseBlock({
   onDeleteSet,
 }: {
   name: string;
+  supersetGroup?: number | null;
   sets: Array<{
     id: string;
     setNumber: number;
@@ -286,6 +289,12 @@ function ExerciseBlock({
 
   return (
     <Card>
+      {supersetGroup != null ? (
+        <View style={styles.supersetBadge}>
+          <Ionicons name="git-merge" size={12} color={colors.accent} />
+          <Text style={styles.supersetBadgeText}>Superset {supersetGroup}</Text>
+        </View>
+      ) : null}
       <View style={styles.exerciseHeader}>
         <Text style={styles.exerciseName}>{name}</Text>
         {previous ? (
@@ -456,6 +465,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   exerciseName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: "600" },
   copyBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   copyBtnText: { color: colors.accent, fontSize: 13, fontWeight: "600" },
+  supersetBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginBottom: 4 },
+  supersetBadgeText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
   prevMeta: { color: colors.textDim, fontSize: 12, marginTop: -4 },
   setHeader: { flexDirection: "row", gap: spacing.xs, paddingHorizontal: 2, marginTop: spacing.sm },
   setCol: { flex: 1, color: colors.textDim, fontSize: 11, fontWeight: "600", textAlign: "center" },

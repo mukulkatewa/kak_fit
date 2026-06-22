@@ -14,6 +14,7 @@ const routineExerciseInput = z.object({
   order: z.number().int().nonnegative(),
   restSeconds: z.number().int().optional(),
   notes: z.string().optional(),
+  supersetGroup: z.number().int().nullable().optional(),
   sets: z.array(setInput).min(1),
 });
 
@@ -25,6 +26,7 @@ const routineListInclude = {
       order: true,
       restSeconds: true,
       notes: true,
+      supersetGroup: true,
       exercise: { select: { id: true, name: true } },
       sets: {
         orderBy: { setNumber: "asc" as const },
@@ -100,6 +102,7 @@ export const routineRouter = router({
               order: ex.order,
               restSeconds: ex.restSeconds,
               notes: ex.notes,
+              supersetGroup: ex.supersetGroup ?? null,
               sets: {
                 create: ex.sets,
               },
@@ -138,12 +141,13 @@ export const routineRouter = router({
             name: input.name.trim(),
             notes: input.notes,
             ...(input.folderId !== undefined ? { folderId: input.folderId } : {}),
-            exercises: {
+              exercises: {
               create: input.exercises.map((ex) => ({
                 exerciseId: ex.exerciseId,
                 order: ex.order,
                 restSeconds: ex.restSeconds,
                 notes: ex.notes,
+                supersetGroup: ex.supersetGroup ?? null,
                 sets: { create: ex.sets },
               })),
             },

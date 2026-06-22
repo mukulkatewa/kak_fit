@@ -162,6 +162,7 @@ export const workoutRouter = router({
               exerciseId: ex.exerciseId,
               order: ex.order,
               notes: ex.notes,
+              supersetGroup: ex.supersetGroup ?? null,
               sets: {
                 create: ex.sets.map((set) => ({
                   setNumber: set.setNumber,

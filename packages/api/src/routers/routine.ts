@@ -217,4 +217,52 @@ export const routineRouter = router({
         data: { userId: ctx.user.id, name: input.name.trim() },
       });
     }),
+
+  renameFolder: protectedProcedure
+    .input(z.object({ id: z.string(), name: z.string().min(1).max(80) }))
+    .mutation(async ({ ctx, input }) => {
+      const folder = await ctx.prisma.routineFolder.findFirst({
+        where: { id: input.id, userId: ctx.user.id },
+        select: { id: true },
+      });
+      if (!folder) throw new TRPCError({ code: "NOT_FOUND", message: "Folder not found" });
+      return ctx.prisma.routineFolder.update({
+        where: { id: input.id },
+        data: { name: input.name.trim() },
+      });
+    }),
+
+  deleteFolder: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const folder = await ctx.prisma.routineFolder.findFirst({
+        where: { id: input.id, userId: ctx.user.id },
+        select: { id: true },
+      });
+      if (!folder) throw new TRPCError({ code: "NOT_FOUND", message: "Folder not found" });
+      // Routines keep existing; their folderId is set null (schema onDelete: SetNull).
+      await ctx.prisma.routineFolder.delete({ where: { id: input.id } });
+      return { success: true };
+    }),
+
+  setFolder: protectedProcedure
+    .input(z.object({ routineId: z.string(), folderId: z.string().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const routine = await ctx.prisma.routine.findFirst({
+        where: { id: input.routineId, userId: ctx.user.id },
+        select: { id: true },
+      });
+      if (!routine) throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });
+      if (input.folderId) {
+        const folder = await ctx.prisma.routineFolder.findFirst({
+          where: { id: input.folderId, userId: ctx.user.id },
+          select: { id: true },
+        });
+        if (!folder) throw new TRPCError({ code: "NOT_FOUND", message: "Folder not found" });
+      }
+      return ctx.prisma.routine.update({
+        where: { id: input.routineId },
+        data: { folderId: input.folderId },
+      });
+    }),
 });

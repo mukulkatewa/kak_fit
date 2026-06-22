@@ -1,3 +1,4 @@
+import type { inferRouterOutputs } from "@trpc/server";
 import { router, publicProcedure } from "./trpc";
 import { authRouter } from "./routers/auth";
 import { exerciseRouter } from "./routers/exercise";
@@ -37,6 +38,7 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
+export type RouterOutputs = inferRouterOutputs<AppRouter>;
 
 export { createTRPCContext } from "./trpc";
 export type { TRPCContext } from "./trpc";

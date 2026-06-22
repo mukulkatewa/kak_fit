@@ -1,12 +1,26 @@
 import { useRouter } from "expo-router";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, EmptyState, ListGroup, ListRow, Screen } from "../../src/components/ui";
+import { Button, EmptyState, ListGroup, ListRow } from "../../src/components/ui";
 import { HevyIconButton, HevyStackHeader } from "../../src/components/hevy-ui";
+import { Screen } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
-import { useTheme, useThemedStyles, spacing, type Palette } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
+import type { RouterOutputs } from "@kak-fit/api/router";
+
+type RoutineItem = RouterOutputs["routine"]["list"][number];
 
 export default function MyRoutinesScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -14,7 +28,11 @@ export default function MyRoutinesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
-  const { data: routines, isPending, isFetching } = trpc.routine.list.useQuery();
+  const { data: routines, isPending } = trpc.routine.list.useQuery();
+  const { data: folders } = trpc.routine.folders.useQuery();
+
+  const [folderModal, setFolderModal] = useState<{ mode: "create" | "rename"; id?: string } | null>(null);
+  const [folderName, setFolderName] = useState("");
 
   const discardActive = trpc.workout.discardActive.useMutation();
 
@@ -39,11 +57,116 @@ export default function MyRoutinesScreen() {
     onSuccess: () => utils.routine.list.invalidate(),
     onError: (e) => Alert.alert("Error", e.message),
   });
-
   const remove = trpc.routine.delete.useMutation({
     onSuccess: () => utils.routine.list.invalidate(),
     onError: (e) => Alert.alert("Error", e.message),
   });
+  const createFolder = trpc.routine.createFolder.useMutation({
+    onSuccess: () => utils.routine.folders.invalidate(),
+    onError: (e) => Alert.alert("Error", e.message),
+  });
+  const renameFolder = trpc.routine.renameFolder.useMutation({
+    onSuccess: () => utils.routine.folders.invalidate(),
+    onError: (e) => Alert.alert("Error", e.message),
+  });
+  const deleteFolder = trpc.routine.deleteFolder.useMutation({
+    onSuccess: () => {
+      utils.routine.folders.invalidate();
+      utils.routine.list.invalidate();
+    },
+    onError: (e) => Alert.alert("Error", e.message),
+  });
+  const setFolder = trpc.routine.setFolder.useMutation({
+    onSuccess: () => {
+      utils.routine.list.invalidate();
+      utils.routine.folders.invalidate();
+    },
+    onError: (e) => Alert.alert("Error", e.message),
+  });
+
+  const grouped = useMemo(() => {
+    const byFolder = new Map<string | null, RoutineItem[]>();
+    for (const r of routines ?? []) {
+      const key = r.folderId ?? null;
+      const arr = byFolder.get(key) ?? [];
+      arr.push(r);
+      byFolder.set(key, arr);
+    }
+    return byFolder;
+  }, [routines]);
+
+  const openCreateFolder = () => {
+    setFolderName("");
+    setFolderModal({ mode: "create" });
+  };
+  const openRenameFolder = (id: string, current: string) => {
+    setFolderName(current);
+    setFolderModal({ mode: "rename", id });
+  };
+  const submitFolder = () => {
+    const name = folderName.trim();
+    if (!name) return;
+    if (folderModal?.mode === "create") createFolder.mutate({ name });
+    else if (folderModal?.id) renameFolder.mutate({ id: folderModal.id, name });
+    setFolderModal(null);
+  };
+
+  const moveRoutine = (routine: RoutineItem) => {
+    const options = [
+      ...(folders ?? []).map((f) => ({
+        text: f.name,
+        onPress: () => setFolder.mutate({ routineId: routine.id, folderId: f.id }),
+      })),
+      ...(routine.folderId
+        ? [{ text: "Remove from folder", onPress: () => setFolder.mutate({ routineId: routine.id, folderId: null }) }]
+        : []),
+      { text: "Cancel", style: "cancel" as const },
+    ];
+    if ((folders ?? []).length === 0) {
+      Alert.alert("No folders", "Create a folder first with the folder + button.");
+      return;
+    }
+    Alert.alert("Move to folder", routine.name, options);
+  };
+
+  const confirmDeleteFolder = (id: string, name: string) => {
+    Alert.alert("Delete folder?", `"${name}" — routines inside are kept and moved out.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => deleteFolder.mutate({ id }) },
+    ]);
+  };
+
+  const renderRoutine = (item: RoutineItem) => (
+    <View key={item.id} style={styles.routineWrap}>
+      <ListGroup>
+        <ListRow
+          title={item.name}
+          subtitle={`${item.exercises.length} exercises`}
+          icon="barbell-outline"
+          onPress={() => startRoutine.mutate({ routineId: item.id })}
+          last
+        />
+      </ListGroup>
+      <View style={styles.actions}>
+        <Action icon="create-outline" label="Edit" onPress={() => router.push(`/routine/create?id=${item.id}`)} />
+        <Action icon="folder-outline" label="Move" onPress={() => moveRoutine(item)} />
+        <Action icon="copy-outline" label="Copy" onPress={() => duplicate.mutate({ id: item.id })} />
+        <Action
+          icon="trash-outline"
+          label="Delete"
+          danger
+          onPress={() =>
+            Alert.alert("Delete routine?", item.name, [
+              { text: "Cancel", style: "cancel" },
+              { text: "Delete", style: "destructive", onPress: () => remove.mutate({ id: item.id }) },
+            ])
+          }
+        />
+      </View>
+    </View>
+  );
+
+  const ungrouped = grouped.get(null) ?? [];
 
   return (
     <Screen scroll padded={false}>
@@ -51,7 +174,12 @@ export default function MyRoutinesScreen() {
         <HevyStackHeader
           title="My Routines"
           onBack={() => router.back()}
-          right={<HevyIconButton icon="add" onPress={() => router.push("/routine/create")} />}
+          right={
+            <View style={styles.headerActions}>
+              <HevyIconButton icon="folder-open-outline" onPress={openCreateFolder} />
+              <HevyIconButton icon="add" onPress={() => router.push("/routine/create")} />
+            </View>
+          }
         />
 
         {isPending && routines === undefined ? (
@@ -67,65 +195,141 @@ export default function MyRoutinesScreen() {
           </View>
         ) : (
           <View style={styles.list}>
-            {routines?.map((item) => (
-              <View key={item.id} style={styles.routineWrap}>
-                <ListGroup>
-                  <ListRow
-                    title={item.name}
-                    subtitle={`${item.exercises.length} exercises`}
-                    icon="barbell-outline"
-                    onPress={() => startRoutine.mutate({ routineId: item.id })}
-                    last
-                  />
-                </ListGroup>
-                <View style={styles.actions}>
-                  <Pressable
-                    style={styles.actionBtn}
-                    onPress={() => router.push(`/routine/create?id=${item.id}`)}
-                    hitSlop={6}
-                  >
-                    <Ionicons name="create-outline" size={16} color={colors.textMuted} />
-                    <Text style={styles.actionText}>Edit</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.actionBtn}
-                    onPress={() => duplicate.mutate({ id: item.id })}
-                    hitSlop={6}
-                  >
-                    <Ionicons name="copy-outline" size={16} color={colors.textMuted} />
-                    <Text style={styles.actionText}>Duplicate</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.actionBtn}
-                    hitSlop={6}
-                    onPress={() =>
-                      Alert.alert("Delete routine?", item.name, [
-                        { text: "Cancel", style: "cancel" },
-                        { text: "Delete", style: "destructive", onPress: () => remove.mutate({ id: item.id }) },
-                      ])
-                    }
-                  >
-                    <Ionicons name="trash-outline" size={16} color={colors.danger} />
-                    <Text style={[styles.actionText, styles.danger]}>Delete</Text>
-                  </Pressable>
+            {(folders ?? []).map((folder) => {
+              const items = grouped.get(folder.id) ?? [];
+              return (
+                <View key={folder.id} style={styles.folderSection}>
+                  <View style={styles.folderHeader}>
+                    <Ionicons name="folder" size={16} color={colors.accent} />
+                    <Text style={styles.folderName}>{folder.name}</Text>
+                    <Text style={styles.folderCount}>{items.length}</Text>
+                    <Pressable hitSlop={8} onPress={() => openRenameFolder(folder.id, folder.name)}>
+                      <Ionicons name="create-outline" size={18} color={colors.textMuted} />
+                    </Pressable>
+                    <Pressable hitSlop={8} onPress={() => confirmDeleteFolder(folder.id, folder.name)}>
+                      <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                    </Pressable>
+                  </View>
+                  {items.length === 0 ? (
+                    <Text style={styles.folderEmpty}>Empty — use Move on a routine to add it here.</Text>
+                  ) : (
+                    items.map(renderRoutine)
+                  )}
                 </View>
+              );
+            })}
+
+            {ungrouped.length > 0 ? (
+              <View style={styles.folderSection}>
+                {(folders ?? []).length > 0 ? <Text style={styles.ungroupedLabel}>Ungrouped</Text> : null}
+                {ungrouped.map(renderRoutine)}
               </View>
-            ))}
-            {isFetching ? <ActivityIndicator color={colors.accent} style={{ marginTop: 16 }} /> : null}
+            ) : null}
           </View>
         )}
       </View>
+
+      <Modal visible={folderModal !== null} transparent animationType="fade" onRequestClose={() => setFolderModal(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setFolderModal(null)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>{folderModal?.mode === "rename" ? "Rename folder" : "New folder"}</Text>
+            <TextInput
+              value={folderName}
+              onChangeText={setFolderName}
+              placeholder="Folder name (e.g. Push / Pull / Legs)"
+              placeholderTextColor={colors.textDim}
+              style={styles.modalInput}
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <Pressable onPress={() => setFolderModal(null)} hitSlop={8}>
+                <Text style={styles.modalCancel}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.modalSave} onPress={submitFolder}>
+                <Text style={styles.modalSaveText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
 
-const makeStyles = (colors: Palette) => StyleSheet.create({
-  pad: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.lg },
-  list: { gap: spacing.lg },
-  routineWrap: { gap: spacing.sm },
-  actions: { flexDirection: "row", gap: spacing.lg, paddingHorizontal: spacing.sm },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  actionText: { color: colors.textMuted, fontSize: 13 },
-  danger: { color: colors.danger },
-  emptyWrap: { gap: spacing.lg, alignItems: "center", marginTop: spacing.xl },
-});
+function Action({
+  icon,
+  label,
+  onPress,
+  danger,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+}) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <Pressable style={styles.actionBtn} onPress={onPress} hitSlop={6}>
+      <Ionicons name={icon} size={16} color={danger ? colors.danger : colors.textMuted} />
+      <Text style={[styles.actionText, danger && styles.danger]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    pad: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.lg },
+    headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    list: { gap: spacing.xl },
+    folderSection: { gap: spacing.sm },
+    folderHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    folderName: { flex: 1, color: colors.text, fontSize: 16, fontWeight: "700" },
+    folderCount: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: "700",
+      backgroundColor: colors.surfaceHover,
+      borderRadius: radius.full,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      overflow: "hidden",
+    },
+    folderEmpty: { color: colors.textDim, fontSize: 13, paddingLeft: spacing.sm },
+    ungroupedLabel: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+    routineWrap: { gap: spacing.sm },
+    actions: { flexDirection: "row", gap: spacing.lg, paddingHorizontal: spacing.sm, flexWrap: "wrap" },
+    actionBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+    actionText: { color: colors.textMuted, fontSize: 13 },
+    danger: { color: colors.danger },
+    emptyWrap: { gap: spacing.lg, alignItems: "center", marginTop: spacing.xl },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    modalCard: {
+      width: "100%",
+      backgroundColor: colors.bgElevated,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      gap: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    modalTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
+    modalInput: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 12,
+      color: colors.text,
+      fontSize: 16,
+    },
+    modalActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: spacing.lg },
+    modalCancel: { color: colors.textMuted, fontSize: 15, fontWeight: "600" },
+    modalSave: { backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 10 },
+    modalSaveText: { color: colors.onAccent, fontSize: 15, fontWeight: "700" },
+  });

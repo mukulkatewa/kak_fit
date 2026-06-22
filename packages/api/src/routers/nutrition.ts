@@ -132,15 +132,65 @@ function toUsdaResult(food: UsdaFood, nutrients: ReturnType<typeof extractNutrie
   };
 }
 
+function resolveTargets(user: {
+  calorieGoal: number | null;
+  proteinGoal: number | null;
+  carbGoal: number | null;
+  fatGoal: number | null;
+}) {
+  return {
+    calories: user.calorieGoal ?? DEFAULT_TARGETS.calories,
+    protein: user.proteinGoal ?? DEFAULT_TARGETS.protein,
+    carbs: user.carbGoal ?? DEFAULT_TARGETS.carbs,
+    fat: user.fatGoal ?? DEFAULT_TARGETS.fat,
+  };
+}
+
 export const nutritionRouter = router({
+  getTargets: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.prisma.user.findUnique({
+      where: { id: ctx.user.id },
+      select: { calorieGoal: true, proteinGoal: true, carbGoal: true, fatGoal: true },
+    });
+    return resolveTargets(user ?? { calorieGoal: null, proteinGoal: null, carbGoal: null, fatGoal: null });
+  }),
+
+  setTargets: protectedProcedure
+    .input(
+      z.object({
+        calories: z.number().int().min(500).max(10000),
+        protein: z.number().int().min(0).max(1000),
+        carbs: z.number().int().min(0).max(2000),
+        fat: z.number().int().min(0).max(1000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ctx.prisma.user.update({
+        where: { id: ctx.user.id },
+        data: {
+          calorieGoal: input.calories,
+          proteinGoal: input.protein,
+          carbGoal: input.carbs,
+          fatGoal: input.fat,
+        },
+      });
+      return input;
+    }),
+
   dailySummary: protectedProcedure.query(async ({ ctx }) => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const meals = await ctx.prisma.mealLog.findMany({
-      where: { userId: ctx.user.id, date: { gte: startOfDay } },
-      include: { items: { include: { food: true } } },
-    });
+    const [meals, user] = await Promise.all([
+      ctx.prisma.mealLog.findMany({
+        where: { userId: ctx.user.id, date: { gte: startOfDay } },
+        include: { items: { include: { food: true } } },
+      }),
+      ctx.prisma.user.findUnique({
+        where: { id: ctx.user.id },
+        select: { calorieGoal: true, proteinGoal: true, carbGoal: true, fatGoal: true },
+      }),
+    ]);
 
     let calories = 0;
     let protein = 0;
@@ -163,7 +213,9 @@ export const nutritionRouter = router({
       carbs: Math.round(carbs),
       fat: Math.round(fat),
       mealCount: meals.length,
-      targets: DEFAULT_TARGETS,
+      targets: resolveTargets(
+        user ?? { calorieGoal: null, proteinGoal: null, carbGoal: null, fatGoal: null },
+      ),
     };
   }),
 

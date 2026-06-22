@@ -56,6 +56,7 @@ function ThemedApp() {
           <Stack.Screen name="exercise/[id]" />
           <Stack.Screen name="measurements" />
           <Stack.Screen name="settings" options={{ presentation: "modal" }} />
+          <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
         </Stack>
       </AuthGate>
     </>

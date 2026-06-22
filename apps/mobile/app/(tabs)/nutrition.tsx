@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +24,7 @@ const MEAL_TYPES = [
 type MealKey = (typeof MEAL_TYPES)[number]["key"];
 
 export default function NutritionScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [search, setSearch] = useState("");
@@ -92,7 +94,13 @@ export default function NutritionScreen() {
   return (
     <Screen scroll padded={false}>
       <View style={styles.pad}>
-        <Text style={styles.pageTitle}>Nutrition</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.pageTitle}>Nutrition</Text>
+          <Pressable hitSlop={8} onPress={() => router.push("/nutrition-goals")} style={styles.goalsBtn}>
+            <Ionicons name="options-outline" size={16} color={colors.accent} />
+            <Text style={styles.goalsBtnText}>Goals</Text>
+          </Pressable>
+        </View>
 
         {/* Daily calories + macro rings */}
         {summaryLoading ? (
@@ -247,7 +255,10 @@ function MacroRingRow({
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
-  pageTitle: { fontSize: 30, fontWeight: "800", color: colors.text, marginTop: spacing.xs },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.xs },
+  pageTitle: { fontSize: 30, fontWeight: "800", color: colors.text },
+  goalsBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.accentMuted, borderRadius: radius.full, paddingVertical: 6, paddingHorizontal: 12 },
+  goalsBtnText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
 
   summaryCard: {
     flexDirection: "row",

@@ -49,6 +49,10 @@ model User {
   bio              String?
   isPrivate        Boolean          @default(false)
   subscriptionTier SubscriptionTier @default(FREE)
+  calorieGoal      Int?
+  proteinGoal      Int?
+  carbGoal         Int?
+  fatGoal          Int?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 

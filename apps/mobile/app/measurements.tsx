@@ -2,20 +2,33 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { BarChart } from "../src/components/charts";
-import { Button, Header, Input, Screen, SectionHeader } from "../src/components/ui";
+import { Button, Header, Input, ListGroup, ListRow, Screen, SectionHeader } from "../src/components/ui";
+import { HevySegmentedControl } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
 import { useTheme, useThemedStyles, spacing, type Palette } from "../src/lib/theme";
+
+type Field = "weight" | "bodyFat" | "waist" | "chest" | "arms";
+const FIELDS: Array<{ key: Field; label: string; unit: string }> = [
+  { key: "weight", label: "Weight", unit: " kg" },
+  { key: "bodyFat", label: "Fat", unit: "%" },
+  { key: "waist", label: "Waist", unit: " cm" },
+  { key: "chest", label: "Chest", unit: " cm" },
+  { key: "arms", label: "Arms", unit: " cm" },
+];
 
 export default function MeasurementsScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const router = useRouter();
   const utils = trpc.useUtils();
+  const [field, setField] = useState<Field>("weight");
   const { data: latest } = trpc.bodyMeasurement.latest.useQuery();
-  const { data: weightChart, isLoading } = trpc.bodyMeasurement.chart.useQuery({
-    field: "weight",
+  const { data: history } = trpc.bodyMeasurement.list.useQuery({ limit: 20 });
+  const { data: chart, isLoading } = trpc.bodyMeasurement.chart.useQuery({
+    field,
     limit: 12,
   });
+  const activeField = FIELDS.find((f) => f.key === field)!;
 
   const [weight, setWeight] = useState("");
   const [bodyFat, setBodyFat] = useState("");
@@ -72,14 +85,19 @@ export default function MeasurementsScreen() {
         </View>
       ) : null}
 
-      <SectionHeader title="Weight Trend" />
+      <SectionHeader title="Trend" />
+      <HevySegmentedControl
+        options={FIELDS.map((f) => ({ key: f.key, label: f.label }))}
+        value={field}
+        onChange={setField}
+      />
       {isLoading ? (
         <ActivityIndicator color={colors.accent} />
       ) : (
         <BarChart
-          data={(weightChart ?? []).map((p) => ({ label: p.label, value: p.value }))}
-          color={colors.success}
-          unit=" kg"
+          data={(chart ?? []).map((p) => ({ label: p.label, value: p.value }))}
+          color={colors.accent}
+          unit={activeField.unit}
         />
       )}
 
@@ -92,6 +110,35 @@ export default function MeasurementsScreen() {
         <Input placeholder="Arms (cm)" value={arms} onChangeText={setArms} keyboardType="decimal-pad" />
         <Button label="Save" fullWidth onPress={save} loading={create.isPending} />
       </View>
+
+      {(history ?? []).length > 0 ? (
+        <>
+          <SectionHeader title="History" />
+          <ListGroup>
+            {history?.map((m, i) => {
+              const parts = [
+                m.weight != null ? `${m.weight} kg` : null,
+                m.bodyFat != null ? `${m.bodyFat}% fat` : null,
+                m.waist != null ? `${m.waist} waist` : null,
+                m.chest != null ? `${m.chest} chest` : null,
+                m.arms != null ? `${m.arms} arms` : null,
+              ].filter(Boolean);
+              return (
+                <ListRow
+                  key={m.id}
+                  title={new Date(m.date).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                  subtitle={parts.join(" · ") || "—"}
+                  last={i === (history?.length ?? 0) - 1}
+                />
+              );
+            })}
+          </ListGroup>
+        </>
+      ) : null}
     </Screen>
   );
 }

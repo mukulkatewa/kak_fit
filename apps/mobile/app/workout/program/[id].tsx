@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { HevyButton, ListGroup, ListRow, Screen } from "../../../src/components/ui";
+import { HevyButton, ListGroup, ListRow, Screen, ThemedDialog } from "../../../src/components/ui";
 import { HevyProgramCard, HevyStackHeader } from "../../../src/components/hevy-ui";
 import { getProgram } from "../../../src/lib/explore-data";
 import { buildRoutinePayload, resolveExerciseIds } from "../../../src/lib/import-template";
@@ -19,6 +19,12 @@ export default function ProgramDetailScreen() {
   const utils = trpc.useUtils();
   const program = getProgram(id ?? "");
   const [saving, setSaving] = useState(false);
+  const [dialog, setDialog] = useState<{
+    title: string;
+    message: string;
+    primaryLabel?: string;
+    onPrimary?: () => void;
+  } | null>(null);
 
   const createRoutine = trpc.routine.create.useMutation();
 
@@ -44,15 +50,24 @@ export default function ProgramDetailScreen() {
         saved += 1;
       }
       await utils.routine.list.invalidate();
-      Alert.alert(
-        saved > 0 ? "Program saved" : "Could not save",
-        saved > 0
-          ? `${saved} routine${saved === 1 ? "" : "s"} added to My Routines.`
-          : "No matching exercises found in the library.",
-        [{ text: "OK", onPress: () => router.push("/workout/my-routines") }],
-      );
+      if (saved > 0) {
+        setDialog({
+          title: "Program saved",
+          message: `${saved} routine${saved === 1 ? "" : "s"} added to My Routines.`,
+          primaryLabel: "OK",
+          onPrimary: () => router.push("/workout/my-routines"),
+        });
+      } else {
+        setDialog({
+          title: "Could not save",
+          message: "No matching exercises found in the library.",
+        });
+      }
     } catch (e) {
-      Alert.alert("Error", e instanceof Error ? e.message : "Failed to save program");
+      setDialog({
+        title: "Error",
+        message: e instanceof Error ? e.message : "Failed to save program",
+      });
     } finally {
       setSaving(false);
     }
@@ -110,6 +125,18 @@ export default function ProgramDetailScreen() {
           </View>
         ))}
       </View>
+
+      <ThemedDialog
+        visible={dialog !== null}
+        title={dialog?.title ?? ""}
+        message={dialog?.message}
+        onDismiss={() => setDialog(null)}
+        buttons={
+          dialog?.onPrimary
+            ? [{ label: dialog.primaryLabel ?? "OK", variant: "primary", onPress: dialog.onPrimary }]
+            : [{ label: "OK", variant: "primary" }]
+        }
+      />
     </Screen>
   );
 }

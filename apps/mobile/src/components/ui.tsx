@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -491,6 +492,53 @@ export function ListRow({
   );
 }
 
+export function ThemedDialog({
+  visible,
+  title,
+  message,
+  buttons,
+  onDismiss,
+}: {
+  visible: boolean;
+  title: string;
+  message?: string;
+  buttons: Array<{ label: string; onPress?: () => void; variant?: "primary" | "secondary" }>;
+  onDismiss?: () => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+      <Pressable style={styles.dialogBackdrop} onPress={onDismiss}>
+        <Pressable style={styles.dialogCard} onPress={(e) => e.stopPropagation()}>
+          <Text style={styles.dialogTitle}>{title}</Text>
+          {message ? <Text style={styles.dialogMessage}>{message}</Text> : null}
+          <View style={styles.dialogActions}>
+            {buttons.map((btn) => (
+              <Pressable
+                key={btn.label}
+                style={[styles.dialogBtn, btn.variant === "primary" && styles.dialogBtnPrimary]}
+                onPress={() => {
+                  btn.onPress?.();
+                  onDismiss?.();
+                }}
+              >
+                <Text
+                  style={[
+                    styles.dialogBtnText,
+                    btn.variant === "primary" && styles.dialogBtnTextPrimary,
+                  ]}
+                >
+                  {btn.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export function EmptyState({
   icon,
   title,
@@ -840,6 +888,41 @@ const makeStyles = (colors: Palette) =>
     macroRingValue: { fontSize: 15, fontWeight: "700" },
     macroRingLabel: { ...typography.caption, color: colors.textMuted },
     macroRingTarget: { fontSize: 11, color: colors.textDim },
+
+    dialogBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    dialogCard: {
+      width: "100%",
+      maxWidth: 340,
+      backgroundColor: colors.bgElevated,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      gap: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dialogTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
+    dialogMessage: { fontSize: 15, color: colors.textMuted, lineHeight: 22 },
+    dialogActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-end",
+      gap: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    dialogBtn: {
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 10,
+    },
+    dialogBtnPrimary: { backgroundColor: colors.accent },
+    dialogBtnText: { fontSize: 15, fontWeight: "600", color: colors.textMuted },
+    dialogBtnTextPrimary: { color: colors.onAccent },
   });
 
 // Legacy alias

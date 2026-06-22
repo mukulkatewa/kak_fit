@@ -88,6 +88,7 @@ const DEFAULT_TARGETS = {
 };
 
 export type FoodSearchResult = {
+  id: string | null;
   fdcId: number;
   name: string;
   brand: string | null;
@@ -99,6 +100,7 @@ export type FoodSearchResult = {
 };
 
 function toLocalResult(f: {
+  id: string;
   usdaFdcId: number | null;
   name: string;
   brand: string | null;
@@ -108,6 +110,7 @@ function toLocalResult(f: {
   fat: number;
 }): FoodSearchResult {
   return {
+    id: f.id,
     fdcId: f.usdaFdcId ?? 0,
     name: f.name,
     brand: f.brand,
@@ -121,6 +124,7 @@ function toLocalResult(f: {
 
 function toUsdaResult(food: UsdaFood, nutrients: ReturnType<typeof extractNutrients>): FoodSearchResult {
   return {
+    id: null,
     fdcId: food.fdcId,
     name: food.description,
     brand: food.brandOwner ?? food.brandName ?? null,
@@ -131,6 +135,18 @@ function toUsdaResult(food: UsdaFood, nutrients: ReturnType<typeof extractNutrie
     source: "usda",
   };
 }
+
+const customFoodInput = z.object({
+  name: z.string().min(2).max(120),
+  brand: z.string().max(120).nullable().optional(),
+  calories: z.number().min(0).max(5000),
+  protein: z.number().min(0).max(1000),
+  carbs: z.number().min(0).max(1000),
+  fat: z.number().min(0).max(1000),
+  fiber: z.number().min(0).max(1000).nullable().optional(),
+  servingSize: z.number().positive().max(5000).default(100),
+  servingUnit: z.string().min(1).max(24).default("g"),
+});
 
 function resolveTargets(user: {
   calorieGoal: number | null;
@@ -147,6 +163,79 @@ function resolveTargets(user: {
 }
 
 export const nutritionRouter = router({
+  listCustomFoods: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.prisma.food.findMany({
+      where: { isCustom: true, userId: ctx.user.id },
+      orderBy: { updatedAt: "desc" },
+    });
+  }),
+
+  createCustomFood: protectedProcedure
+    .input(customFoodInput)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.food.create({
+        data: {
+          name: input.name.trim(),
+          brand: input.brand?.trim() || null,
+          calories: input.calories,
+          protein: input.protein,
+          carbs: input.carbs,
+          fat: input.fat,
+          fiber: input.fiber ?? null,
+          servingSize: input.servingSize,
+          servingUnit: input.servingUnit.trim(),
+          isCustom: true,
+          userId: ctx.user.id,
+        },
+      });
+    }),
+
+  updateCustomFood: protectedProcedure
+    .input(customFoodInput.extend({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const food = await ctx.prisma.food.findFirst({
+        where: { id: input.id, isCustom: true, userId: ctx.user.id },
+        select: { id: true },
+      });
+      if (!food) throw new TRPCError({ code: "NOT_FOUND", message: "Food not found" });
+
+      return ctx.prisma.food.update({
+        where: { id: input.id },
+        data: {
+          name: input.name.trim(),
+          brand: input.brand?.trim() || null,
+          calories: input.calories,
+          protein: input.protein,
+          carbs: input.carbs,
+          fat: input.fat,
+          fiber: input.fiber ?? null,
+          servingSize: input.servingSize,
+          servingUnit: input.servingUnit.trim(),
+        },
+      });
+    }),
+
+  deleteCustomFood: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const food = await ctx.prisma.food.findFirst({
+        where: { id: input.id, isCustom: true, userId: ctx.user.id },
+        select: { id: true },
+      });
+      if (!food) throw new TRPCError({ code: "NOT_FOUND", message: "Food not found" });
+
+      const mealItemCount = await ctx.prisma.mealItem.count({ where: { foodId: input.id } });
+      if (mealItemCount > 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This food is used in meal history. Edit it instead of deleting it.",
+        });
+      }
+
+      await ctx.prisma.food.delete({ where: { id: input.id } });
+      return { success: true };
+    }),
+
   getTargets: protectedProcedure.query(async ({ ctx }) => {
     const user = await ctx.prisma.user.findUnique({
       where: { id: ctx.user.id },
@@ -287,6 +376,7 @@ export const nutritionRouter = router({
         mealType: z.enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK"]),
         items: z.array(
           z.object({
+            foodId: z.string().optional(),
             fdcId: z.number().optional(),
             name: z.string(),
             calories: z.number(),
@@ -306,10 +396,18 @@ export const nutritionRouter = router({
           items: {
             create: await Promise.all(
               input.items.map(async (item) => {
-                let food =
-                  item.fdcId && item.fdcId > 0
-                    ? await ctx.prisma.food.findUnique({ where: { usdaFdcId: item.fdcId } })
-                    : null;
+                let food = item.foodId
+                  ? await ctx.prisma.food.findFirst({
+                      where: {
+                        id: item.foodId,
+                        OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
+                      },
+                    })
+                  : null;
+
+                if (!food && item.fdcId && item.fdcId > 0) {
+                  food = await ctx.prisma.food.findUnique({ where: { usdaFdcId: item.fdcId } });
+                }
 
                 if (!food) {
                   food = await ctx.prisma.food.create({

@@ -262,6 +262,28 @@ export const workoutRouter = router({
       });
     }),
 
+
+  updateExerciseNotes: protectedProcedure
+    .input(z.object({ workoutExerciseId: z.string(), notes: z.string().max(2000).nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const exercise = await ctx.prisma.workoutExercise.findFirst({
+        where: {
+          id: input.workoutExerciseId,
+          workout: { userId: ctx.user.id, finishedAt: null },
+        },
+        select: { id: true },
+      });
+
+      if (!exercise) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exercise not found" });
+      }
+
+      return ctx.prisma.workoutExercise.update({
+        where: { id: input.workoutExerciseId },
+        data: { notes: input.notes?.trim() || null },
+      });
+    }),
+
   addSet: protectedProcedure
     .input(z.object({ workoutExerciseId: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -361,7 +383,27 @@ export const workoutRouter = router({
         newRecords.push(...records.map((r) => ({ ...r, exerciseId: exercise.exerciseId })));
       }
 
-      return { workout: finished, newRecords };
+      const completedSets = workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
+      const totalVolume = workout.exercises.reduce(
+        (sum, exercise) =>
+          sum + exercise.sets.reduce((setSum, set) => setSum + (set.weight ?? 0) * (set.reps ?? 0), 0),
+        0,
+      );
+      const durationMinutes = Math.max(
+        1,
+        Math.round((finished.finishedAt!.getTime() - workout.startedAt.getTime()) / 60000),
+      );
+
+      return {
+        workout: finished,
+        newRecords,
+        summary: {
+          exerciseCount: workout.exercises.length,
+          completedSets,
+          totalVolume: Math.round(totalVolume),
+          durationMinutes,
+        },
+      };
     }),
 
   cancel: protectedProcedure

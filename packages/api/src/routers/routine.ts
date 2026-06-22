@@ -1,3 +1,4 @@
+import type { PrismaClient } from "@kak-fit/db";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
@@ -18,6 +19,67 @@ const routineExerciseInput = z.object({
   supersetGroup: z.number().int().nullable().optional(),
   sets: z.array(setInput).min(1),
 });
+
+const importProgramInput = z.object({
+  programTitle: z.string().min(2).max(120),
+  routines: z.array(
+    z.object({
+      name: z.string().min(1).max(100),
+      exerciseNames: z.array(z.string().min(1)).min(1).max(20),
+    }),
+  ).min(1).max(20),
+  setCount: z.number().int().min(1).max(8).default(3),
+  targetReps: z.number().int().min(1).max(100).default(10),
+});
+
+type ResolvedExercise = { id: string; name: string };
+
+function normalizeName(name: string) {
+  return name.trim().toLowerCase();
+}
+
+async function resolveTemplateExercises(
+  prisma: PrismaClient,
+  userId: string,
+  names: string[],
+) {
+  const normalized = Array.from(new Set(names.map((name) => name.trim()).filter(Boolean)));
+  if (normalized.length === 0) return new Map<string, ResolvedExercise>();
+
+  const candidates = await prisma.exercise.findMany({
+    where: {
+      OR: [{ isCustom: false }, { isCustom: true, userId }],
+      AND: { OR: normalized.map((name) => ({ name: { equals: name, mode: "insensitive" as const } })) },
+    },
+    select: { id: true, name: true },
+  });
+
+  const exactByLower = new Map(candidates.map((candidate) => [normalizeName(candidate.name), candidate]));
+  const unresolved = normalized.filter((name) => !exactByLower.has(normalizeName(name)));
+
+  const fuzzy = unresolved.length > 0
+    ? await prisma.exercise.findMany({
+        where: {
+          OR: [{ isCustom: false }, { isCustom: true, userId }],
+          AND: { OR: unresolved.map((name) => ({ name: { contains: name, mode: "insensitive" as const } })) },
+        },
+        select: { id: true, name: true },
+      })
+    : [];
+
+  const resolved = new Map<string, ResolvedExercise>();
+  for (const name of normalized) {
+    const lower = normalizeName(name);
+    const exact = exactByLower.get(lower);
+    const match =
+      exact ??
+      fuzzy.find((candidate) => normalizeName(candidate.name).includes(lower)) ??
+      fuzzy.find((candidate) => lower.includes(normalizeName(candidate.name)));
+    if (match) resolved.set(name, match);
+  }
+
+  return resolved;
+}
 
 const routineListInclude = {
   exercises: {
@@ -58,6 +120,56 @@ function newShareToken() {
 }
 
 export const routineRouter = router({
+  importProgram: protectedProcedure
+    .input(importProgramInput)
+    .mutation(async ({ ctx, input }) => {
+      const allNames = input.routines.flatMap((routine) => routine.exerciseNames);
+      const resolved = await resolveTemplateExercises(ctx.prisma, ctx.user.id, allNames);
+      const programName = input.programTitle.replace(/\s*\([^)]*\)\s*/g, "").trim() || input.programTitle.trim();
+      const missing = Array.from(new Set(allNames.filter((name) => !resolved.has(name))));
+
+      const created = await ctx.prisma.$transaction(async (tx) => {
+        const routines = [];
+        for (const template of input.routines) {
+          const exercises = template.exerciseNames
+            .map((name) => resolved.get(name))
+            .filter((exercise): exercise is ResolvedExercise => Boolean(exercise));
+
+          if (exercises.length === 0) continue;
+
+          routines.push(
+            await tx.routine.create({
+              data: {
+                userId: ctx.user.id,
+                name: `${programName} · ${template.name}`,
+                notes: `Imported from ${input.programTitle}`,
+                exercises: {
+                  create: exercises.map((exercise, index) => ({
+                    exerciseId: exercise.id,
+                    order: index,
+                    sets: {
+                      create: Array.from({ length: input.setCount }, (_, setIndex) => ({
+                        setNumber: setIndex + 1,
+                        targetReps: input.targetReps,
+                      })),
+                    },
+                  })),
+                },
+              },
+              include: routineListInclude,
+            }),
+          );
+        }
+        return routines;
+      });
+
+      return {
+        saved: created.length,
+        routines: created,
+        missingExerciseNames: missing,
+      };
+    }),
+
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.prisma.routine.findMany({
       where: { userId: ctx.user.id },

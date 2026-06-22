@@ -1,13 +1,13 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { HevyButton, ListGroup, ListRow, Screen } from "../../../src/components/ui";
+import { HevyButton, ListGroup, ListRow, Screen, ThemedDialog } from "../../../src/components/ui";
 import { HevyStackHeader } from "../../../src/components/hevy-ui";
 import { getCategory } from "../../../src/lib/explore-data";
 import { buildRoutinePayload, resolveExerciseIds } from "../../../src/lib/import-template";
 import { trpc } from "../../../src/lib/trpc";
-import { useTheme, useThemedStyles, spacing, type Palette } from "../../../src/lib/theme";
+import { useThemedStyles, spacing, type Palette } from "../../../src/lib/theme";
 
 export default function CategoryDetailScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -17,6 +17,11 @@ export default function CategoryDetailScreen() {
   const utils = trpc.useUtils();
   const category = getCategory(id ?? "");
   const [saving, setSaving] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<{
+    title: string;
+    message: string;
+    onPrimary?: () => void;
+  } | null>(null);
 
   const createRoutine = trpc.routine.create.useMutation();
 
@@ -34,17 +39,24 @@ export default function CategoryDetailScreen() {
     try {
       const exercises = await resolveExerciseIds(utils, exerciseNames);
       if (exercises.length === 0) {
-        Alert.alert("No exercises found", "Try creating this routine manually.");
+        setDialog({
+          title: "No exercises found",
+          message: "Try creating this routine manually.",
+        });
         return;
       }
       await createRoutine.mutateAsync(buildRoutinePayload(`${category.label} · ${templateName}`, exercises));
       await utils.routine.list.invalidate();
-      Alert.alert("Routine saved", `"${templateName}" was added to My Routines.`, [
-        { text: "View", onPress: () => router.push("/workout/my-routines") },
-        { text: "OK" },
-      ]);
+      setDialog({
+        title: "Routine saved",
+        message: `"${templateName}" was added to My Routines.`,
+        onPrimary: () => router.push("/workout/my-routines"),
+      });
     } catch (e) {
-      Alert.alert("Error", e instanceof Error ? e.message : "Failed to save routine");
+      setDialog({
+        title: "Error",
+        message: e instanceof Error ? e.message : "Failed to save routine",
+      });
     } finally {
       setSaving(null);
     }
@@ -80,6 +92,18 @@ export default function CategoryDetailScreen() {
           <HevyButton label="Create custom routine" variant="secondary" onPress={() => router.push("/routine/create")} />
         )}
       </View>
+
+      <ThemedDialog
+        visible={dialog !== null}
+        title={dialog?.title ?? ""}
+        message={dialog?.message}
+        onDismiss={() => setDialog(null)}
+        buttons={
+          dialog?.onPrimary
+            ? [{ label: "View routines", variant: "primary", onPress: dialog.onPrimary }]
+            : [{ label: "OK", variant: "primary" }]
+        }
+      />
     </Screen>
   );
 }

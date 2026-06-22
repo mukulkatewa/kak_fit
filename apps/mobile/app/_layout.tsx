@@ -1,5 +1,10 @@
 import "react-native-gesture-handler";
 import { QueryClientProvider } from "@tanstack/react-query";
+import {
+  DarkTheme as NavDarkTheme,
+  DefaultTheme as NavDefaultTheme,
+  ThemeProvider as NavThemeProvider,
+} from "@react-navigation/native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
@@ -43,8 +48,21 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 function ThemedApp() {
   const { colors, isDark } = useTheme();
+  const base = isDark ? NavDarkTheme : NavDefaultTheme;
+  const navTheme = {
+    ...base,
+    colors: {
+      ...base.colors,
+      background: colors.bg,
+      card: colors.bg,
+      text: colors.text,
+      border: colors.border,
+      primary: colors.accent,
+      notification: colors.accent,
+    },
+  };
   return (
-    <>
+    <NavThemeProvider value={navTheme}>
       <StatusBar style={isDark ? "light" : "dark"} />
       <AuthGate>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
@@ -57,10 +75,11 @@ function ThemedApp() {
           <Stack.Screen name="measurements" />
           <Stack.Screen name="settings" options={{ presentation: "modal" }} />
           <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
+          <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
           <Stack.Screen name="calendar" />
         </Stack>
       </AuthGate>
-    </>
+    </NavThemeProvider>
   );
 }
 

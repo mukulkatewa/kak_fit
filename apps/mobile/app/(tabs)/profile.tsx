@@ -39,13 +39,17 @@ export default function ProfileScreen() {
   const { data: volumeHistory, isLoading: chartLoading } = trpc.progress.volumeHistory.useQuery({ limit: 8 });
   const { data: workouts, isLoading } = trpc.workout.history.useQuery({ limit: 6 });
 
-  const username = user?.email?.split("@")[0] ?? "athlete";
+  const username = user?.name?.trim() || user?.email?.split("@")[0] || "athlete";
   const profilePct = useMemo(() => {
-    let score = 40;
-    if (user?.name) score += 20;
-    if ((stats?.workoutCount ?? 0) > 0) score += 20;
-    if ((stats?.prCount ?? 0) > 0) score += 20;
-    return Math.min(score, 100);
+    const checks = [
+      Boolean(user?.name && user.name.trim().length > 0),
+      Boolean(user?.bio && user.bio.trim().length > 0),
+      (stats?.workoutCount ?? 0) > 0,
+      (stats?.routineCount ?? 0) > 0,
+      (stats?.prCount ?? 0) > 0,
+    ];
+    const done = checks.filter(Boolean).length;
+    return Math.round((done / checks.length) * 100);
   }, [user, stats]);
 
   const chartData = useMemo(() => {
@@ -73,6 +77,7 @@ export default function ProfileScreen() {
           title={username}
           right={
             <>
+              <HevyIconButton icon="create-outline" onPress={() => router.push("/profile-edit")} />
               <HevyIconButton icon="settings-outline" onPress={() => router.push("/settings")} />
             </>
           }
@@ -83,15 +88,18 @@ export default function ProfileScreen() {
           <HevyStatsRow
             items={[
               { value: stats?.workoutCount ?? 0, label: "Workouts" },
-              { value: 0, label: "Followers" },
-              { value: 0, label: "Following" },
+              { value: stats?.routineCount ?? 0, label: "Routines" },
+              { value: stats?.prCount ?? 0, label: "PRs" },
             ]}
           />
         </View>
 
+        {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+
         {!bannerDismissed && profilePct < 100 ? (
           <HevyBanner
             text={`Your profile is ${profilePct}% complete`}
+            onPress={() => router.push("/profile-edit")}
             onDismiss={() => setBannerDismissed(true)}
           />
         ) : null}
@@ -160,6 +168,7 @@ export default function ProfileScreen() {
 const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxxl },
   profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.xl },
+  bio: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
   noDataCard: {
     backgroundColor: colors.surface,
     borderRadius: 12,

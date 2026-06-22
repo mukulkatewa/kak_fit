@@ -108,18 +108,32 @@ export default function DashboardScreen() {
           </Pressable>
         </View>
 
-        {/* Weekly progress green hero card */}
+        {/* Weekly progress hero card */}
         <View style={styles.heroCard}>
-          <Text style={styles.heroTitle}>Weekly Progress</Text>
-          <LineChart data={chartData} height={150} />
-          <View style={styles.heroFooter}>
-            <View style={styles.heroFooterLeft}>
-              <Text style={styles.heroFooterText}>Last 7 Days</Text>
-              <Ionicons name="chevron-down" size={15} color={colors.onAccentMuted} />
+          <View style={styles.heroTopRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heroTitle}>Weekly Progress</Text>
+              <View style={styles.heroBigRow}>
+                <Text style={styles.heroBig}>{Math.round(totalVolume).toLocaleString()}</Text>
+                <Text style={styles.heroUnit}>kg</Text>
+              </View>
+              <Text style={styles.heroSub}>
+                {totalVolume > 0 ? "lifted in the last 7 days" : "No workouts yet this week"}
+              </Text>
             </View>
-            <Text style={styles.heroFooterText}>
-              {totalVolume > 0 ? `${Math.round(totalVolume).toLocaleString()} kg lifted` : "No data yet"}
-            </Text>
+            <View style={styles.heroBadge}>
+              <Ionicons name="trending-up" size={22} color={colors.onAccent} />
+            </View>
+          </View>
+
+          <LineChart data={chartData} height={120} />
+
+          <View style={styles.heroLabels}>
+            {chartData.map((d, i) => (
+              <Text key={`${d.label}-${i}`} style={styles.heroDay}>
+                {d.label}
+              </Text>
+            ))}
           </View>
         </View>
 
@@ -268,13 +282,25 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     backgroundColor: colors.accent,
     borderRadius: radius.xl,
     padding: spacing.xl,
-    gap: spacing.md,
+    gap: spacing.lg,
     ...shadows.glow,
   },
-  heroTitle: { fontSize: 19, fontWeight: "800", color: colors.onAccent },
-  heroFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  heroFooterLeft: { flexDirection: "row", alignItems: "center", gap: 4 },
-  heroFooterText: { fontSize: 14, fontWeight: "600", color: colors.onAccentMuted },
+  heroTopRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  heroTitle: { fontSize: 15, fontWeight: "700", color: colors.onAccentMuted, letterSpacing: 0.3 },
+  heroBigRow: { flexDirection: "row", alignItems: "flex-end", gap: 6, marginTop: 4 },
+  heroBig: { fontSize: 40, fontWeight: "800", color: colors.onAccent, lineHeight: 44 },
+  heroUnit: { fontSize: 16, fontWeight: "700", color: colors.onAccentMuted, marginBottom: 6 },
+  heroSub: { fontSize: 13, fontWeight: "500", color: colors.onAccentMuted, marginTop: 2 },
+  heroBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: -spacing.sm },
+  heroDay: { flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: colors.onAccentFaint },
 
   activeCard: {
     flexDirection: "row",

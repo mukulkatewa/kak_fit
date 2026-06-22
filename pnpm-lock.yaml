@@ -26,6 +26,9 @@ importers:
       '@kak-fit/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@react-navigation/native':
+        specifier: ^7.3.3
+        version: 7.3.3(react-native@0.81.5(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       '@tanstack/react-query':
         specifier: ^5.69.0
         version: 5.101.0(react@19.1.0)

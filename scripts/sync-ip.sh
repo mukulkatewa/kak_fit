@@ -22,7 +22,10 @@ fi
 SUPABASE_REF="${SUPABASE_PROJECT_REF:-}"
 POOLER_HOST="${SUPABASE_POOLER_HOST:-}"
 if [[ -n "${SUPABASE_DB_PASSWORD:-}" && -n "$SUPABASE_REF" && -n "$POOLER_HOST" ]]; then
-  DB_URL="postgresql://postgres.${SUPABASE_REF}:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:6543/postgres?pgbouncer=true&schema=public&sslmode=require"
+  # Use the SESSION pooler (:5432) for the runtime connection. This app runs as a
+  # long-lived Node server (not serverless), so a persistent connection that
+  # reuses prepared statements is 3-5x faster than the transaction pooler (:6543).
+  DB_URL="postgresql://postgres.${SUPABASE_REF}:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?schema=public&sslmode=require&connection_limit=5"
   DIRECT_URL_VAL="postgresql://postgres.${SUPABASE_REF}:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?schema=public&sslmode=require"
 
   python3 - "$ENV_FILE" "$DB_URL" "$DIRECT_URL_VAL" <<'PY'

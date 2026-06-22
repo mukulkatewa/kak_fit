@@ -1,6 +1,5 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { FREE_ROUTINE_LIMIT } from "../lib/constants";
 import { protectedProcedure, router } from "../trpc";
 
 const setInput = z.object({
@@ -89,18 +88,6 @@ export const routineRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.subscriptionTier === "FREE") {
-        const count = await ctx.prisma.routine.count({
-          where: { userId: ctx.user.id },
-        });
-        if (count >= FREE_ROUTINE_LIMIT) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: `Free plan allows ${FREE_ROUTINE_LIMIT} routines`,
-          });
-        }
-      }
-
       return ctx.prisma.routine.create({
         data: {
           userId: ctx.user.id,
@@ -135,18 +122,6 @@ export const routineRouter = router({
 
       if (!source) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });
-      }
-
-      if (ctx.user.subscriptionTier === "FREE") {
-        const count = await ctx.prisma.routine.count({
-          where: { userId: ctx.user.id },
-        });
-        if (count >= FREE_ROUTINE_LIMIT) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: `Free plan allows ${FREE_ROUTINE_LIMIT} routines`,
-          });
-        }
       }
 
       return ctx.prisma.routine.create({

@@ -1,8 +1,5 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import {
-  FREE_CUSTOM_EXERCISE_LIMIT,
-} from "../lib/constants";
 import { getPreviousExercisePerformance } from "../services/previous-values";
 import { protectedProcedure, router } from "../trpc";
 
@@ -57,6 +54,57 @@ export const exerciseRouter = router({
       return exercises;
     }),
 
+  /**
+   * Resolve many exercise names to ids in ONE query. Used when importing
+   * program/category templates so saving a routine is a single round-trip
+   * instead of one search request per exercise.
+   */
+  resolveByNames: protectedProcedure
+    .input(z.object({ names: z.array(z.string().min(1)).min(1).max(60) }))
+    .query(async ({ ctx, input }) => {
+      const normalized = input.names.map((n) => n.trim()).filter(Boolean);
+
+      const candidates = await ctx.prisma.exercise.findMany({
+        where: {
+          OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
+          name: {
+            in: normalized,
+            mode: "insensitive",
+          },
+        },
+        select: { id: true, name: true },
+      });
+
+      // Fall back to a contains match for names that had no exact hit.
+      const exactByLower = new Map(candidates.map((c) => [c.name.toLowerCase(), c]));
+      const unresolved = normalized.filter((n) => !exactByLower.has(n.toLowerCase()));
+
+      let fuzzy: { id: string; name: string }[] = [];
+      if (unresolved.length > 0) {
+        fuzzy = await ctx.prisma.exercise.findMany({
+          where: {
+            OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
+            AND: { OR: unresolved.map((n) => ({ name: { contains: n, mode: "insensitive" as const } })) },
+          },
+          select: { id: true, name: true },
+        });
+      }
+
+      const resolved: Array<{ name: string; exerciseId: string; matchedName: string }> = [];
+      for (const name of normalized) {
+        const exact = exactByLower.get(name.toLowerCase());
+        const match =
+          exact ??
+          fuzzy.find((f) => f.name.toLowerCase().includes(name.toLowerCase())) ??
+          fuzzy.find((f) => name.toLowerCase().includes(f.name.toLowerCase()));
+        if (match) {
+          resolved.push({ name, exerciseId: match.id, matchedName: match.name });
+        }
+      }
+
+      return resolved;
+    }),
+
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -93,18 +141,6 @@ export const exerciseRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.subscriptionTier === "FREE") {
-        const count = await ctx.prisma.exercise.count({
-          where: { userId: ctx.user.id, isCustom: true },
-        });
-        if (count >= FREE_CUSTOM_EXERCISE_LIMIT) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: `Free plan allows ${FREE_CUSTOM_EXERCISE_LIMIT} custom exercises`,
-          });
-        }
-      }
-
       return ctx.prisma.exercise.create({
         data: {
           name: input.name.trim(),

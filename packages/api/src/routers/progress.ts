@@ -38,26 +38,31 @@ export const progressRouter = router({
     const weekStart = startOfWeek(now);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [workouts, weekWorkouts, monthPrs, nutrition] = await Promise.all([
-      ctx.prisma.workout.findMany({
-        where: { userId: ctx.user.id, finishedAt: { not: null } },
-        select: { finishedAt: true, exercises: { include: { sets: { where: { isCompleted: true } } } } },
-        orderBy: { finishedAt: "desc" },
-      }),
-      ctx.prisma.workout.findMany({
-        where: { userId: ctx.user.id, finishedAt: { gte: weekStart } },
-        include: { exercises: { include: { sets: { where: { isCompleted: true } } } } },
-      }),
-      ctx.prisma.personalRecord.count({
-        where: { userId: ctx.user.id, achievedAt: { gte: monthStart } },
-      }),
-      ctx.prisma.mealLog.count({
-        where: {
-          userId: ctx.user.id,
-          date: { gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()) },
-        },
-      }),
-    ]);
+    const [finishedWorkouts, totalWorkouts, weekWorkouts, monthPrs, nutrition] =
+      await Promise.all([
+        // Streak only needs the finished dates — not the full set graph.
+        ctx.prisma.workout.findMany({
+          where: { userId: ctx.user.id, finishedAt: { not: null } },
+          select: { finishedAt: true },
+          orderBy: { finishedAt: "desc" },
+        }),
+        ctx.prisma.workout.count({
+          where: { userId: ctx.user.id, finishedAt: { not: null } },
+        }),
+        ctx.prisma.workout.findMany({
+          where: { userId: ctx.user.id, finishedAt: { gte: weekStart } },
+          include: { exercises: { include: { sets: { where: { isCompleted: true } } } } },
+        }),
+        ctx.prisma.personalRecord.count({
+          where: { userId: ctx.user.id, achievedAt: { gte: monthStart } },
+        }),
+        ctx.prisma.mealLog.count({
+          where: {
+            userId: ctx.user.id,
+            date: { gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()) },
+          },
+        }),
+      ]);
 
     const weekVolume = weekWorkouts.reduce((sum, w) => {
       return (
@@ -70,12 +75,12 @@ export const progressRouter = router({
       );
     }, 0);
 
-    const finishedDates = workouts
+    const finishedDates = finishedWorkouts
       .map((w) => w.finishedAt)
       .filter((d): d is Date => d !== null);
 
     return {
-      totalWorkouts: workouts.length,
+      totalWorkouts,
       weekWorkouts: weekWorkouts.length,
       weekVolume: Math.round(weekVolume),
       streakWeeks: calcStreakWeeks(finishedDates),

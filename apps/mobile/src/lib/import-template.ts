@@ -8,21 +8,11 @@ export async function resolveExerciseIds(
   utils: TrpcUtils,
   names: string[],
 ): Promise<Array<{ exerciseId: string; name: string }>> {
-  const resolved: Array<{ exerciseId: string; name: string }> = [];
+  if (names.length === 0) return [];
 
-  for (const name of names) {
-    const results = await utils.exercise.list.fetch({ search: name, limit: 5 });
-    const match =
-      results.find((e) => e.name.toLowerCase() === name.toLowerCase()) ??
-      results.find((e) => e.name.toLowerCase().includes(name.toLowerCase())) ??
-      results[0];
-
-    if (match) {
-      resolved.push({ exerciseId: match.id, name: match.name });
-    }
-  }
-
-  return resolved;
+  // Single batched round-trip instead of one search per exercise name.
+  const resolved = await utils.exercise.resolveByNames.fetch({ names });
+  return resolved.map((r) => ({ exerciseId: r.exerciseId, name: r.matchedName }));
 }
 
 export function buildRoutinePayload(

@@ -162,6 +162,9 @@ model Exercise {
   routineExercises RoutineExercise[]
   workoutExercises WorkoutExercise[]
   personalRecords  PersonalRecord[]
+
+  @@index([isCustom, userId])
+  @@index([name])
 }
 
 model ExerciseMuscle {
@@ -210,6 +213,8 @@ model Routine {
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   folder    RoutineFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
   exercises RoutineExercise[]
+
+  @@index([userId, updatedAt])
 }
 
 model RoutineExercise {
@@ -255,6 +260,8 @@ model Workout {
   likes     Like[]
   comments  Comment[]
   media     Media[]
+
+  @@index([userId, finishedAt])
 }
 
 model WorkoutExercise {
@@ -269,6 +276,7 @@ model WorkoutExercise {
   sets     WorkoutSet[]
 
   @@unique([workoutId, order])
+  @@index([exerciseId])
 }
 
 model WorkoutSet {
@@ -285,6 +293,8 @@ model WorkoutSet {
 
   workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
   personalRecords PersonalRecord[]
+
+  @@index([workoutExerciseId, isCompleted])
 }
 
 model PersonalRecord {
@@ -315,6 +325,8 @@ model BodyMeasurement {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
 }
 
 model Like {

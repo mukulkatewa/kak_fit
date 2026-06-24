@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth-context";
@@ -15,8 +15,7 @@ import {
 import { formatRestTime, useRestTimer } from "../lib/rest-timer";
 import { trpc } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
-
-const TAB_BAR_HEIGHT = Platform.select({ ios: 49, default: 56 });
+import { isMainTabRoot, TAB_BAR_HEIGHT } from "../lib/layout-constants";
 
 function getSetProgress(workout: ActiveWorkout) {
   for (const ex of workout.exercises) {
@@ -116,7 +115,8 @@ export function ActiveWorkoutOverlay() {
     !isAuthenticated ||
     !activeWorkout ||
     pathname === "/login" ||
-    pathname.startsWith("/workout/active");
+    pathname.startsWith("/workout/active") ||
+    !isMainTabRoot(pathname);
 
   if (hiddenRoute) return null;
 

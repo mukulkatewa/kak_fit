@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet } from "react-native";
+import { TAB_BAR_HEIGHT, TAB_BAR_PADDING_BOTTOM } from "../../src/lib/layout-constants";
 import { useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 /** Green & white tab bar: Home, Workout, Meals, Profile */
@@ -65,8 +66,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     backgroundColor: colors.bg,
     borderTopColor: colors.separator,
     borderTopWidth: StyleSheet.hairlineWidth,
-    height: 84,
-    paddingBottom: 28,
+    height: TAB_BAR_HEIGHT,
+    paddingBottom: TAB_BAR_PADDING_BOTTOM,
     paddingTop: 6,
     elevation: 0,
   },

@@ -35,23 +35,28 @@ export default function MyRoutinesScreen() {
 
   const [folderModal, setFolderModal] = useState<{ mode: "create" | "rename"; id?: string } | null>(null);
   const [folderName, setFolderName] = useState("");
+  const [startingId, setStartingId] = useState<string | null>(null);
 
   const discardActive = trpc.workout.discardActive.useMutation();
 
   const startRoutine = trpc.workout.startFromRoutine.useMutation({
     onSuccess: (workout) => {
+      setStartingId(null);
       navigateToActiveWorkout(utils, router, workout);
     },
-    onError: (e, vars) =>
+    onError: (e, vars) => {
+      setStartingId(null);
       alertWorkoutConflict(
         e,
         () => router.push("/workout/active"),
         async () => {
+          setStartingId(vars.routineId);
           await discardActive.mutateAsync();
           await utils.workout.active.invalidate();
           startRoutine.mutate(vars);
         },
-      ),
+      );
+    },
   });
 
   const duplicate = trpc.routine.duplicate.useMutation({
@@ -152,20 +157,24 @@ export default function MyRoutinesScreen() {
 
   const renderRoutine = (item: RoutineItem) => (
     <View key={item.id} style={styles.routineWrap}>
-      <Pressable
-        disabled={startRoutine.isPending}
-        onPress={() => startRoutine.mutate({ routineId: item.id })}
-        style={startRoutine.isPending ? { opacity: 0.5 } : undefined}
-      >
+      <View style={startingId === item.id ? { opacity: 0.5 } : undefined}>
         <ListGroup>
           <ListRow
             title={item.name}
             subtitle={`${item.exercises.length} exercises`}
             icon="barbell-outline"
             last
+            onPress={
+              startingId === item.id
+                ? undefined
+                : () => {
+                    setStartingId(item.id);
+                    startRoutine.mutate({ routineId: item.id });
+                  }
+            }
           />
         </ListGroup>
-      </Pressable>
+      </View>
       <View style={styles.actions}>
         <Action icon="create-outline" label="Edit" onPress={() => router.push(`/routine/create?id=${item.id}`)} />
         <Action icon="share-outline" label="Share" onPress={() => handleShare(item)} />

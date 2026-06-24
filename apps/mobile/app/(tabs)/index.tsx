@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar, HevyButton, Screen } from "../../src/components/ui";
@@ -34,6 +35,8 @@ export default function DashboardScreen() {
   const initialLoading =
     (activePending && active === undefined) || (recentPending && recent === undefined);
 
+  const [startingRoutineId, setStartingRoutineId] = useState<string | null>(null);
+
   const discardActive = trpc.workout.discardActive.useMutation();
 
   const startEmpty = trpc.workout.startEmpty.useMutation({
@@ -54,18 +57,22 @@ export default function DashboardScreen() {
 
   const startRoutine = trpc.workout.startFromRoutine.useMutation({
     onSuccess: (workout) => {
+      setStartingRoutineId(null);
       navigateToActiveWorkout(utils, router, workout);
     },
-    onError: (e, vars) =>
+    onError: (e, vars) => {
+      setStartingRoutineId(null);
       alertWorkoutConflict(
         e,
         () => router.push("/workout/active"),
         async () => {
+          setStartingRoutineId(vars.routineId);
           await discardActive.mutateAsync();
           await utils.workout.active.invalidate();
           startRoutine.mutate(vars);
         },
-      ),
+      );
+    },
   });
 
   // Weekly progress — all workouts in the last 7 calendar days
@@ -202,8 +209,11 @@ export default function DashboardScreen() {
                     icon="barbell"
                     title={item.name}
                     subtitle={`${item.exercises.length} exercises · tap to start`}
-                    disabled={startRoutine.isPending}
-                    onPress={() => startRoutine.mutate({ routineId: item.id })}
+                    disabled={startingRoutineId === item.id}
+                    onPress={() => {
+                      setStartingRoutineId(item.id);
+                      startRoutine.mutate({ routineId: item.id });
+                    }}
                   />
                 ))}
               </View>

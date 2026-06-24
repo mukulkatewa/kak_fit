@@ -3,14 +3,12 @@ import { useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Screen } from "../../src/components/ui";
+import { EmptyState, HevyButton, ListGroup, ListRow, Screen } from "../../src/components/ui";
 import {
   HevyCategoryTile,
   HevyFilterBar,
-  HevyIconButton,
   HevyOutlineButton,
   HevyProgramCard,
-  HevyTrainerCard,
 } from "../../src/components/hevy-ui";
 import {
   EXPLORE_PROGRAMS,
@@ -24,25 +22,37 @@ import {
 } from "../../src/lib/explore-data";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
-import { trpc } from "../../src/lib/trpc";
+import { trpc, queryStaleTime } from "../../src/lib/trpc";
+import { tonnageFromKg, weightLabel } from "../../src/lib/units";
+import { useUserPreferences } from "../../src/lib/use-preferences";
 import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type FilterKey = "level" | "goal" | "equipment" | null;
 
-const PREVIEW_COUNT = 4;
+const PREVIEW_COUNT = 3;
+const ROUTINE_PREVIEW = 6;
 
-export default function WorkoutExploreScreen() {
+export default function WorkoutTabScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
+  const { weightUnit } = useUserPreferences();
   const [openFilter, setOpenFilter] = useState<FilterKey>(null);
   const [level, setLevel] = useState<ProgramLevel | null>(null);
   const [goal, setGoal] = useState<ProgramGoal | null>(null);
   const [equipment, setEquipment] = useState<ProgramEquipment | null>(null);
+  const [pendingRoutineId, setPendingRoutineId] = useState<string | null>(null);
+  const [pendingWorkoutId, setPendingWorkoutId] = useState<string | null>(null);
 
-  const { data: routines } = trpc.routine.list.useQuery();
+  const { data: routines } = trpc.routine.list.useQuery(undefined, {
+    staleTime: queryStaleTime.routineList,
+  });
+  const { data: recent } = trpc.workout.history.useQuery(
+    { limit: 8 },
+    { staleTime: queryStaleTime.workoutHistory },
+  );
 
   const discardActive = trpc.workout.discardActive.useMutation();
 
@@ -62,6 +72,46 @@ export default function WorkoutExploreScreen() {
       ),
   });
 
+  const startRoutine = trpc.workout.startFromRoutine.useMutation({
+    onSuccess: (workout) => {
+      setPendingRoutineId(null);
+      navigateToActiveWorkout(utils, router, workout);
+    },
+    onError: (e, vars) => {
+      setPendingRoutineId(null);
+      alertWorkoutConflict(
+        e,
+        () => router.push("/workout/active"),
+        async () => {
+          setPendingRoutineId(vars.routineId);
+          await discardActive.mutateAsync();
+          await utils.workout.active.invalidate();
+          startRoutine.mutate(vars);
+        },
+      );
+    },
+  });
+
+  const repeatWorkout = trpc.workout.startFromWorkout.useMutation({
+    onSuccess: (workout) => {
+      setPendingWorkoutId(null);
+      navigateToActiveWorkout(utils, router, workout);
+    },
+    onError: (e, vars) => {
+      setPendingWorkoutId(null);
+      alertWorkoutConflict(
+        e,
+        () => router.push("/workout/active"),
+        async () => {
+          setPendingWorkoutId(vars.workoutId);
+          await discardActive.mutateAsync();
+          await utils.workout.active.invalidate();
+          repeatWorkout.mutate(vars);
+        },
+      );
+    },
+  });
+
   const filteredPrograms = useMemo(() => {
     return EXPLORE_PROGRAMS.filter((p) => {
       if (level && p.level !== level) return false;
@@ -73,6 +123,7 @@ export default function WorkoutExploreScreen() {
 
   const previewPrograms = filteredPrograms.slice(0, PREVIEW_COUNT);
   const hasFilters = level !== null || goal !== null || equipment !== null;
+  const finishedRecent = (recent ?? []).filter((workout) => workout.finishedAt).slice(0, 3);
 
   const clearFilters = () => {
     setLevel(null);
@@ -151,89 +202,144 @@ export default function WorkoutExploreScreen() {
   return (
     <Screen scroll padded={false}>
       <View style={[styles.pad, { paddingBottom: insets.bottom + spacing.xxl }]}>
-        <View style={styles.topRow}>
-          <Pressable style={styles.myRoutinesBtn} onPress={() => router.push("/workout/my-routines")}>
-            <Ionicons name="folder-outline" size={18} color={colors.accent} />
-            <Text style={styles.myRoutinesText}>
-              My Routines{(routines?.length ?? 0) > 0 ? ` (${routines!.length})` : ""}
-            </Text>
-          </Pressable>
-          <View style={styles.topActions}>
-            <HevyIconButton icon="add-circle-outline" onPress={() => router.push("/routine/create")} />
-            <HevyIconButton
-              icon="play-circle-outline"
-              onPress={() => startEmpty.mutate({})}
-              disabled={startEmpty.isPending}
-            />
-          </View>
-        </View>
+        <Text style={styles.pageTitle}>Workout</Text>
 
-        <Text style={styles.pageTitle}>Workout Library</Text>
-
-        <HevyTrainerCard
-          onPress={() =>
-            Alert.alert("Trainer", "AI personalised programs are coming in a future update.")
-          }
+        <HevyButton
+          label="Start Empty Workout"
+          onPress={() => startEmpty.mutate({})}
+          loading={startEmpty.isPending}
         />
 
-        <Text style={styles.sectionTitle}>Programs</Text>
-        <HevyFilterBar chips={filterChips} />
-        {renderFilterOptions()}
-
-        <View style={styles.programList}>
-          {previewPrograms.map((program) => (
-            <HevyProgramCard
-              key={program.id}
-              badge={program.badge}
-              badgeColor={program.badgeColor}
-              title={program.title}
-              routineCount={program.routines.length}
-              onPress={() => router.push(`/workout/program/${program.id}`)}
-            />
-          ))}
-        </View>
-
-        {filteredPrograms.length > PREVIEW_COUNT ? (
-          <HevyOutlineButton
-            label={`Show all ${filteredPrograms.length} programs`}
-            onPress={() => router.push("/workout/programs")}
-          />
+        {finishedRecent.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Repeat Recent</Text>
+            <ListGroup>
+              {finishedRecent.map((workout, index) => (
+                <ListRow
+                  key={workout.id}
+                  title={workout.name ?? "Workout"}
+                  subtitle={`${workout.exerciseCount} exercises · ${Math.round(tonnageFromKg(workout.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
+                  icon="time-outline"
+                  last={index === finishedRecent.length - 1}
+                  onPress={
+                    pendingWorkoutId === workout.id
+                      ? undefined
+                      : () => {
+                          setPendingWorkoutId(workout.id);
+                          repeatWorkout.mutate({ workoutId: workout.id });
+                        }
+                  }
+                />
+              ))}
+            </ListGroup>
+          </View>
         ) : null}
 
-        <Text style={styles.sectionTitle}>Routines</Text>
-        <View style={styles.categoryGrid}>
-          {ROUTINE_CATEGORIES.map((cat) => (
-            <HevyCategoryTile
-              key={cat.id}
-              label={cat.label}
-              icon={cat.icon}
-              onPress={() => router.push(`/workout/category/${cat.id}`)}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>My Routines</Text>
+            <Pressable hitSlop={8} onPress={() => router.push("/workout/my-routines")}>
+              <Text style={styles.manageLink}>Manage</Text>
+            </Pressable>
+          </View>
+
+          {(routines ?? []).length === 0 ? (
+            <EmptyState
+              icon="barbell-outline"
+              title="No routines yet"
+              message="Create a template or save a workout as a routine."
             />
-          ))}
+          ) : (
+            <ListGroup>
+              {routines!.slice(0, ROUTINE_PREVIEW).map((routine, index, arr) => (
+                <ListRow
+                  key={routine.id}
+                  title={routine.name}
+                  subtitle={`${routine.exercises.length} exercises`}
+                  icon="barbell-outline"
+                  last={index === arr.length - 1}
+                  onPress={
+                    pendingRoutineId === routine.id
+                      ? undefined
+                      : () => {
+                          setPendingRoutineId(routine.id);
+                          startRoutine.mutate({ routineId: routine.id });
+                        }
+                  }
+                />
+              ))}
+            </ListGroup>
+          )}
+
+          {(routines?.length ?? 0) > ROUTINE_PREVIEW ? (
+            <HevyOutlineButton
+              label={`View all ${routines!.length} routines`}
+              onPress={() => router.push("/workout/my-routines")}
+            />
+          ) : (
+            <HevyOutlineButton label="Create routine" onPress={() => router.push("/routine/create")} />
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Explore Programs</Text>
+          <HevyFilterBar chips={filterChips} />
+          {renderFilterOptions()}
+
+          <View style={styles.programList}>
+            {previewPrograms.map((program) => (
+              <HevyProgramCard
+                key={program.id}
+                badge={program.badge}
+                badgeColor={program.badgeColor}
+                title={program.title}
+                routineCount={program.routines.length}
+                onPress={() => router.push(`/workout/program/${program.id}`)}
+              />
+            ))}
+          </View>
+
+          {filteredPrograms.length > PREVIEW_COUNT ? (
+            <HevyOutlineButton
+              label={`Show all ${filteredPrograms.length} programs`}
+              onPress={() => router.push("/workout/programs")}
+            />
+          ) : null}
+
+          <View style={styles.categoryGrid}>
+            {ROUTINE_CATEGORIES.map((cat) => (
+              <HevyCategoryTile
+                key={cat.id}
+                label={cat.label}
+                icon={cat.icon}
+                onPress={() => router.push(`/workout/category/${cat.id}`)}
+              />
+            ))}
+          </View>
         </View>
       </View>
     </Screen>
   );
 }
 
-const makeStyles = (colors: Palette) => StyleSheet.create({
-  pad: { paddingHorizontal: spacing.lg, gap: spacing.lg },
-  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  topActions: { flexDirection: "row", gap: spacing.sm },
-  myRoutinesBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-  myRoutinesText: { color: colors.accent, fontSize: 15, fontWeight: "600" },
-  pageTitle: { fontSize: 34, fontWeight: "800", color: colors.text, marginTop: -spacing.sm },
-  sectionTitle: { fontSize: 22, fontWeight: "700", color: colors.text },
-  filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  filterOption: {
-    backgroundColor: colors.surface,
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  filterOptionActive: { backgroundColor: colors.accent },
-  filterOptionText: { color: colors.text, fontSize: 14, fontWeight: "500" },
-  filterOptionTextActive: { color: "#fff" },
-  programList: { gap: spacing.md },
-  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "space-between" },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingTop: spacing.sm },
+    pageTitle: { fontSize: 34, fontWeight: "800", color: colors.text },
+    section: { gap: spacing.md },
+    sectionTitle: { fontSize: 22, fontWeight: "700", color: colors.text },
+    sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    manageLink: { fontSize: 15, fontWeight: "700", color: colors.accent },
+    filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    filterOption: {
+      backgroundColor: colors.surface,
+      borderRadius: 999,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+    },
+    filterOptionActive: { backgroundColor: colors.accent },
+    filterOptionText: { color: colors.text, fontSize: 14, fontWeight: "500" },
+    filterOptionTextActive: { color: "#fff" },
+    programList: { gap: spacing.md },
+    categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "space-between" },
+  });

@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HevyButton, ListGroup, ListRow, Screen, ThemedDialog } from "../../../src/components/ui";
 import { HevyProgramCard, HevyStackHeader } from "../../../src/components/hevy-ui";
-import { getProgram } from "../../../src/lib/explore-data";
+import { getProgram, type ProgramRoutineTemplate } from "../../../src/lib/explore-data";
 import { trpc } from "../../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../../src/lib/workout-navigation";
@@ -25,9 +25,11 @@ export default function ProgramDetailScreen() {
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const program = getProgram(id ?? "");
+  const { data: savedRoutines } = trpc.routine.list.useQuery();
   const [isStarting, setIsStarting] = useState(false);
-  const pendingRoutineId = useRef<string | null>(null);
-  const startingRef = useRef(false);
+  const [startingId, setStartingId] = useState<string | null>(null);
+  const [startingTemplateName, setStartingTemplateName] = useState<string | null>(null);
+  const importActionRef = useRef<"save-only" | "start-after">("save-only");
   const [dialog, setDialog] = useState<{
     title: string;
     message: string;
@@ -35,43 +37,70 @@ export default function ProgramDetailScreen() {
   } | null>(null);
 
   const discardActive = trpc.workout.discardActive.useMutation();
+
+  const programNamePrefix = useMemo(
+    () => (program ? program.title.replace(/\s*\([^)]*\)\s*/g, "").trim() : ""),
+    [program],
+  );
+
+  const findSavedRoutine = (templateName: string) => {
+    const expectedName = `${programNamePrefix} · ${templateName}`;
+    return savedRoutines?.find((routine) => routine.name === expectedName);
+  };
+
   const startRoutine = trpc.workout.startFromRoutine.useMutation({
     onSuccess: (workout) => {
-      startingRef.current = false;
+      setStartingId(null);
+      setStartingTemplateName(null);
       setIsStarting(false);
       navigateToActiveWorkout(utils, router, workout);
     },
-    onError: (e) => {
-      startingRef.current = false;
+    onError: (e, vars) => {
+      setStartingId(null);
+      setStartingTemplateName(null);
       setIsStarting(false);
       alertWorkoutConflict(
         e,
         () => router.push("/workout/active"),
         async () => {
-          const routineId = pendingRoutineId.current;
-          if (!routineId) return;
-          startingRef.current = true;
+          setStartingId(vars.routineId);
           setIsStarting(true);
           await discardActive.mutateAsync();
           await utils.workout.active.invalidate();
-          startRoutine.mutate({ routineId });
+          startRoutine.mutate(vars);
         },
       );
     },
   });
 
-  const startFirstRoutine = (routineId: string) => {
-    if (startingRef.current || isStarting || startRoutine.isPending) return;
-    startingRef.current = true;
+  const beginStart = (routineId: string) => {
+    if (isStarting || startRoutine.isPending) return;
     setIsStarting(true);
-    pendingRoutineId.current = routineId;
+    setStartingId(routineId);
     setDialog(null);
     startRoutine.mutate({ routineId });
+  };
+
+  const startFirstRoutine = (routineId: string) => {
+    beginStart(routineId);
   };
 
   const importProgram = trpc.routine.importProgram.useMutation({
     onSuccess: async (result) => {
       await utils.routine.list.invalidate();
+
+      if (importActionRef.current === "start-after") {
+        importActionRef.current = "save-only";
+        const saved = result.routines[0];
+        if (saved) {
+          beginStart(saved.id);
+        } else {
+          setStartingTemplateName(null);
+          Alert.alert("Could not save", "No matching exercises found in the library.");
+        }
+        return;
+      }
+
       const missing = result.missingExerciseNames.length;
       if (result.saved > 0) {
         const firstRoutine = result.routines[0];
@@ -105,6 +134,8 @@ export default function ProgramDetailScreen() {
       }
     },
     onError: (error) => {
+      importActionRef.current = "save-only";
+      setStartingTemplateName(null);
       setDialog({
         title: "Error",
         message: error.message,
@@ -114,6 +145,44 @@ export default function ProgramDetailScreen() {
   });
 
   const busy = importProgram.isPending || isStarting || startRoutine.isPending;
+
+  const saveAndStartRoutine = (routine: ProgramRoutineTemplate) => {
+    if (busy) return;
+    setStartingTemplateName(routine.name);
+    importActionRef.current = "start-after";
+    importProgram.mutate({
+      programTitle: program!.title,
+      routines: [{ name: routine.name, exerciseNames: routine.exerciseNames }],
+    });
+  };
+
+  const handleRoutinePress = (routine: ProgramRoutineTemplate) => {
+    if (busy) return;
+
+    const saved = findSavedRoutine(routine.name);
+    if (saved) {
+      Alert.alert(`Start ${routine.name}?`, undefined, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Start", onPress: () => beginStart(saved.id) },
+      ]);
+      return;
+    }
+
+    Alert.alert(
+      "Save & Start?",
+      `Add "${routine.name}" to My Routines and start now?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Save to My Routines & Start", onPress: () => saveAndStartRoutine(routine) },
+      ],
+    );
+  };
+
+  const isRoutineRowBusy = (routine: ProgramRoutineTemplate) => {
+    if (startingTemplateName === routine.name) return true;
+    const saved = findSavedRoutine(routine.name);
+    return saved != null && startingId === saved.id;
+  };
 
   if (!program) {
     return (
@@ -126,6 +195,7 @@ export default function ProgramDetailScreen() {
 
   const saveProgram = () => {
     if (busy) return;
+    importActionRef.current = "save-only";
     importProgram.mutate({
       programTitle: program.title,
       routines: program.routines.map((routine) => ({
@@ -174,9 +244,12 @@ export default function ProgramDetailScreen() {
             <ListRow
               key={routine.name}
               title={routine.name}
-              subtitle={`${routine.exerciseNames.length} exercises`}
+              subtitle={`${routine.exerciseNames.length} exercises · tap to start`}
               icon="list-outline"
               last={index === program.routines.length - 1}
+              onPress={
+                isRoutineRowBusy(routine) ? undefined : () => handleRoutinePress(routine)
+              }
             />
           ))}
         </ListGroup>

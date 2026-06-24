@@ -21,7 +21,9 @@ import {
   HevyTopBar,
 } from "../../src/components/hevy-ui";
 import { useAuth } from "../../src/lib/auth-context";
-import { trpc } from "../../src/lib/trpc";
+import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
+import { formatWeight, tonnageFromKg, weightLabel } from "../../src/lib/units";
+import { useUserPreferences } from "../../src/lib/use-preferences";
 import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type ChartMode = "duration" | "volume" | "reps";
@@ -31,11 +33,18 @@ export default function ProfileScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { signOut } = useAuth();
+  const { weightUnit } = useUserPreferences();
   const [chartMode, setChartMode] = useState<ChartMode>("volume");
-  const { data: user } = trpc.auth.me.useQuery();
-  const { data: stats } = trpc.auth.stats.useQuery();
-  const { data: volumeHistory, isLoading: chartLoading } = trpc.progress.volumeHistory.useQuery({ limit: 8 });
-  const { data: workouts, isLoading } = trpc.workout.history.useQuery({ limit: 6 });
+  const { data: user } = trpc.auth.me.useQuery(undefined, authMeQueryOptions);
+  const { data: stats } = trpc.auth.stats.useQuery(undefined, { staleTime: queryStaleTime.authStats });
+  const { data: volumeHistory, isLoading: chartLoading } = trpc.progress.volumeHistory.useQuery(
+    { limit: 8 },
+    { staleTime: queryStaleTime.progress },
+  );
+  const { data: workouts, isLoading } = trpc.workout.history.useQuery(
+    { limit: 6 },
+    { staleTime: queryStaleTime.workoutHistory },
+  );
   const utils = trpc.useUtils();
 
   useEffect(() => {
@@ -117,7 +126,11 @@ export default function ProfileScreen() {
             <Text style={styles.noDataText}>No data yet</Text>
           </View>
         ) : (
-          <BarChart data={chartData} color={colors.accent} />
+          <BarChart
+            data={chartData}
+            color={colors.accent}
+            unit={chartMode === "volume" ? "kg" : chartMode === "duration" ? "m" : ""}
+          />
         )}
 
         <Text style={styles.sectionLabel}>Dashboard</Text>
@@ -149,7 +162,7 @@ export default function ProfileScreen() {
               <ListRow
                 key={item.id}
                 title={item.name ?? "Workout"}
-                subtitle={`${Math.round(item.volume)} kg · ${item.finishedAt ? new Date(item.finishedAt).toLocaleDateString() : ""}`}
+                subtitle={`${Math.round(tonnageFromKg(item.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)} · ${item.finishedAt ? new Date(item.finishedAt).toLocaleDateString() : ""}`}
                 onPress={() => router.push(`/workout/${item.id}`)}
                 last={index === (workouts?.length ?? 0) - 1}
               />

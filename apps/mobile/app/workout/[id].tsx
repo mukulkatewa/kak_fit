@@ -9,7 +9,7 @@ import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { formatWeight, fromKg, weightLabel } from "../../src/lib/units";
+import { formatWeight, sumWorkoutSetVolume, tonnageFromKg, weightLabel } from "../../src/lib/units";
 import {
   radius,
   spacing,
@@ -159,12 +159,7 @@ export default function WorkoutDetailScreen() {
     );
   }
 
-  const totalVolume = workout.exercises.reduce(
-    (sum, ex) =>
-      sum +
-      ex.sets.reduce((s, set) => s + (set.isCompleted ? (set.weight ?? 0) * (set.reps ?? 0) : 0), 0),
-    0,
-  );
+  const totalVolume = sumWorkoutSetVolume(workout.exercises, weightUnit);
   const totalSets = workout.exercises.reduce(
     (sum, ex) => sum + ex.sets.filter((s) => s.isCompleted).length,
     0,
@@ -244,7 +239,7 @@ export default function WorkoutDetailScreen() {
         <Stat label="Duration" value={formatDuration(workout.startedAt, workout.finishedAt)} />
         <Stat
           label="Volume"
-          value={`${Math.round(fromKg(totalVolume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
+          value={`${Math.round(totalVolume).toLocaleString()} ${weightLabel(weightUnit)}`}
         />
         <Stat label="Sets" value={String(totalSets)} />
       </View>

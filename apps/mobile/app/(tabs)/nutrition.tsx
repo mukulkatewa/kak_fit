@@ -101,6 +101,7 @@ export default function NutritionScreen() {
 
   const handleLogFood = (item: NonNullable<typeof foods>[number]) => {
     const key = `${item.source}-${item.fdcId}-${item.name}`;
+    if (loggingKey === key || logMeal.isPending) return;
     setLoggingKey(key);
     logMeal.mutate({
       mealType,
@@ -332,7 +333,7 @@ export default function NutritionScreen() {
                       title={item.name}
                       subtitle={`${Math.round(item.calories)} cal · P${Math.round(item.protein)} C${Math.round(item.carbs)} F${Math.round(item.fat)} · ${item.source}`}
                       icon="restaurant-outline"
-                      onPress={() => handleLogFood(item)}
+                      onPress={loggingKey === key ? undefined : () => handleLogFood(item)}
                       right={
                         <Text style={styles.addLabel}>
                           {loggingKey === key ? "…" : "+100g"}

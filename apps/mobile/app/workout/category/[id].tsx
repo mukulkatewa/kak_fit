@@ -25,7 +25,9 @@ export default function CategoryDetailScreen() {
   const utils = trpc.useUtils();
   const category = getCategory(id ?? "");
   const [saving, setSaving] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
   const pendingRoutineId = useRef<string | null>(null);
+  const startingRef = useRef(false);
   const [dialog, setDialog] = useState<{
     title: string;
     message: string;
@@ -36,23 +38,30 @@ export default function CategoryDetailScreen() {
   const createRoutine = trpc.routine.create.useMutation();
   const startRoutine = trpc.workout.startFromRoutine.useMutation({
     onSuccess: (workout) => {
+      startingRef.current = false;
+      setIsStarting(false);
       navigateToActiveWorkout(utils, router, workout);
     },
-    onError: (e) =>
+    onError: (e) => {
+      startingRef.current = false;
+      setIsStarting(false);
       alertWorkoutConflict(
         e,
         () => router.push("/workout/active"),
         async () => {
           const routineId = pendingRoutineId.current;
           if (!routineId) return;
+          startingRef.current = true;
+          setIsStarting(true);
           await discardActive.mutateAsync();
           await utils.workout.active.invalidate();
           startRoutine.mutate({ routineId });
         },
-      ),
+      );
+    },
   });
 
-  const busy = saving !== null || createRoutine.isPending || startRoutine.isPending;
+  const busy = saving !== null || createRoutine.isPending || isStarting || startRoutine.isPending;
 
   if (!category) {
     return (
@@ -64,6 +73,9 @@ export default function CategoryDetailScreen() {
   }
 
   const startWorkout = (routineId: string) => {
+    if (startingRef.current || isStarting || startRoutine.isPending) return;
+    startingRef.current = true;
+    setIsStarting(true);
     pendingRoutineId.current = routineId;
     setDialog(null);
     startRoutine.mutate({ routineId });
@@ -153,10 +165,12 @@ export default function CategoryDetailScreen() {
       </View>
 
       <ThemedDialog
-        visible={dialog !== null}
+        visible={dialog !== null && !isStarting}
         title={dialog?.title ?? ""}
         message={dialog?.message}
-        onDismiss={() => setDialog(null)}
+        onDismiss={() => {
+          if (!isStarting) setDialog(null);
+        }}
         buttons={dialog?.buttons ?? [{ label: "OK", variant: "primary" }]}
       />
     </Screen>

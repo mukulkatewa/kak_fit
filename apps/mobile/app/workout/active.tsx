@@ -13,7 +13,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { RouterOutputs } from "@kak-fit/api/router";
+import {
+  addSetToWorkout,
+  patchExerciseNotes,
+  patchSetInWorkout,
+  removeSetFromWorkout,
+  type ActiveWorkout,
+} from "../../src/lib/active-workout-cache";
 import {
   Button,
   Card,
@@ -27,7 +33,7 @@ import { trpc } from "../../src/lib/trpc";
 import { parseOptionalNumber } from "../../src/lib/workout-errors";
 import { cycleRpe, formatRpe } from "../../src/lib/rpe";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { fromKg, toKg, weightLabel } from "../../src/lib/units";
+import { fromKg, sumWorkoutSetVolume, toKg, tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { formatRestTime, useRestTimer } from "../../src/lib/rest-timer";
 import {
   enqueueWorkoutMutation,
@@ -47,71 +53,17 @@ const SET_TYPE_LABEL: Record<SetType, string> = {
   FAILURE: "F",
 };
 
+function cycleSetType(current: SetType): SetType {
+  const idx = SET_TYPES.indexOf(current);
+  return SET_TYPES[(idx + 1) % SET_TYPES.length]!;
+}
+
 const setTypeColor = (colors: Palette): Record<SetType, string> => ({
   NORMAL: colors.textMuted,
   WARMUP: colors.gold,
   DROP: colors.accentBright,
   FAILURE: colors.danger,
 });
-
-type ActiveWorkout = NonNullable<RouterOutputs["workout"]["active"]>;
-type WorkoutSet = RouterOutputs["workout"]["updateSet"];
-type WorkoutExercise = RouterOutputs["workout"]["addExercise"];
-
-function patchSetInWorkout(workout: ActiveWorkout, updatedSet: WorkoutSet): ActiveWorkout {
-  return {
-    ...workout,
-    exercises: workout.exercises.map((exercise) => ({
-      ...exercise,
-      sets: exercise.sets.map((set) => (set.id === updatedSet.id ? { ...set, ...updatedSet } : set)),
-    })),
-  };
-}
-
-function addSetToWorkout(
-  workout: ActiveWorkout,
-  workoutExerciseId: string,
-  newSet: WorkoutSet,
-): ActiveWorkout {
-  return {
-    ...workout,
-    exercises: workout.exercises.map((exercise) =>
-      exercise.id === workoutExerciseId
-        ? { ...exercise, sets: [...exercise.sets, newSet] }
-        : exercise,
-    ),
-  };
-}
-
-function removeSetFromWorkout(workout: ActiveWorkout, setId: string): ActiveWorkout {
-  return {
-    ...workout,
-    exercises: workout.exercises.map((exercise) => ({
-      ...exercise,
-      sets: exercise.sets.filter((set) => set.id !== setId),
-    })),
-  };
-}
-
-function patchExerciseNotes(
-  workout: ActiveWorkout,
-  workoutExerciseId: string,
-  notes: string | null,
-): ActiveWorkout {
-  return {
-    ...workout,
-    exercises: workout.exercises.map((exercise) =>
-      exercise.id === workoutExerciseId ? { ...exercise, notes } : exercise,
-    ),
-  };
-}
-
-function addExerciseToWorkout(workout: ActiveWorkout, exercise: WorkoutExercise): ActiveWorkout {
-  return {
-    ...workout,
-    exercises: [...workout.exercises, exercise],
-  };
-}
 
 export default function ActiveWorkoutScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -157,13 +109,18 @@ export default function ActiveWorkoutScreen() {
     async function syncOffline() {
       const before = await getQueuedWorkoutMutationCount();
       if (mounted) setPendingOffline(before);
-      const result = await syncQueuedWorkoutMutations();
+      const result = await syncQueuedWorkoutMutations({
+        invalidateActiveWorkout: () => utils.workout.active.invalidate(),
+      });
       if (!mounted) return;
       setPendingOffline(result.remaining);
       if (result.synced > 0) {
         refetch();
         utils.workout.history.invalidate();
         utils.personalRecord.list.invalidate();
+      }
+      if (result.syncFailed) {
+        Alert.alert("Sync failed", "Some workout changes couldn't be saved to the server.");
       }
     }
     syncOffline().catch(() => undefined);
@@ -240,16 +197,11 @@ export default function ActiveWorkoutScreen() {
     updateSet.mutate({ setId, ...data });
   };
 
-  const cycleSetType = (current: SetType): SetType => {
-    const idx = SET_TYPES.indexOf(current);
-    return SET_TYPES[(idx + 1) % SET_TYPES.length]!;
-  };
-
   const addExercise = trpc.workout.addExercise.useMutation({
-    onSuccess: (exercise) => {
+    onSuccess: () => {
       setPickerOpen(false);
       setSearch("");
-      patchActiveWorkout((workout) => addExerciseToWorkout(workout, exercise));
+      void refetch();
       utils.workout.previousSets.invalidate();
     },
     onError: async (e, variables) => {
@@ -279,7 +231,7 @@ export default function ActiveWorkoutScreen() {
       const summary = result.summary;
       Alert.alert(
         "Workout saved",
-        `${summary.completedSets} sets · ${summary.totalVolume} kg · ${summary.durationMinutes} min${
+        `${summary.completedSets} sets · ${Math.round(tonnageFromKg(summary.totalVolume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)} · ${summary.durationMinutes} min${
           prCount > 0 ? ` · ${prCount} PR${prCount > 1 ? "s" : ""}` : ""
         }`,
         [{ text: "Done", onPress: () => router.back() }],
@@ -291,6 +243,7 @@ export default function ActiveWorkoutScreen() {
         return;
       }
       await enqueueWorkoutMutation("finishWorkout", variables);
+      utils.workout.active.setData(undefined, null);
       setPendingOffline(await getQueuedWorkoutMutationCount());
       Alert.alert("Saved offline", "This workout will sync automatically when the API is reachable.", [
         { text: "Done", onPress: () => router.back() },
@@ -307,16 +260,8 @@ export default function ActiveWorkoutScreen() {
 
   const volume = useMemo(() => {
     if (!workout) return 0;
-    return workout.exercises.reduce(
-      (sum, ex) =>
-        sum +
-        ex.sets.reduce(
-          (s, set) => s + (set.isCompleted ? (set.weight ?? 0) * (set.reps ?? 0) : 0),
-          0,
-        ),
-      0,
-    );
-  }, [workout]);
+    return sumWorkoutSetVolume(workout.exercises, weightUnit);
+  }, [workout, weightUnit]);
 
   const completedSetCount = useMemo(() => {
     if (!workout) return 0;
@@ -379,7 +324,9 @@ export default function ActiveWorkoutScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.accent} />
         </Pressable>
-        <Text style={styles.volume}>{Math.round(volume)} kg</Text>
+        <Text style={styles.volume}>
+          {Math.round(volume).toLocaleString()} {weightLabel(weightUnit)}
+        </Text>
       </View>
 
       <Text style={styles.workoutTitle}>{workout.name ?? "Workout"}</Text>
@@ -406,9 +353,6 @@ export default function ActiveWorkoutScreen() {
             notes={exercise.notes ?? null}
             previous={previousMap?.[exercise.exercise.id] ?? null}
             onUpdateSet={handleSetUpdate}
-            onCycleSetType={(setId, setType) =>
-              handleSetUpdate(setId, { setType: cycleSetType(setType) })
-            }
             onAddSet={() => addSet.mutate({ workoutExerciseId: exercise.id })}
             onDeleteSet={(setId) => deleteSet.mutate({ setId })}
             onUpdateNotes={(notes) => updateExerciseNotes.mutate({ workoutExerciseId: exercise.id, notes })}
@@ -452,7 +396,7 @@ export default function ActiveWorkoutScreen() {
             <SectionHeader title="Finish Workout" />
             <View style={styles.summaryGrid}>
               <SummaryItem label="Sets" value={completedSetCount} />
-              <SummaryItem label="Volume" value={`${Math.round(volume)} kg`} />
+              <SummaryItem label="Volume" value={`${Math.round(volume).toLocaleString()} ${weightLabel(weightUnit)}`} />
               <SummaryItem label="Time" value={`${elapsedMinutes} min`} />
             </View>
             <TextInput
@@ -527,7 +471,6 @@ function ExerciseBlock({
   notes,
   previous,
   onUpdateSet,
-  onCycleSetType,
   onAddSet,
   onDeleteSet,
   onUpdateNotes,
@@ -551,7 +494,6 @@ function ExerciseBlock({
     setId: string,
     data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType; rpe?: number | null },
   ) => void;
-  onCycleSetType: (setId: string, setType: SetType) => void;
   onAddSet: () => void;
   onDeleteSet: (setId: string) => void;
   onUpdateNotes: (notes: string | null) => void;
@@ -638,7 +580,6 @@ function ExerciseBlock({
           weightUnit={weightUnit}
           previousValues={pickPreviousForSet(previous, set.setNumber)}
           onUpdateSet={onUpdateSet}
-          onCycleSetType={onCycleSetType}
           onDeleteSet={onDeleteSet}
         />
       ))}
@@ -655,7 +596,6 @@ function SetRow({
   weightUnit,
   previousValues,
   onUpdateSet,
-  onCycleSetType,
   onDeleteSet,
 }: {
   set: {
@@ -673,7 +613,6 @@ function SetRow({
     setId: string,
     data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType; rpe?: number | null },
   ) => void;
-  onCycleSetType: (setId: string, setType: SetType) => void;
   onDeleteSet: (setId: string) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
@@ -689,12 +628,16 @@ function SetRow({
     setReps(set.reps?.toString() ?? "");
   }, [set.weight, set.reps, weightUnit]);
 
-  const commit = () => {
+  const flushDraft = () => {
     const w = parseOptionalNumber(weight);
-    onUpdateSet(set.id, {
+    return {
       weight: w !== undefined ? toKg(w, weightUnit) : undefined,
       reps: parseOptionalNumber(reps),
-    });
+    };
+  };
+
+  const commit = () => {
+    onUpdateSet(set.id, flushDraft());
   };
 
   const copyPrevious = () => {
@@ -714,7 +657,10 @@ function SetRow({
 
   return (
     <View style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
-      <Pressable onPress={() => onCycleSetType(set.id, set.setType)} style={styles.setTypeBtn}>
+      <Pressable
+        onPress={() => onUpdateSet(set.id, { ...flushDraft(), setType: cycleSetType(set.setType) })}
+        style={styles.setTypeBtn}
+      >
         <Text style={[styles.setNumber, { color: setTypeColor(colors)[set.setType] }]}>{typeLabel}</Text>
       </Pressable>
 
@@ -747,14 +693,16 @@ function SetRow({
         placeholderTextColor={colors.textDim}
       />
       <Pressable
-        onPress={() => onUpdateSet(set.id, { rpe: cycleRpe(set.rpe) })}
+        onPress={() => onUpdateSet(set.id, { ...flushDraft(), rpe: cycleRpe(set.rpe) })}
         style={styles.rpeCell}
       >
         <Text style={styles.rpeText}>{formatRpe(set.rpe)}</Text>
       </Pressable>
       <Pressable
         style={[styles.check, set.isCompleted && styles.checkDone]}
-        onPress={() => onUpdateSet(set.id, { isCompleted: !set.isCompleted })}
+        onPress={() =>
+          onUpdateSet(set.id, { ...flushDraft(), isCompleted: !set.isCompleted })
+        }
       >
         {set.isCompleted ? (
           <Ionicons name="checkmark" size={18} color={colors.accent} />

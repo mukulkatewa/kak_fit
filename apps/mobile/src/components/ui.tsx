@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
   type PressableProps,
+  type ScrollViewProps,
   type TextInputProps,
   type ViewStyle,
 } from "react-native";
@@ -31,11 +32,13 @@ export function Screen({
   scroll,
   style,
   padded = true,
+  refreshControl,
 }: {
   children: React.ReactNode;
   scroll?: boolean;
   style?: ViewStyle;
   padded?: boolean;
+  refreshControl?: ScrollViewProps["refreshControl"];
 }) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -51,6 +54,7 @@ export function Screen({
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
+          refreshControl={refreshControl}
         >
           {content}
         </ScrollView>

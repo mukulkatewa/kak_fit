@@ -25,7 +25,9 @@ export default function ProgramDetailScreen() {
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const program = getProgram(id ?? "");
+  const [isStarting, setIsStarting] = useState(false);
   const pendingRoutineId = useRef<string | null>(null);
+  const startingRef = useRef(false);
   const [dialog, setDialog] = useState<{
     title: string;
     message: string;
@@ -35,21 +37,37 @@ export default function ProgramDetailScreen() {
   const discardActive = trpc.workout.discardActive.useMutation();
   const startRoutine = trpc.workout.startFromRoutine.useMutation({
     onSuccess: (workout) => {
+      startingRef.current = false;
+      setIsStarting(false);
       navigateToActiveWorkout(utils, router, workout);
     },
-    onError: (e) =>
+    onError: (e) => {
+      startingRef.current = false;
+      setIsStarting(false);
       alertWorkoutConflict(
         e,
         () => router.push("/workout/active"),
         async () => {
           const routineId = pendingRoutineId.current;
           if (!routineId) return;
+          startingRef.current = true;
+          setIsStarting(true);
           await discardActive.mutateAsync();
           await utils.workout.active.invalidate();
           startRoutine.mutate({ routineId });
         },
-      ),
+      );
+    },
   });
+
+  const startFirstRoutine = (routineId: string) => {
+    if (startingRef.current || isStarting || startRoutine.isPending) return;
+    startingRef.current = true;
+    setIsStarting(true);
+    pendingRoutineId.current = routineId;
+    setDialog(null);
+    startRoutine.mutate({ routineId });
+  };
 
   const importProgram = trpc.routine.importProgram.useMutation({
     onSuccess: async (result) => {
@@ -68,9 +86,7 @@ export default function ProgramDetailScreen() {
               variant: "primary",
               onPress: () => {
                 if (!firstRoutine) return;
-                pendingRoutineId.current = firstRoutine.id;
-                setDialog(null);
-                startRoutine.mutate({ routineId: firstRoutine.id });
+                startFirstRoutine(firstRoutine.id);
               },
             },
             {
@@ -97,7 +113,7 @@ export default function ProgramDetailScreen() {
     },
   });
 
-  const busy = importProgram.isPending || startRoutine.isPending;
+  const busy = importProgram.isPending || isStarting || startRoutine.isPending;
 
   if (!program) {
     return (
@@ -179,10 +195,12 @@ export default function ProgramDetailScreen() {
       </View>
 
       <ThemedDialog
-        visible={dialog !== null}
+        visible={dialog !== null && !isStarting}
         title={dialog?.title ?? ""}
         message={dialog?.message}
-        onDismiss={() => setDialog(null)}
+        onDismiss={() => {
+          if (!isStarting) setDialog(null);
+        }}
         buttons={dialog?.buttons ?? [{ label: "OK", variant: "primary" }]}
       />
     </Screen>

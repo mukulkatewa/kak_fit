@@ -12,6 +12,8 @@ export async function getQueuedWorkoutMutationCount() {
   return 0;
 }
 
-export async function syncQueuedWorkoutMutations() {
-  return { synced: 0, remaining: 0 };
+export async function syncQueuedWorkoutMutations(_options?: {
+  invalidateActiveWorkout?: () => void | Promise<void>;
+}) {
+  return { synced: 0, remaining: 0, syncFailed: false, dropped: 0 };
 }

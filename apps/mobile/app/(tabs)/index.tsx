@@ -4,9 +4,11 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar, HevyButton, Screen } from "../../src/components/ui";
 import { LineChart } from "../../src/components/charts";
 import { FeedSkeleton } from "../../src/components/skeleton";
-import { trpc, authMeQueryOptions, dashboardCacheOptions } from "../../src/lib/trpc";
+import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
+import { tonnageFromKg, weightLabel } from "../../src/lib/units";
+import { useUserPreferences } from "../../src/lib/use-preferences";
 import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 export default function DashboardScreen() {
@@ -14,15 +16,20 @@ export default function DashboardScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const utils = trpc.useUtils();
+  const { weightUnit } = useUserPreferences();
   const { data: me } = trpc.auth.me.useQuery(undefined, authMeQueryOptions);
-  const { data: stats } = trpc.auth.stats.useQuery();
+  const { data: stats } = trpc.auth.stats.useQuery(undefined, { staleTime: queryStaleTime.authStats });
   const { data: active, isPending: activePending } = trpc.workout.active.useQuery(undefined, { staleTime: 0 });
   const { data: recent, isPending: recentPending } = trpc.workout.history.useQuery(
     { limit: 8 },
-    dashboardCacheOptions,
+    { staleTime: queryStaleTime.workoutHistory },
   );
-  const { data: weeklyChart } = trpc.progress.weeklyVolume.useQuery(undefined, dashboardCacheOptions);
-  const { data: routines, isPending: routinesPending } = trpc.routine.list.useQuery();
+  const { data: weeklyChart } = trpc.progress.weeklyVolume.useQuery(undefined, {
+    staleTime: queryStaleTime.weeklyVolume,
+  });
+  const { data: routines, isPending: routinesPending } = trpc.routine.list.useQuery(undefined, {
+    staleTime: queryStaleTime.routineList,
+  });
 
   const initialLoading =
     (activePending && active === undefined) || (recentPending && recent === undefined);
@@ -64,7 +71,9 @@ export default function DashboardScreen() {
   // Weekly progress — all workouts in the last 7 calendar days
   const finished = (recent ?? []).filter((w) => w.finishedAt);
   const chartData = weeklyChart ?? [];
-  const totalVolume = chartData.reduce((sum, d) => sum + d.value, 0);
+  const totalVolumeKg = chartData.reduce((sum, d) => sum + d.value, 0);
+  const totalVolume = tonnageFromKg(totalVolumeKg, weightUnit);
+  const volumeUnit = weightLabel(weightUnit);
 
   return (
     <Screen scroll padded={false}>
@@ -95,7 +104,7 @@ export default function DashboardScreen() {
               <Text style={styles.heroTitle}>Weekly Progress</Text>
               <View style={styles.heroBigRow}>
                 <Text style={styles.heroBig}>{Math.round(totalVolume).toLocaleString()}</Text>
-                <Text style={styles.heroUnit}>kg</Text>
+                <Text style={styles.heroUnit}>{volumeUnit}</Text>
               </View>
               <Text style={styles.heroSub}>
                 {totalVolume > 0 ? "lifted in the last 7 days" : "No workouts yet this week"}
@@ -157,7 +166,7 @@ export default function DashboardScreen() {
                     key={w.id}
                     icon="fitness"
                     title={w.name ?? "Workout"}
-                    subtitle={`${w.exerciseCount} exercises · ${Math.round(w.volume)} kg`}
+                    subtitle={`${w.exerciseCount} exercises · ${Math.round(tonnageFromKg(w.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
                     onPress={() => router.push(`/workout/${w.id}`)}
                   />
                 ))}

@@ -11,11 +11,12 @@ import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
+import { AuthSessionValidator } from "../src/lib/auth-session-validator";
 import { AuthProvider, useAuth } from "../src/lib/auth-context";
-import { createQueryClient, createTRPCClient, trpc } from "../src/lib/trpc";
+import { queryClient } from "../src/lib/query-client";
+import { createTRPCClient, trpc } from "../src/lib/trpc";
 import { ThemeProvider, useTheme } from "../src/lib/theme";
 
-const queryClient = createQueryClient();
 const trpcClient = createTRPCClient();
 
 function AuthGate({ children }: { children: React.ReactNode }) {
@@ -100,6 +101,7 @@ export default function RootLayout() {
         <AuthProvider>
           <trpc.Provider client={trpcClient} queryClient={queryClient}>
             <QueryClientProvider client={queryClient}>
+              <AuthSessionValidator />
               <ThemedApp />
             </QueryClientProvider>
           </trpc.Provider>

@@ -4,18 +4,50 @@ import { apiHeaders, getApiUrl } from "./api-client";
 
 const TOKEN_KEY = "kak_fit_token";
 
+/** In-memory cache so native can read the token synchronously after first hydrate. */
+let cachedToken: string | null | undefined =
+  Platform.OS === "web"
+    ? (globalThis.localStorage?.getItem(TOKEN_KEY) ?? null)
+    : undefined;
+
 export type AuthUser = {
   id: string;
   name: string;
   email: string;
 };
 
-async function readStoredToken(): Promise<string | null> {
+/** Synchronous token read — localStorage on web, memory cache on native after hydrate. */
+export function getTokenSync(): string | null {
   if (Platform.OS === "web") {
     return globalThis.localStorage?.getItem(TOKEN_KEY) ?? null;
   }
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  return cachedToken ?? null;
 }
+
+/** Whether the token cache has been populated (always true on web). */
+export function hasKnownTokenState(): boolean {
+  return Platform.OS === "web" || cachedToken !== undefined;
+}
+
+async function readStoredToken(): Promise<string | null> {
+  if (Platform.OS === "web") {
+    const token = globalThis.localStorage?.getItem(TOKEN_KEY) ?? null;
+    cachedToken = token;
+    return token;
+  }
+  const token = await SecureStore.getItemAsync(TOKEN_KEY);
+  cachedToken = token;
+  return token;
+}
+
+/** Started at module load so SecureStore is read before the first React paint. */
+export const tokenHydrationPromise: Promise<string | null> =
+  Platform.OS === "web"
+    ? Promise.resolve(getTokenSync())
+    : SecureStore.getItemAsync(TOKEN_KEY).then((token) => {
+        cachedToken = token;
+        return token;
+      });
 
 async function writeStoredToken(token: string): Promise<void> {
   if (Platform.OS === "web") {
@@ -34,14 +66,19 @@ async function removeStoredToken(): Promise<void> {
 }
 
 export async function getToken(): Promise<string | null> {
+  if (hasKnownTokenState()) {
+    return getTokenSync();
+  }
   return readStoredToken();
 }
 
 export async function setToken(token: string): Promise<void> {
+  cachedToken = token;
   await writeStoredToken(token);
 }
 
 export async function clearToken(): Promise<void> {
+  cachedToken = null;
   await removeStoredToken();
 }
 

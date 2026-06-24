@@ -1,10 +1,13 @@
 import { usePathname, useRouter } from "expo-router";
-import type { RouterOutputs } from "@kak-fit/api/router";
 import { useEffect, useMemo, useRef } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth-context";
+import {
+  patchSetInWorkout,
+  type ActiveWorkout,
+} from "../lib/active-workout-cache";
 import {
   enqueueWorkoutMutation,
   isNetworkError,
@@ -14,8 +17,6 @@ import { trpc } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
 
 const TAB_BAR_HEIGHT = Platform.select({ ios: 49, default: 56 });
-
-type ActiveWorkout = NonNullable<RouterOutputs["workout"]["active"]>;
 
 function getSetProgress(workout: ActiveWorkout) {
   for (const ex of workout.exercises) {
@@ -80,13 +81,18 @@ export function ActiveWorkoutOverlay() {
   const startRest = useRestTimer((s) => s.start);
 
   const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
-    refetchInterval: (data) => (data ? 5000 : 30000),
+    refetchInterval: (query) => (query.state.data ? 5000 : 30000),
     retry: false,
     enabled: isAuthenticated,
   });
 
   const updateSet = trpc.workout.updateSet.useMutation({
-    onSuccess: () => utils.workout.active.invalidate(),
+    onSuccess: (updatedSet) => {
+      utils.workout.active.setData(undefined, (current) => {
+        if (!current) return current;
+        return patchSetInWorkout(current, updatedSet);
+      });
+    },
     onError: async (e, variables) => {
       if (isNetworkError(e)) {
         await enqueueWorkoutMutation("updateSet", variables);

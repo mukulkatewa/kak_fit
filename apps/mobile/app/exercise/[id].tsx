@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { BarChart } from "../../src/components/charts";
 import { Button, EmptyState, Header, ListGroup, ListRow, Screen, SectionHeader } from "../../src/components/ui";
-import { trpc } from "../../src/lib/trpc";
+import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { radius, useTheme, useThemedStyles, spacing, type Palette } from "../../src/lib/theme";
 
 export default function ExerciseDetailScreen() {
@@ -12,14 +12,20 @@ export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: exercise, isLoading, isError } = trpc.exercise.getById.useQuery(
     { id: id! },
-    { enabled: !!id },
+    { enabled: !!id, staleTime: queryStaleTime.exerciseDetail },
   );
   const { data: chart } = trpc.progress.exerciseChart.useQuery(
     { exerciseId: id!, limit: 10 },
-    { enabled: !!id },
+    { enabled: !!id, staleTime: queryStaleTime.progress },
   );
-  const { data: prs } = trpc.personalRecord.byExercise.useQuery({ exerciseId: id! }, { enabled: !!id });
-  const { data: previous } = trpc.exercise.previousPerformance.useQuery({ exerciseId: id! }, { enabled: !!id });
+  const { data: prs } = trpc.personalRecord.byExercise.useQuery(
+    { exerciseId: id! },
+    { enabled: !!id, staleTime: queryStaleTime.progress },
+  );
+  const { data: previous } = trpc.exercise.previousPerformance.useQuery(
+    { exerciseId: id! },
+    { enabled: !!id, staleTime: queryStaleTime.previousPerformance },
+  );
 
   if (isLoading) {
     return (

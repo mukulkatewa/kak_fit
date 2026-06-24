@@ -17,6 +17,14 @@ import { trpc } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
 import { isMainTabRoot, TAB_BAR_HEIGHT } from "../lib/layout-constants";
 
+function findSet(workout: ActiveWorkout, setId: string) {
+  for (const exercise of workout.exercises) {
+    const set = exercise.sets.find((candidate) => candidate.id === setId);
+    if (set) return set;
+  }
+  return null;
+}
+
 function getSetProgress(workout: ActiveWorkout) {
   for (const ex of workout.exercises) {
     const next = ex.sets.find((set) => !set.isCompleted);
@@ -134,8 +142,14 @@ export function ActiveWorkoutOverlay() {
 
   const handleComplete = () => {
     if (!progress?.canComplete || isRunning || updateSet.isPending) return;
+    const currentSet = findSet(activeWorkout, progress.currentSetId);
     startRest();
-    updateSet.mutate({ setId: progress.currentSetId, isCompleted: true });
+    updateSet.mutate({
+      setId: progress.currentSetId,
+      isCompleted: true,
+      ...(currentSet?.weight != null ? { weight: currentSet.weight } : {}),
+      ...(currentSet?.reps != null ? { reps: currentSet.reps } : {}),
+    });
   };
 
   return (

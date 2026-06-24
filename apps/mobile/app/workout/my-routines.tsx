@@ -152,15 +152,20 @@ export default function MyRoutinesScreen() {
 
   const renderRoutine = (item: RoutineItem) => (
     <View key={item.id} style={styles.routineWrap}>
-      <ListGroup>
-        <ListRow
-          title={item.name}
-          subtitle={`${item.exercises.length} exercises`}
-          icon="barbell-outline"
-          onPress={() => startRoutine.mutate({ routineId: item.id })}
-          last
-        />
-      </ListGroup>
+      <Pressable
+        disabled={startRoutine.isPending}
+        onPress={() => startRoutine.mutate({ routineId: item.id })}
+        style={startRoutine.isPending ? { opacity: 0.5 } : undefined}
+      >
+        <ListGroup>
+          <ListRow
+            title={item.name}
+            subtitle={`${item.exercises.length} exercises`}
+            icon="barbell-outline"
+            last
+          />
+        </ListGroup>
+      </Pressable>
       <View style={styles.actions}>
         <Action icon="create-outline" label="Edit" onPress={() => router.push(`/routine/create?id=${item.id}`)} />
         <Action icon="share-outline" label="Share" onPress={() => handleShare(item)} />

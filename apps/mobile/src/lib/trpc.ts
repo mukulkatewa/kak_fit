@@ -8,6 +8,17 @@ import { getToken } from "./auth";
 
 export const trpc = createTRPCReact<AppRouter>();
 
+/** Session user — refetch on mount so expired tokens are detected without a separate auth gate fetch. */
+export const authMeQueryOptions = {
+  staleTime: 0,
+  refetchOnMount: true,
+} as const;
+
+/** Dashboard history/charts — brief cache when returning to the home tab. */
+export const dashboardCacheOptions = {
+  staleTime: 60_000,
+} as const;
+
 export function createQueryClient() {
   return new QueryClient({
     defaultOptions: {

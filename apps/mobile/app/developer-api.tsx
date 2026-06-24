@@ -2,31 +2,29 @@ import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button, Screen } from "../src/components/ui";
 import { HevyStackHeader } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
 import { getApiUrl } from "../src/lib/api-client";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
 
-type LlmId = "gemini" | "claude" | "chatgpt";
+type LlmToolsResponse = {
+  claude_system_prompt: string;
+};
 
-const LLM_OPTIONS: { id: LlmId; name: string; destination: string }[] = [
-  { id: "gemini", name: "Gemini", destination: "gemini.google.com or the Gemini app" },
-  { id: "claude", name: "Claude", destination: "claude.ai" },
-  { id: "chatgpt", name: "ChatGPT", destination: "chatgpt.com" },
-];
-
-function briefPrompt(id: LlmId) {
-  if (id === "gemini") {
-    return "You are a fitness assistant with access to my Kak Fit REST API. Use exercise_name when adding to routines. Send the api-key header on every request.";
+async function buildSetupMessage(apiKey: string, apiBase: string): Promise<string> {
+  const res = await fetch(`${apiBase}/llm-tools`);
+  if (!res.ok) {
+    throw new Error(`Could not load setup prompt (${res.status})`);
   }
-  return "You are a fitness assistant with access to my Kak Fit REST API. Confirm with me before delete_routine or delete_exercise_from_routine.";
-}
+  const data = (await res.json()) as LlmToolsResponse;
+  return `${data.claude_system_prompt}
 
-function buildSetupMessage(apiKey: string, apiBase: string, id: LlmId) {
-  const intro = `You have access to my Kak Fit account via API key: ${apiKey}. Base URL: ${apiBase}. Auth header: api-key: ${apiKey}. ${briefPrompt(id)}`;
-  return `${intro}\n\nThen try:\n• "Show me my recent workouts"\n• "Add Romanian deadlifts 3x12 to my Leg Day routine"`;
+Your Kak Fit API credentials:
+- API key: ${apiKey}
+- Base URL: ${apiBase}
+- Auth header: api-key: ${apiKey}`;
 }
 
 export default function DeveloperApiScreen() {
@@ -35,10 +33,10 @@ export default function DeveloperApiScreen() {
   const styles = useThemedStyles(makeStyles);
   const utils = trpc.useUtils();
   const { data: keys, isLoading } = trpc.developer.listKeys.useQuery();
-  const [keyName, setKeyName] = useState("Gemini");
+  const [keyName, setKeyName] = useState("My AI Key");
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
-  const [expandedLlm, setExpandedLlm] = useState<LlmId | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [setupLoading, setSetupLoading] = useState(false);
   const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const createKey = trpc.developer.createKey.useMutation({
@@ -58,7 +56,7 @@ export default function DeveloperApiScreen() {
   const apiBase = `${baseUrl}/api/v1`;
   const docsUrl = `${apiBase}/docs`;
   const openApiUrl = `${apiBase}/openapi.json`;
-  const keyForSetup = revealedKey ?? (keys?.[0] ? `${keys[0].keyPrefix}…` : null);
+  const llmToolsUrl = `${apiBase}/llm-tools`;
 
   const copy = async (value: string) => {
     await Clipboard.setStringAsync(value);
@@ -85,23 +83,20 @@ export default function DeveloperApiScreen() {
     </Pressable>
   );
 
-  const copyApiKey = () => {
-    if (revealedKey) {
-      void copy(revealedKey);
-      return;
+  const copySetupMessage = async () => {
+    if (!revealedKey) return;
+    setSetupLoading(true);
+    try {
+      const message = await buildSetupMessage(revealedKey, apiBase);
+      await copy(message);
+    } catch (e) {
+      Alert.alert(
+        "Could not copy setup message",
+        e instanceof Error ? e.message : "Try again in a moment.",
+      );
+    } finally {
+      setSetupLoading(false);
     }
-    Alert.alert(
-      "Full key not available",
-      "API keys are only shown once when created. Generate a new key above, or use the key you saved when you first created it.",
-    );
-  };
-
-  const copySetupMessage = (id: LlmId) => {
-    if (!keyForSetup) {
-      Alert.alert("No API key", "Generate an API key above first.");
-      return;
-    }
-    void copy(buildSetupMessage(keyForSetup, apiBase, id));
   };
 
   return (
@@ -109,8 +104,8 @@ export default function DeveloperApiScreen() {
       <HevyStackHeader title="Developer API" onBack={() => router.back()} />
 
       <Text style={styles.lead}>
-        Your personal API key — only your workouts and routines. Give it to Gemini to edit programs
-        in plain English (e.g. &quot;add incline bench 3x10 to Push Day&quot;).
+        Give your API key to any AI assistant (Claude, ChatGPT, Gemini) to manage your workouts in
+        plain English. Example: &quot;Add incline bench 3×10 to my Push Day routine&quot;.
       </Text>
 
       <View style={styles.card}>
@@ -180,62 +175,35 @@ export default function DeveloperApiScreen() {
         <Text style={styles.muted}>No API keys yet.</Text>
       )}
 
-      <Text style={styles.sectionLabel}>Use with AI</Text>
-      <Text style={styles.aiLead}>
-        Connect Gemini, Claude, or ChatGPT to manage workouts and routines in plain English.
-      </Text>
-      <View style={styles.group}>
-        {LLM_OPTIONS.map((llm, i) => {
-          const open = expandedLlm === llm.id;
-          const setupMessage = keyForSetup ? buildSetupMessage(keyForSetup, apiBase, llm.id) : null;
+      <Text style={styles.sectionLabel}>How to use with AI</Text>
+      <View style={styles.aiCard}>
+        <Text style={styles.aiStep}>1. Generate an API key above.</Text>
 
-          return (
-            <View key={llm.id}>
-              <Pressable
-                style={[styles.aiRow, i > 0 && styles.rowBorder]}
-                onPress={() => setExpandedLlm(open ? null : llm.id)}
-              >
-                <Text style={styles.rowTitle}>{llm.name}</Text>
-                <Ionicons
-                  name={open ? "chevron-up" : "chevron-down"}
-                  size={18}
-                  color={colors.textMuted}
-                />
-              </Pressable>
-              {open ? (
-                <View style={styles.aiCard}>
-                  <Text style={styles.aiStep}>1. Copy your API key</Text>
-                  <Button label="Copy API key" onPress={copyApiKey} />
-                  {!revealedKey && keys?.length ? (
-                    <Text style={styles.aiHint}>
-                      Only the prefix ({keys[0].keyPrefix}…) is stored. Use a key you saved, or generate a new one.
-                    </Text>
-                  ) : null}
+        <Text style={styles.aiStep}>
+          2. When the key is revealed, tap &quot;Copy Setup Message&quot; — it copies your key, base
+          URL, and a ready-made system prompt.
+        </Text>
+        <Button
+          label={setupLoading ? "Loading setup…" : "Copy Setup Message"}
+          onPress={() => void copySetupMessage()}
+          disabled={!revealedKey || setupLoading}
+        />
+        {setupLoading ? (
+          <ActivityIndicator color={colors.accent} style={styles.setupSpinner} />
+        ) : null}
+        {!revealedKey ? (
+          <Text style={styles.aiHint}>Create a new key to get the full setup message.</Text>
+        ) : null}
 
-                  <Text style={styles.aiStep}>2. Open {llm.destination}</Text>
+        <Text style={styles.aiStep}>
+          3. Open Claude, ChatGPT, or Gemini and paste it. Then say things like &quot;Show my recent
+          workouts&quot; or &quot;Add squats 3×10 to Leg Day&quot;.
+        </Text>
 
-                  <Text style={styles.aiStep}>3. Paste this into the chat or custom instructions:</Text>
-                  {setupMessage ? (
-                    <Text selectable style={styles.aiPaste}>
-                      {setupMessage}
-                    </Text>
-                  ) : (
-                    <Text style={styles.aiHint}>Generate an API key above to see your setup message.</Text>
-                  )}
-                  <Button
-                    label="Copy setup message"
-                    onPress={() => copySetupMessage(llm.id)}
-                    disabled={!keyForSetup}
-                  />
-
-                  <Pressable onPress={() => copy(`${apiBase}/llm-tools`)} hitSlop={8}>
-                    <Text style={styles.link}>Tool manifest: {apiBase}/llm-tools</Text>
-                  </Pressable>
-                </View>
-              ) : null}
-            </View>
-          );
-        })}
+        <Pressable onPress={() => copy(llmToolsUrl)} hitSlop={8} style={styles.advancedLink}>
+          <Text style={styles.link}>Advanced: machine-readable tool definitions</Text>
+          <Text style={styles.advancedUrl}>{llmToolsUrl}</Text>
+        </Pressable>
       </View>
     </Screen>
   );
@@ -300,30 +268,16 @@ const makeStyles = (colors: Palette) =>
     rowTitle: { fontSize: 16, color: colors.text, fontWeight: "600" },
     rowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
     muted: { color: colors.textMuted, fontSize: 14 },
-    aiLead: { color: colors.textMuted, fontSize: 14, lineHeight: 20, marginBottom: spacing.sm },
-    aiRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: spacing.lg,
-    },
     aiCard: {
-      paddingHorizontal: spacing.lg,
-      paddingBottom: spacing.lg,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
       gap: spacing.sm,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.separator,
+      marginBottom: spacing.lg,
     },
     aiStep: { fontSize: 14, fontWeight: "600", color: colors.text, marginTop: spacing.xs },
-    aiPaste: {
-      fontSize: 13,
-      lineHeight: 20,
-      color: colors.textMuted,
-      backgroundColor: colors.bg,
-      borderRadius: radius.md,
-      padding: spacing.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
     aiHint: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+    setupSpinner: { alignSelf: "flex-start" },
+    advancedLink: { marginTop: spacing.sm, gap: 2 },
+    advancedUrl: { fontSize: 12, color: colors.textDim, fontFamily: "monospace" },
   });

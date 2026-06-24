@@ -8,6 +8,8 @@ import { EmptyState } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
+import { useUserPreferences } from "../../src/lib/use-preferences";
+import { formatWeight, fromKg, weightLabel } from "../../src/lib/units";
 import {
   radius,
   spacing,
@@ -32,6 +34,7 @@ export default function WorkoutDetailScreen() {
   const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const utils = trpc.useUtils();
+  const { weightUnit } = useUserPreferences();
   const { data: workout, isLoading, isError } = trpc.workout.getById.useQuery(
     { id: id! },
     { enabled: Boolean(id) },
@@ -239,7 +242,10 @@ export default function WorkoutDetailScreen() {
 
       <View style={styles.statsRow}>
         <Stat label="Duration" value={formatDuration(workout.startedAt, workout.finishedAt)} />
-        <Stat label="Volume" value={`${Math.round(totalVolume).toLocaleString()} kg`} />
+        <Stat
+          label="Volume"
+          value={`${Math.round(fromKg(totalVolume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
+        />
         <Stat label="Sets" value={String(totalSets)} />
       </View>
 
@@ -261,13 +267,17 @@ export default function WorkoutDetailScreen() {
           <Text style={styles.exerciseName}>{ex.exercise.name}</Text>
           <View style={styles.setHeader}>
             <Text style={[styles.colSet, styles.headerText]}>SET</Text>
-            <Text style={[styles.colVal, styles.headerText]}>WEIGHT</Text>
+            <Text style={[styles.colVal, styles.headerText]}>{weightLabel(weightUnit).toUpperCase()}</Text>
             <Text style={[styles.colVal, styles.headerText]}>REPS</Text>
           </View>
           {ex.sets.map((set) => (
             <View key={set.id} style={styles.setRow}>
               <Text style={styles.colSet}>{set.setNumber}</Text>
-              <Text style={styles.colVal}>{set.weight != null ? `${set.weight} kg` : "—"}</Text>
+              <Text style={styles.colVal}>
+                {set.weight != null
+                  ? `${formatWeight(set.weight, weightUnit)} ${weightLabel(weightUnit)}`
+                  : "—"}
+              </Text>
               <Text style={styles.colVal}>{set.reps ?? "—"}</Text>
             </View>
           ))}

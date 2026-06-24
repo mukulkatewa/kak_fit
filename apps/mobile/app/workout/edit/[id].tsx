@@ -15,6 +15,8 @@ import { HevyStackHeader } from "../../../src/components/hevy-ui";
 import { EmptyState } from "../../../src/components/ui";
 import { trpc } from "../../../src/lib/trpc";
 import { parseOptionalNumber } from "../../../src/lib/workout-errors";
+import { useUserPreferences } from "../../../src/lib/use-preferences";
+import { fromKg, toKg, weightLabel } from "../../../src/lib/units";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../../../src/lib/theme";
 
 const SET_TYPES = ["NORMAL", "WARMUP", "DROP", "FAILURE"] as const;
@@ -33,6 +35,7 @@ export default function EditWorkoutScreen() {
   const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const utils = trpc.useUtils();
+  const { weightUnit } = useUserPreferences();
 
   const { data: workout, isLoading, isError, refetch } = trpc.workout.getById.useQuery(
     { id: id! },
@@ -92,13 +95,14 @@ export default function EditWorkoutScreen() {
           <Text style={styles.exerciseName}>{ex.exercise.name}</Text>
           <View style={styles.setHeader}>
             <Text style={[styles.colSet, styles.headerText]}>SET</Text>
-            <Text style={[styles.colVal, styles.headerText]}>WEIGHT</Text>
+            <Text style={[styles.colVal, styles.headerText]}>{weightLabel(weightUnit).toUpperCase()}</Text>
             <Text style={[styles.colVal, styles.headerText]}>REPS</Text>
             <Text style={[styles.colCheck, styles.headerText]}>✓</Text>
           </View>
           {ex.sets.map((set) => (
             <EditableSetRow
               key={set.id}
+              weightUnit={weightUnit}
               set={{
                 id: set.id,
                 setNumber: set.setNumber,
@@ -133,6 +137,7 @@ export default function EditWorkoutScreen() {
 
 function EditableSetRow({
   set,
+  weightUnit,
   onUpdate,
   onCycleSetType,
   onDelete,
@@ -145,24 +150,28 @@ function EditableSetRow({
     setType: SetType;
     isCompleted: boolean;
   };
+  weightUnit: "KG" | "LBS";
   onUpdate: (data: { weight?: number; reps?: number; isCompleted?: boolean }) => void;
   onCycleSetType: () => void;
   onDelete: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const [weight, setWeight] = useState(set.weight?.toString() ?? "");
+  const [weight, setWeight] = useState(
+    set.weight != null ? String(fromKg(set.weight, weightUnit)) : "",
+  );
   const [reps, setReps] = useState(set.reps?.toString() ?? "");
   const typeLabel = SET_TYPE_LABEL[set.setType] || String(set.setNumber);
 
   useEffect(() => {
-    setWeight(set.weight?.toString() ?? "");
+    setWeight(set.weight != null ? String(fromKg(set.weight, weightUnit)) : "");
     setReps(set.reps?.toString() ?? "");
-  }, [set.weight, set.reps]);
+  }, [set.weight, set.reps, weightUnit]);
 
   const commit = () => {
+    const w = parseOptionalNumber(weight);
     onUpdate({
-      weight: parseOptionalNumber(weight),
+      weight: w !== undefined ? toKg(w, weightUnit) : undefined,
       reps: parseOptionalNumber(reps),
     });
   };

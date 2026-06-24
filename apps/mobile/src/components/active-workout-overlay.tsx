@@ -1,8 +1,7 @@
 import { usePathname, useRouter } from "expo-router";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import type { RouterOutputs } from "@kak-fit/api/router";
 import { useEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth-context";
@@ -13,6 +12,8 @@ import {
 import { formatRestTime, useRestTimer } from "../lib/rest-timer";
 import { trpc } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
+
+const TAB_BAR_HEIGHT = Platform.select({ ios: 49, default: 56 });
 
 type ActiveWorkout = NonNullable<RouterOutputs["workout"]["active"]>;
 
@@ -71,7 +72,6 @@ export function ActiveWorkoutOverlay() {
   const { isAuthenticated } = useAuth();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const utils = trpc.useUtils();
 
   const isRunning = useRestTimer((s) => s.isRunning);
@@ -79,8 +79,8 @@ export function ActiveWorkoutOverlay() {
   const tick = useRestTimer((s) => s.tick);
   const startRest = useRestTimer((s) => s.start);
 
-  const { data: activeWorkout, isError } = trpc.workout.active.useQuery(undefined, {
-    refetchInterval: 3000,
+  const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
+    refetchInterval: (data) => (data ? 5000 : 30000),
     retry: false,
     enabled: isAuthenticated,
   });
@@ -108,14 +108,13 @@ export function ActiveWorkoutOverlay() {
 
   const hiddenRoute =
     !isAuthenticated ||
-    isError ||
     !activeWorkout ||
     pathname === "/login" ||
     pathname.startsWith("/workout/active");
 
   if (hiddenRoute) return null;
 
-  const bottom = (tabBarHeight > 0 ? tabBarHeight : insets.bottom + 12) + 8;
+  const bottom = insets.bottom + TAB_BAR_HEIGHT + 8;
 
   const title = isRunning
     ? "Rest"

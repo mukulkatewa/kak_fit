@@ -1,13 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HevyButton, ListGroup, ListRow, Screen, ThemedDialog } from "../../../src/components/ui";
 import { HevyProgramCard, HevyStackHeader } from "../../../src/components/hevy-ui";
 import { getProgram } from "../../../src/lib/explore-data";
 import { trpc } from "../../../src/lib/trpc";
+import { alertWorkoutConflict } from "../../../src/lib/workout-errors";
+import { navigateToActiveWorkout } from "../../../src/lib/workout-navigation";
 import { spacing, useTheme, useThemedStyles, type Palette } from "../../../src/lib/theme";
+
+type DialogButton = {
+  label: string;
+  variant?: "primary" | "secondary";
+  onPress?: () => void;
+};
 
 export default function ProgramDetailScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -17,37 +25,79 @@ export default function ProgramDetailScreen() {
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const program = getProgram(id ?? "");
+  const pendingRoutineId = useRef<string | null>(null);
   const [dialog, setDialog] = useState<{
     title: string;
     message: string;
-    primaryLabel?: string;
-    onPrimary?: () => void;
+    buttons: DialogButton[];
   } | null>(null);
+
+  const discardActive = trpc.workout.discardActive.useMutation();
+  const startRoutine = trpc.workout.startFromRoutine.useMutation({
+    onSuccess: (workout) => {
+      navigateToActiveWorkout(utils, router, workout);
+    },
+    onError: (e) =>
+      alertWorkoutConflict(
+        e,
+        () => router.push("/workout/active"),
+        async () => {
+          const routineId = pendingRoutineId.current;
+          if (!routineId) return;
+          await discardActive.mutateAsync();
+          await utils.workout.active.invalidate();
+          startRoutine.mutate({ routineId });
+        },
+      ),
+  });
 
   const importProgram = trpc.routine.importProgram.useMutation({
     onSuccess: async (result) => {
       await utils.routine.list.invalidate();
       const missing = result.missingExerciseNames.length;
       if (result.saved > 0) {
+        const firstRoutine = result.routines[0];
+        const missingNote =
+          missing > 0 ? ` ${missing} exercise${missing === 1 ? "" : "s"} were not found.` : "";
         setDialog({
           title: "Program saved",
-          message: `${result.saved} routine${result.saved === 1 ? "" : "s"} added to My Routines${
-            missing > 0 ? `. ${missing} exercise${missing === 1 ? "" : "s"} were not found.` : "."
-          }`,
-          primaryLabel: "OK",
-          onPrimary: () => router.push("/workout/my-routines"),
+          message: `${result.saved} routine${result.saved === 1 ? "" : "s"} added to My Routines.${missingNote}`,
+          buttons: [
+            {
+              label: "Start First Routine",
+              variant: "primary",
+              onPress: () => {
+                if (!firstRoutine) return;
+                pendingRoutineId.current = firstRoutine.id;
+                setDialog(null);
+                startRoutine.mutate({ routineId: firstRoutine.id });
+              },
+            },
+            {
+              label: "Go to My Routines",
+              variant: "secondary",
+              onPress: () => router.push("/workout/my-routines"),
+            },
+          ],
         });
       } else {
         setDialog({
           title: "Could not save",
           message: "No matching exercises found in the library.",
+          buttons: [{ label: "OK", variant: "primary" }],
         });
       }
     },
     onError: (error) => {
-      setDialog({ title: "Error", message: error.message });
+      setDialog({
+        title: "Error",
+        message: error.message,
+        buttons: [{ label: "OK", variant: "primary" }],
+      });
     },
   });
+
+  const busy = importProgram.isPending || startRoutine.isPending;
 
   if (!program) {
     return (
@@ -59,6 +109,7 @@ export default function ProgramDetailScreen() {
   }
 
   const saveProgram = () => {
+    if (busy) return;
     importProgram.mutate({
       programTitle: program.title,
       routines: program.routines.map((routine) => ({
@@ -90,9 +141,15 @@ export default function ProgramDetailScreen() {
         </View>
 
         <HevyButton
-          label={importProgram.isPending ? "Saving..." : "Save to My Routines"}
+          label={
+            importProgram.isPending
+              ? "Saving…"
+              : startRoutine.isPending
+                ? "Starting workout…"
+                : "Save to My Routines"
+          }
           onPress={saveProgram}
-          loading={importProgram.isPending}
+          loading={busy}
         />
 
         <Text style={styles.sectionTitle}>Routines in this program</Text>
@@ -126,11 +183,7 @@ export default function ProgramDetailScreen() {
         title={dialog?.title ?? ""}
         message={dialog?.message}
         onDismiss={() => setDialog(null)}
-        buttons={
-          dialog?.onPrimary
-            ? [{ label: dialog.primaryLabel ?? "OK", variant: "primary", onPress: dialog.onPrimary }]
-            : [{ label: "OK", variant: "primary" }]
-        }
+        buttons={dialog?.buttons ?? [{ label: "OK", variant: "primary" }]}
       />
     </Screen>
   );

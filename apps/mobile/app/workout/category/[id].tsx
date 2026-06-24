@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HevyButton, ListGroup, ListRow, Screen, ThemedDialog } from "../../../src/components/ui";
@@ -7,7 +7,15 @@ import { HevyStackHeader } from "../../../src/components/hevy-ui";
 import { getCategory } from "../../../src/lib/explore-data";
 import { buildRoutinePayload, resolveExerciseIds } from "../../../src/lib/import-template";
 import { trpc } from "../../../src/lib/trpc";
+import { alertWorkoutConflict } from "../../../src/lib/workout-errors";
+import { navigateToActiveWorkout } from "../../../src/lib/workout-navigation";
 import { useThemedStyles, spacing, type Palette } from "../../../src/lib/theme";
+
+type DialogButton = {
+  label: string;
+  variant?: "primary" | "secondary";
+  onPress?: () => void;
+};
 
 export default function CategoryDetailScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -17,13 +25,34 @@ export default function CategoryDetailScreen() {
   const utils = trpc.useUtils();
   const category = getCategory(id ?? "");
   const [saving, setSaving] = useState<string | null>(null);
+  const pendingRoutineId = useRef<string | null>(null);
   const [dialog, setDialog] = useState<{
     title: string;
     message: string;
-    onPrimary?: () => void;
+    buttons: DialogButton[];
   } | null>(null);
 
+  const discardActive = trpc.workout.discardActive.useMutation();
   const createRoutine = trpc.routine.create.useMutation();
+  const startRoutine = trpc.workout.startFromRoutine.useMutation({
+    onSuccess: (workout) => {
+      navigateToActiveWorkout(utils, router, workout);
+    },
+    onError: (e) =>
+      alertWorkoutConflict(
+        e,
+        () => router.push("/workout/active"),
+        async () => {
+          const routineId = pendingRoutineId.current;
+          if (!routineId) return;
+          await discardActive.mutateAsync();
+          await utils.workout.active.invalidate();
+          startRoutine.mutate({ routineId });
+        },
+      ),
+  });
+
+  const busy = saving !== null || createRoutine.isPending || startRoutine.isPending;
 
   if (!category) {
     return (
@@ -34,7 +63,14 @@ export default function CategoryDetailScreen() {
     );
   }
 
+  const startWorkout = (routineId: string) => {
+    pendingRoutineId.current = routineId;
+    setDialog(null);
+    startRoutine.mutate({ routineId });
+  };
+
   const saveTemplate = async (templateName: string, exerciseNames: string[]) => {
+    if (busy) return;
     setSaving(templateName);
     try {
       const exercises = await resolveExerciseIds(utils, exerciseNames);
@@ -42,20 +78,31 @@ export default function CategoryDetailScreen() {
         setDialog({
           title: "No exercises found",
           message: "Try creating this routine manually.",
+          buttons: [{ label: "OK", variant: "primary" }],
         });
         return;
       }
-      await createRoutine.mutateAsync(buildRoutinePayload(`${category.label} · ${templateName}`, exercises));
+      const saved = await createRoutine.mutateAsync(
+        buildRoutinePayload(`${category.label} · ${templateName}`, exercises),
+      );
       await utils.routine.list.invalidate();
       setDialog({
-        title: "Routine saved",
+        title: "Routine saved to My Routines",
         message: `"${templateName}" was added to My Routines.`,
-        onPrimary: () => router.push("/workout/my-routines"),
+        buttons: [
+          {
+            label: "Start Workout Now",
+            variant: "primary",
+            onPress: () => startWorkout(saved.id),
+          },
+          { label: "Done", variant: "secondary" },
+        ],
       });
     } catch (e) {
       setDialog({
         title: "Error",
         message: e instanceof Error ? e.message : "Failed to save routine",
+        buttons: [{ label: "OK", variant: "primary" }],
       });
     } finally {
       setSaving(null);
@@ -78,18 +125,30 @@ export default function CategoryDetailScreen() {
             <ListRow
               key={template.name}
               title={template.name}
-              subtitle={`${template.exerciseNames.length} exercises`}
+              subtitle={
+                saving === template.name
+                  ? "Saving…"
+                  : `${template.exerciseNames.length} exercises`
+              }
               icon="barbell-outline"
-              onPress={() => saveTemplate(template.name, template.exerciseNames)}
+              onPress={busy ? undefined : () => saveTemplate(template.name, template.exerciseNames)}
               last={index === category.templates.length - 1}
             />
           ))}
         </ListGroup>
 
-        {saving ? (
-          <HevyButton label={`Saving ${saving}…`} onPress={() => {}} loading />
+        {busy ? (
+          <HevyButton
+            label={startRoutine.isPending ? "Starting workout…" : `Saving ${saving ?? "routine"}…`}
+            onPress={() => {}}
+            loading
+          />
         ) : (
-          <HevyButton label="Create custom routine" variant="secondary" onPress={() => router.push("/routine/create")} />
+          <HevyButton
+            label="Create custom routine"
+            variant="secondary"
+            onPress={() => router.push("/routine/create")}
+          />
         )}
       </View>
 
@@ -98,11 +157,7 @@ export default function CategoryDetailScreen() {
         title={dialog?.title ?? ""}
         message={dialog?.message}
         onDismiss={() => setDialog(null)}
-        buttons={
-          dialog?.onPrimary
-            ? [{ label: "View routines", variant: "primary", onPress: dialog.onPrimary }]
-            : [{ label: "OK", variant: "primary" }]
-        }
+        buttons={dialog?.buttons ?? [{ label: "OK", variant: "primary" }]}
       />
     </Screen>
   );

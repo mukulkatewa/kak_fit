@@ -1,10 +1,10 @@
 import { useEffect } from "react";
-import { trpc } from "./trpc";
+import { trpc, authMeQueryOptions } from "./trpc";
 import { useRestTimer } from "./rest-timer";
 import type { WeightUnit } from "./units";
 
 export function useUserPreferences() {
-  const { data: me } = trpc.auth.me.useQuery();
+  const { data: me } = trpc.auth.me.useQuery(undefined, authMeQueryOptions);
   const setDefault = useRestTimer((s) => s.setDefault);
 
   useEffect(() => {

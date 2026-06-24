@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar, HevyButton, Screen } from "../../src/components/ui";
 import { LineChart } from "../../src/components/charts";
 import { FeedSkeleton } from "../../src/components/skeleton";
-import { trpc } from "../../src/lib/trpc";
+import { trpc, authMeQueryOptions, dashboardCacheOptions } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
@@ -14,11 +14,14 @@ export default function DashboardScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const utils = trpc.useUtils();
-  const { data: me } = trpc.auth.me.useQuery();
+  const { data: me } = trpc.auth.me.useQuery(undefined, authMeQueryOptions);
   const { data: stats } = trpc.auth.stats.useQuery();
-  const { data: active, isPending: activePending } = trpc.workout.active.useQuery();
-  const { data: recent, isPending: recentPending } = trpc.workout.history.useQuery({ limit: 8 });
-  const { data: weeklyChart } = trpc.progress.weeklyVolume.useQuery();
+  const { data: active, isPending: activePending } = trpc.workout.active.useQuery(undefined, { staleTime: 0 });
+  const { data: recent, isPending: recentPending } = trpc.workout.history.useQuery(
+    { limit: 8 },
+    dashboardCacheOptions,
+  );
+  const { data: weeklyChart } = trpc.progress.weeklyVolume.useQuery(undefined, dashboardCacheOptions);
   const { data: routines, isPending: routinesPending } = trpc.routine.list.useQuery();
 
   const initialLoading =
@@ -190,6 +193,7 @@ export default function DashboardScreen() {
                     icon="barbell"
                     title={item.name}
                     subtitle={`${item.exercises.length} exercises · tap to start`}
+                    disabled={startRoutine.isPending}
                     onPress={() => startRoutine.mutate({ routineId: item.id })}
                   />
                 ))}
@@ -217,17 +221,24 @@ function ActivityCard({
   title,
   subtitle,
   onPress,
+  disabled,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle: string;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
-      style={({ pressed }) => [styles.activityCard, pressed && styles.pressed]}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.activityCard,
+        pressed && !disabled && styles.pressed,
+        disabled && { opacity: 0.5 },
+      ]}
       onPress={onPress}
     >
       <View style={styles.activityIcon}>

@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { RouterOutputs } from "@kak-fit/api/router";
 import {
   Button,
   Card,
@@ -53,6 +54,65 @@ const setTypeColor = (colors: Palette): Record<SetType, string> => ({
   FAILURE: colors.danger,
 });
 
+type ActiveWorkout = NonNullable<RouterOutputs["workout"]["active"]>;
+type WorkoutSet = RouterOutputs["workout"]["updateSet"];
+type WorkoutExercise = RouterOutputs["workout"]["addExercise"];
+
+function patchSetInWorkout(workout: ActiveWorkout, updatedSet: WorkoutSet): ActiveWorkout {
+  return {
+    ...workout,
+    exercises: workout.exercises.map((exercise) => ({
+      ...exercise,
+      sets: exercise.sets.map((set) => (set.id === updatedSet.id ? { ...set, ...updatedSet } : set)),
+    })),
+  };
+}
+
+function addSetToWorkout(
+  workout: ActiveWorkout,
+  workoutExerciseId: string,
+  newSet: WorkoutSet,
+): ActiveWorkout {
+  return {
+    ...workout,
+    exercises: workout.exercises.map((exercise) =>
+      exercise.id === workoutExerciseId
+        ? { ...exercise, sets: [...exercise.sets, newSet] }
+        : exercise,
+    ),
+  };
+}
+
+function removeSetFromWorkout(workout: ActiveWorkout, setId: string): ActiveWorkout {
+  return {
+    ...workout,
+    exercises: workout.exercises.map((exercise) => ({
+      ...exercise,
+      sets: exercise.sets.filter((set) => set.id !== setId),
+    })),
+  };
+}
+
+function patchExerciseNotes(
+  workout: ActiveWorkout,
+  workoutExerciseId: string,
+  notes: string | null,
+): ActiveWorkout {
+  return {
+    ...workout,
+    exercises: workout.exercises.map((exercise) =>
+      exercise.id === workoutExerciseId ? { ...exercise, notes } : exercise,
+    ),
+  };
+}
+
+function addExerciseToWorkout(workout: ActiveWorkout, exercise: WorkoutExercise): ActiveWorkout {
+  return {
+    ...workout,
+    exercises: [...workout.exercises, exercise],
+  };
+}
+
 export default function ActiveWorkoutScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
@@ -67,6 +127,7 @@ export default function ActiveWorkoutScreen() {
   const [finishNotes, setFinishNotes] = useState("");
   const [pendingOffline, setPendingOffline] = useState(0);
   const [search, setSearch] = useState("");
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const exerciseIds = useMemo(
     () => workout?.exercises.map((e) => e.exercise.id) ?? [],
@@ -111,8 +172,17 @@ export default function ActiveWorkoutScreen() {
     };
   }, [refetch, utils]);
 
+  const patchActiveWorkout = (updater: (workout: ActiveWorkout) => ActiveWorkout) => {
+    utils.workout.active.setData(undefined, (current) => {
+      if (!current) return current;
+      return updater(current);
+    });
+  };
+
   const updateSet = trpc.workout.updateSet.useMutation({
-    onSuccess: () => refetch(),
+    onSuccess: (updatedSet) => {
+      patchActiveWorkout((workout) => patchSetInWorkout(workout, updatedSet));
+    },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
         Alert.alert("Couldn't save set", e.message);
@@ -123,7 +193,9 @@ export default function ActiveWorkoutScreen() {
     },
   });
   const addSet = trpc.workout.addSet.useMutation({
-    onSuccess: () => refetch(),
+    onSuccess: (newSet, { workoutExerciseId }) => {
+      patchActiveWorkout((workout) => addSetToWorkout(workout, workoutExerciseId, newSet));
+    },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
         Alert.alert("Couldn't add set", e.message);
@@ -134,7 +206,9 @@ export default function ActiveWorkoutScreen() {
     },
   });
   const deleteSet = trpc.workout.deleteSet.useMutation({
-    onSuccess: () => refetch(),
+    onSuccess: (_result, { setId }) => {
+      patchActiveWorkout((workout) => removeSetFromWorkout(workout, setId));
+    },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
         Alert.alert("Couldn't delete set", e.message);
@@ -145,7 +219,9 @@ export default function ActiveWorkoutScreen() {
     },
   });
   const updateExerciseNotes = trpc.workout.updateExerciseNotes.useMutation({
-    onSuccess: () => refetch(),
+    onSuccess: (_updated, { workoutExerciseId, notes }) => {
+      patchActiveWorkout((workout) => patchExerciseNotes(workout, workoutExerciseId, notes));
+    },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
         Alert.alert("Couldn't save notes", e.message);
@@ -170,10 +246,10 @@ export default function ActiveWorkoutScreen() {
   };
 
   const addExercise = trpc.workout.addExercise.useMutation({
-    onSuccess: () => {
+    onSuccess: (exercise) => {
       setPickerOpen(false);
       setSearch("");
-      refetch();
+      patchActiveWorkout((workout) => addExerciseToWorkout(workout, exercise));
       utils.workout.previousSets.invalidate();
     },
     onError: async (e, variables) => {
@@ -250,10 +326,20 @@ export default function ActiveWorkoutScreen() {
     );
   }, [workout]);
 
-  const elapsedMinutes = useMemo(() => {
-    if (!workout) return 0;
-    return Math.max(1, Math.round((Date.now() - new Date(workout.startedAt).getTime()) / 60000));
-  }, [workout]);
+  const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
+
+  useEffect(() => {
+    if (!workout) return;
+
+    const startedMs = new Date(workout.startedAt).getTime();
+    setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedMs) / 1000)));
+
+    const id = setInterval(() => {
+      setElapsedSeconds((seconds) => seconds + 60);
+    }, 60_000);
+
+    return () => clearInterval(id);
+  }, [workout?.id, workout?.startedAt]);
 
   useEffect(() => {
     if (!workout) return;

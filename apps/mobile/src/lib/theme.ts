@@ -45,41 +45,47 @@ export type Palette = {
   onAccent: string;
   onAccentMuted: string;
   onAccentFaint: string;
+  carbsColor: string;
+  proteinColor: string;
+  fatColor: string;
 };
 
-/** Clean green & white — light surfaces, vivid grass-green accent. */
+/** Warm off-white surfaces with vivid green accent — modern nutrition-app feel. */
 export const lightColors: Palette = {
-  bg: "#FFFFFF",
+  bg: "#F5F4F0",
   bgElevated: "#FFFFFF",
-  surface: "#F4F6F9",
-  surfaceHover: "#EAEEF2",
-  surfaceActive: "#E1E6EB",
-  border: "#E5E9ED",
-  borderSubtle: "#EEF1F4",
-  separator: "#EBEEF1",
-  text: "#0F1B2A",
-  textMuted: "#5C6B7A",
-  textDim: "#9AA6B2",
-  accent: "#1EA64C",
-  accentBright: "#27C25C",
-  accentMuted: "rgba(30, 166, 76, 0.12)",
-  accentNeon: "#1EA64C",
-  accentDark: "#178A3E",
-  success: "#1EA64C",
-  successNeon: "#27C25C",
-  successMuted: "rgba(30, 166, 76, 0.12)",
+  surface: "#FFFFFF",
+  surfaceHover: "#F0EEE8",
+  surfaceActive: "#E8E5DE",
+  border: "#E8E5DC",
+  borderSubtle: "#F0EDE4",
+  separator: "#EDE9E0",
+  text: "#1A1A1A",
+  textMuted: "#6B6B6B",
+  textDim: "#A8A8A8",
+  accent: "#3DB54A",
+  accentBright: "#45CC54",
+  accentMuted: "rgba(61, 181, 74, 0.12)",
+  accentNeon: "#3DB54A",
+  accentDark: "#2E9438",
+  success: "#3DB54A",
+  successNeon: "#45CC54",
+  successMuted: "rgba(61, 181, 74, 0.12)",
   gold: "#F59E0B",
   goldBright: "#F59E0B",
   goldMuted: "rgba(245, 158, 11, 0.14)",
   danger: "#EF4444",
   dangerMuted: "rgba(239, 68, 68, 0.10)",
-  glass: "rgba(255, 255, 255, 0.96)",
-  primary: "#1EA64C",
-  primaryMuted: "rgba(30, 166, 76, 0.12)",
-  surfaceLight: "#F4F6F9",
+  glass: "rgba(255, 255, 255, 0.97)",
+  primary: "#3DB54A",
+  primaryMuted: "rgba(61, 181, 74, 0.12)",
+  surfaceLight: "#F5F4F0",
   onAccent: "#FFFFFF",
   onAccentMuted: "rgba(255, 255, 255, 0.82)",
   onAccentFaint: "rgba(255, 255, 255, 0.28)",
+  carbsColor: "#6C7AE0",
+  proteinColor: "#F06292",
+  fatColor: "#FFB300",
 };
 
 /** Dark mode — Hevy-style: near-black surfaces with a vivid blue accent. */
@@ -115,6 +121,9 @@ export const darkColors: Palette = {
   onAccent: "#FFFFFF",
   onAccentMuted: "rgba(255, 255, 255, 0.86)",
   onAccentFaint: "rgba(255, 255, 255, 0.26)",
+  carbsColor: "#818CF8",
+  proteinColor: "#F472B6",
+  fatColor: "#FBBF24",
 };
 
 /**
@@ -155,21 +164,34 @@ export const typography = {
 };
 
 /** Soft elevations. RN-web maps shadow* to box-shadow. */
+const lightCardShadow = Platform.select<ViewStyle>({
+  web: { boxShadow: "0 4px 16px rgba(0, 0, 0, 0.07)" },
+  default: {
+    shadowColor: "#000000",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+})!;
+
+const darkCardShadow = Platform.select<ViewStyle>({
+  web: { boxShadow: "0 6px 18px rgba(15, 27, 42, 0.06)" },
+  default: {
+    shadowColor: "#0F1B2A",
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+})!;
+
 export const shadows = {
-  card: Platform.select<ViewStyle>({
-    web: { boxShadow: "0 6px 18px rgba(15, 27, 42, 0.06)" },
-    default: {
-      shadowColor: "#0F1B2A",
-      shadowOpacity: 0.07,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 6 },
-      elevation: 3,
-    },
-  })!,
+  card: lightCardShadow,
   glow: Platform.select<ViewStyle>({
-    web: { boxShadow: "0 10px 24px rgba(30, 166, 76, 0.28)" },
+    web: { boxShadow: "0 10px 24px rgba(61, 181, 74, 0.28)" },
     default: {
-      shadowColor: "#1EA64C",
+      shadowColor: "#3DB54A",
       shadowOpacity: 0.3,
       shadowRadius: 16,
       shadowOffset: { width: 0, height: 8 },
@@ -179,6 +201,23 @@ export const shadows = {
   goldGlow: Platform.select<ViewStyle>({ web: {}, default: {} })!,
 };
 
+export const darkShadows = {
+  ...shadows,
+  card: darkCardShadow,
+  glow: Platform.select<ViewStyle>({
+    web: { boxShadow: "0 10px 24px rgba(47, 111, 237, 0.28)" },
+    default: {
+      shadowColor: "#2F6FED",
+      shadowOpacity: 0.3,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 5,
+    },
+  })!,
+};
+
+export type ShadowSet = typeof shadows;
+
 // ─── Theme context ────────────────────────────────────────────────────────────
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -187,6 +226,7 @@ const THEME_KEY = "kak_fit_theme";
 
 type ThemeContextValue = {
   colors: Palette;
+  shadows: ShadowSet;
   mode: ThemeMode;
   isDark: boolean;
   setMode: (mode: ThemeMode) => void;
@@ -195,6 +235,7 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue>({
   colors: lightColors,
+  shadows,
   mode: "system",
   isDark: false,
   setMode: () => {},
@@ -245,14 +286,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const isDark = mode === "system" ? systemScheme === "dark" : mode === "dark";
   const palette = isDark ? darkColors : lightColors;
+  const shadowSet = isDark ? darkShadows : shadows;
 
   const toggle = useCallback(() => {
     setMode(isDark ? "light" : "dark");
   }, [isDark, setMode]);
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ colors: palette, mode, isDark, setMode, toggle }),
-    [palette, mode, isDark, setMode, toggle],
+    () => ({ colors: palette, shadows: shadowSet, mode, isDark, setMode, toggle }),
+    [palette, shadowSet, mode, isDark, setMode, toggle],
   );
 
   return createElement(ThemeContext.Provider, { value }, children);

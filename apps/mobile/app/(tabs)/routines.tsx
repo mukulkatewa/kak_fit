@@ -23,6 +23,7 @@ import {
   type ProgramLevel,
 } from "../../src/lib/explore-data";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
+import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { trpc } from "../../src/lib/trpc";
 import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
@@ -46,9 +47,8 @@ export default function WorkoutExploreScreen() {
   const discardActive = trpc.workout.discardActive.useMutation();
 
   const startEmpty = trpc.workout.startEmpty.useMutation({
-    onSuccess: () => {
-      utils.workout.active.invalidate();
-      router.push("/workout/active");
+    onSuccess: (workout) => {
+      navigateToActiveWorkout(utils, router, workout);
     },
     onError: (e) =>
       alertWorkoutConflict(

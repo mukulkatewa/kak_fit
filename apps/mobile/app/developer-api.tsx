@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -38,6 +38,8 @@ export default function DeveloperApiScreen() {
   const [keyName, setKeyName] = useState("Gemini");
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [expandedLlm, setExpandedLlm] = useState<LlmId | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const createKey = trpc.developer.createKey.useMutation({
     onSuccess: (data) => {
@@ -54,12 +56,34 @@ export default function DeveloperApiScreen() {
 
   const baseUrl = getApiUrl();
   const apiBase = `${baseUrl}/api/v1`;
+  const docsUrl = `${apiBase}/docs`;
+  const openApiUrl = `${apiBase}/openapi.json`;
   const keyForSetup = revealedKey ?? (keys?.[0] ? `${keys[0].keyPrefix}…` : null);
 
   const copy = async (value: string) => {
     await Clipboard.setStringAsync(value);
-    Alert.alert("Copied", "Copied to clipboard");
+    setCopiedKey(value);
+    if (copyTimeout.current) clearTimeout(copyTimeout.current);
+    copyTimeout.current = setTimeout(() => setCopiedKey(null), 2000);
   };
+
+  const CopyableValue = ({
+    value,
+    textStyle,
+  }: {
+    value: string;
+    textStyle: object;
+  }) => (
+    <Pressable onPress={() => copy(value)} style={styles.copyRow}>
+      <Text style={[textStyle, { flex: 1 }]}>{value}</Text>
+      {copiedKey === value ? (
+        <View style={styles.copiedBadge}>
+          <Ionicons name="checkmark-circle" size={16} color={colors.accent} />
+          <Text style={styles.copiedText}>Copied</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
 
   const copyApiKey = () => {
     if (revealedKey) {
@@ -91,13 +115,11 @@ export default function DeveloperApiScreen() {
 
       <View style={styles.card}>
         <Text style={styles.label}>Base URL</Text>
-        <Pressable onPress={() => copy(`${baseUrl}/api/v1`)}>
-          <Text style={styles.mono}>{baseUrl}/api/v1</Text>
-        </Pressable>
+        <CopyableValue value={apiBase} textStyle={styles.mono} />
         <Text style={[styles.label, styles.mt]}>Documentation</Text>
-        <Pressable onPress={() => copy(`${baseUrl}/api/v1/docs`)}>
-          <Text style={styles.link}>{baseUrl}/api/v1/docs</Text>
-        </Pressable>
+        <CopyableValue value={docsUrl} textStyle={styles.link} />
+        <Text style={[styles.label, styles.mt]}>OpenAPI spec</Text>
+        <CopyableValue value={openApiUrl} textStyle={styles.link} />
         <Text style={[styles.label, styles.mt]}>Auth header</Text>
         <Text style={styles.mono}>api-key: kak_…</Text>
       </View>
@@ -232,6 +254,14 @@ const makeStyles = (colors: Palette) =>
     mt: { marginTop: spacing.md },
     mono: { fontFamily: "monospace", fontSize: 14, color: colors.text, marginTop: 4 },
     link: { fontSize: 14, color: colors.accent, marginTop: 4 },
+    copyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      marginTop: 4,
+    },
+    copiedBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
+    copiedText: { fontSize: 12, fontWeight: "600", color: colors.accent },
     revealCard: {
       backgroundColor: colors.accentMuted,
       borderRadius: radius.lg,

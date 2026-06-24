@@ -7,6 +7,7 @@ import { HevyStackHeader } from "../../src/components/hevy-ui";
 import { EmptyState } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
+import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import {
   radius,
   spacing,
@@ -104,9 +105,8 @@ export default function WorkoutDetailScreen() {
 
   const discardActive = trpc.workout.discardActive.useMutation();
   const copyWorkout = trpc.workout.startFromWorkout.useMutation({
-    onSuccess: () => {
-      utils.workout.active.invalidate();
-      router.push("/workout/active");
+    onSuccess: (workout) => {
+      navigateToActiveWorkout(utils, router, workout);
     },
     onError: (e) =>
       alertWorkoutConflict(

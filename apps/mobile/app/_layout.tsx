@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
 import { AuthProvider, useAuth } from "../src/lib/auth-context";
 import { createQueryClient, createTRPCClient, trpc } from "../src/lib/trpc";
 import { ThemeProvider, useTheme } from "../src/lib/theme";
@@ -65,25 +66,28 @@ function ThemedApp() {
     <NavThemeProvider value={navTheme}>
       <StatusBar style={isDark ? "light" : "dark"} />
       <AuthGate>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-          <Stack.Screen name="login" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="workout" />
-          <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
-          <Stack.Screen name="exercise/create" options={{ presentation: "modal" }} />
-          <Stack.Screen name="exercise/[id]" />
-          <Stack.Screen name="measurements" />
-          <Stack.Screen name="settings" options={{ presentation: "modal" }} />
-          <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
-          <Stack.Screen name="nutrition-foods" options={{ presentation: "modal" }} />
-          <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
-          <Stack.Screen name="photos" />
-          <Stack.Screen name="photos/compare" />
-          <Stack.Screen name="calendar" />
-          <Stack.Screen name="tools" options={{ presentation: "modal" }} />
-          <Stack.Screen name="developer-api" options={{ presentation: "modal" }} />
-          <Stack.Screen name="routine/share/[token]" />
-        </Stack>
+        <View style={{ flex: 1 }}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+            <Stack.Screen name="login" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="workout" />
+            <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
+            <Stack.Screen name="exercise/create" options={{ presentation: "modal" }} />
+            <Stack.Screen name="exercise/[id]" />
+            <Stack.Screen name="measurements" />
+            <Stack.Screen name="settings" options={{ presentation: "modal" }} />
+            <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
+            <Stack.Screen name="nutrition-foods" options={{ presentation: "modal" }} />
+            <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
+            <Stack.Screen name="photos" />
+            <Stack.Screen name="photos/compare" />
+            <Stack.Screen name="calendar" />
+            <Stack.Screen name="tools" options={{ presentation: "modal" }} />
+            <Stack.Screen name="developer-api" options={{ presentation: "modal" }} />
+            <Stack.Screen name="routine/share/[token]" />
+          </Stack>
+          <ActiveWorkoutOverlay />
+        </View>
       </AuthGate>
     </NavThemeProvider>
   );

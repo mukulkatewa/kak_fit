@@ -2,6 +2,8 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   EmptyState,
   ListGroup,
@@ -12,7 +14,7 @@ import {
 import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
 import { trpc } from "../../src/lib/trpc";
-import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+import { radius, spacing, useTheme, type Palette, type ShadowSet } from "../../src/lib/theme";
 
 const MEAL_TYPES = [
   { key: "BREAKFAST" as const, label: "Breakfast", icon: "cafe-outline" as const },
@@ -21,12 +23,25 @@ const MEAL_TYPES = [
   { key: "SNACK" as const, label: "Snacks", icon: "nutrition-outline" as const },
 ];
 
+const MEAL_ACCENT_LIGHT: Record<(typeof MEAL_TYPES)[number]["key"], string> = {
+  BREAKFAST: "#FF9A3C",
+  LUNCH: "#52C41A",
+  DINNER: "#722ED1",
+  SNACK: "#13C2C2",
+};
+
 type MealKey = (typeof MEAL_TYPES)[number]["key"];
 
 export default function NutritionScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => StyleSheet.create(makeStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
+  const headerText = isDark ? colors.text : "#1A1A1A";
+  const gradientColors = isDark
+    ? ([colors.bg, colors.bg] as const)
+    : (["#EDF86A", "#6DC643"] as const);
+
   const [search, setSearch] = useState("");
   const [mealType, setMealType] = useState<MealKey>("LUNCH");
   const [logging, setLogging] = useState(false);
@@ -70,7 +85,6 @@ export default function NutritionScreen() {
     onError: (err) => Alert.alert("Couldn't remove", err.message),
   });
 
-  // Per-meal calorie totals for "Today's Meals"
   const mealTotals = useMemo(() => {
     const totals: Record<string, { cal: number; count: number }> = {};
     for (const meal of meals ?? []) {
@@ -121,78 +135,103 @@ export default function NutritionScreen() {
   const calTarget = summary?.targets.calories ?? 2500;
 
   return (
-    <Screen scroll padded={false}>
-      <View style={styles.pad}>
-        <View style={styles.titleRow}>
-          <Text style={styles.pageTitle}>Nutrition</Text>
-          <View style={styles.titleActions}>
-            <Pressable hitSlop={8} onPress={() => router.push("/nutrition-foods")} style={styles.goalsBtn}>
-              <Ionicons name="fast-food-outline" size={16} color={colors.accent} />
-              <Text style={styles.goalsBtnText}>Foods</Text>
-            </Pressable>
-            <Pressable hitSlop={8} onPress={() => router.push("/nutrition-goals")} style={styles.goalsBtn}>
-              <Ionicons name="options-outline" size={16} color={colors.accent} />
-              <Text style={styles.goalsBtnText}>Goals</Text>
-            </Pressable>
+    <Screen scroll padded={false} style={{ backgroundColor: colors.bg }}>
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.headerGradient, { paddingTop: insets.top + spacing.sm }]}
+      >
+        <View style={styles.headerInner}>
+          <View style={styles.titleRow}>
+            <Text style={[styles.pageTitle, { color: headerText }]}>Nutrition</Text>
+            <View style={styles.titleActions}>
+              <Pressable hitSlop={8} onPress={() => router.push("/nutrition-foods")} style={styles.goalsBtn}>
+                <Ionicons name="fast-food-outline" size={16} color={isDark ? colors.accent : colors.accentDark} />
+                <Text style={[styles.goalsBtnText, { color: isDark ? colors.accent : colors.accentDark }]}>Foods</Text>
+              </Pressable>
+              <Pressable hitSlop={8} onPress={() => router.push("/nutrition-goals")} style={styles.goalsBtn}>
+                <Ionicons name="options-outline" size={16} color={isDark ? colors.accent : colors.accentDark} />
+                <Text style={[styles.goalsBtnText, { color: isDark ? colors.accent : colors.accentDark }]}>Goals</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
 
-        {/* Daily calories + macro rings */}
-        {summaryLoading ? (
-          <ListSkeleton rows={2} />
-        ) : summaryError ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorTitle}>Couldn't load summary</Text>
-            <Text style={styles.errorMsg}>{summaryErr.message}</Text>
-            <Text style={styles.errorHint} onPress={() => refetchSummary()}>
-              Tap to retry
-            </Text>
-          </View>
-        ) : summary ? (
-          <View style={styles.summaryCard}>
-            <View style={styles.calBlock}>
-              <ProgressRing size={132} progress={cals / Math.max(calTarget, 1)} ticks={56} tickLength={14}>
-                <Text style={styles.calValue}>{cals.toLocaleString()}</Text>
-                <Text style={styles.calTarget}>/ {calTarget.toLocaleString()}</Text>
-                <Text style={styles.calUnit}>Calories</Text>
+          {summaryLoading ? (
+            <ListSkeleton rows={1} />
+          ) : summaryError ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorTitle}>Couldn't load summary</Text>
+              <Text style={styles.errorMsg}>{summaryErr.message}</Text>
+              <Text style={styles.errorHint} onPress={() => refetchSummary()}>
+                Tap to retry
+              </Text>
+            </View>
+          ) : summary ? (
+            <View style={styles.calHero}>
+              <ProgressRing
+                size={140}
+                progress={cals / Math.max(calTarget, 1)}
+                color={colors.accent}
+                track={isDark ? colors.surfaceHover : "#E8E5DE"}
+                ticks={56}
+                tickLength={14}
+              >
+                <Text style={[styles.calValue, { color: headerText }]}>{cals.toLocaleString()}</Text>
+                <Text style={[styles.calTarget, { color: isDark ? colors.textMuted : "#6B6B6B" }]}>
+                  / {calTarget.toLocaleString()}
+                </Text>
+                <Text style={[styles.calUnit, { color: isDark ? colors.textDim : "#A8A8A8" }]}>Calories</Text>
               </ProgressRing>
             </View>
-            <View style={styles.macroBlock}>
-              <MacroRingRow
-                label="Protein"
-                value={summary.protein}
-                target={summary.targets.protein}
-                color={colors.accent}
-              />
-              <MacroRingRow
-                label="Carbs"
-                value={summary.carbs}
-                target={summary.targets.carbs}
-                color={colors.accentBright}
-              />
-              <MacroRingRow
-                label="Fats"
-                value={summary.fat}
-                target={summary.targets.fat}
-                color={colors.gold}
-              />
-            </View>
+          ) : null}
+        </View>
+      </LinearGradient>
+
+      <View style={styles.body}>
+        {summary && !summaryLoading && !summaryError ? (
+          <View style={styles.macroBlock}>
+            <MacroRingRow
+              label="Carbs"
+              value={summary.carbs}
+              target={summary.targets.carbs}
+              color={colors.carbsColor}
+              track={isDark ? undefined : "#E8E5DE"}
+            />
+            <MacroRingRow
+              label="Protein"
+              value={summary.protein}
+              target={summary.targets.protein}
+              color={colors.proteinColor}
+              track={isDark ? undefined : "#E8E5DE"}
+            />
+            <MacroRingRow
+              label="Fats"
+              value={summary.fat}
+              target={summary.targets.fat}
+              color={colors.fatColor}
+              track={isDark ? undefined : "#E8E5DE"}
+            />
           </View>
         ) : null}
 
-        {/* Today's Meals */}
         <Text style={styles.sectionTitle}>Today&apos;s Meals</Text>
         <View style={styles.mealStack}>
           {MEAL_TYPES.map((meal) => {
             const total = mealTotals[meal.key];
+            const accent = !isDark ? MEAL_ACCENT_LIGHT[meal.key] : undefined;
             return (
               <Pressable
                 key={meal.key}
-                style={({ pressed }) => [styles.mealCard, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.mealCard,
+                  !isDark && accent ? { borderLeftWidth: 3, borderLeftColor: accent } : null,
+                  pressed && styles.pressed,
+                ]}
                 onPress={() => openLogger(meal.key)}
               >
-                <View style={styles.mealIcon}>
-                  <Ionicons name={meal.icon} size={22} color={colors.accent} />
+                <View style={[styles.mealIcon, !isDark && accent ? { backgroundColor: `${accent}18` } : null]}>
+                  <Ionicons name={meal.icon} size={22} color={!isDark && accent ? accent : colors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.mealName}>{meal.label}</Text>
@@ -203,7 +242,11 @@ export default function NutritionScreen() {
                   </Text>
                 </View>
                 <View style={styles.addBtn}>
-                  <Ionicons name="add" size={22} color={colors.onAccent} />
+                  <Ionicons
+                    name="add"
+                    size={22}
+                    color={!isDark ? colors.textMuted : colors.onAccent}
+                  />
                 </View>
               </Pressable>
             );
@@ -244,7 +287,6 @@ export default function NutritionScreen() {
           </>
         ) : null}
 
-        {/* Food logger (revealed when adding to a meal) */}
         {logging ? (
           <View style={styles.loggerSection}>
             <View style={styles.loggerHeader}>
@@ -314,18 +356,32 @@ function MacroRingRow({
   value,
   target,
   color,
+  track,
 }: {
   label: string;
   value: number;
   target: number;
   color: string;
+  track?: string;
 }) {
-  const styles = useThemedStyles(makeStyles);
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(
+    () => StyleSheet.create(makeMacroStyles(colors, isDark)),
+    [colors, isDark],
+  );
   const safeTarget = Math.max(target, 1);
   const pct = Math.round((value / safeTarget) * 100);
   return (
     <View style={styles.macroRow}>
-      <ProgressRing size={52} progress={value / safeTarget} color={color} ticks={28} tickLength={7} tickWidth={2}>
+      <ProgressRing
+        size={52}
+        progress={value / safeTarget}
+        color={color}
+        track={track}
+        ticks={28}
+        tickLength={7}
+        tickWidth={2}
+      >
         <Text style={[styles.macroPct, { color }]}>{pct}%</Text>
       </ProgressRing>
       <View>
@@ -338,79 +394,116 @@ function MacroRingRow({
   );
 }
 
-const makeStyles = (colors: Palette) => StyleSheet.create({
-  pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xs },
-  titleActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  pageTitle: { flex: 1, fontSize: 30, fontWeight: "800", color: colors.text },
-  goalsBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.accentMuted, borderRadius: radius.full, paddingVertical: 6, paddingHorizontal: 12 },
-  goalsBtnText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
+function makeMacroStyles(colors: Palette, isDark: boolean) {
+  return {
+    macroRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
+    macroPct: { fontSize: 11, fontWeight: "800" as const },
+    macroLabel: { fontSize: 15, fontWeight: "700" as const, color: colors.text },
+    macroValue: { fontSize: 13, color: colors.textMuted },
+  };
+}
 
-  summaryCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.lg,
-    backgroundColor: colors.bg,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    ...shadows.card,
-  },
-  calBlock: { alignItems: "center", justifyContent: "center" },
-  calValue: { fontSize: 24, fontWeight: "800", color: colors.text },
-  calTarget: { fontSize: 12, color: colors.textMuted, marginTop: -1 },
-  calUnit: { fontSize: 11, color: colors.textDim, fontWeight: "600" },
-  macroBlock: { flex: 1, gap: spacing.md },
-  macroRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  macroPct: { fontSize: 11, fontWeight: "800" },
-  macroLabel: { fontSize: 15, fontWeight: "700", color: colors.text },
-  macroValue: { fontSize: 13, color: colors.textMuted },
+function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
+  return {
+    headerGradient: {
+      paddingBottom: spacing.lg,
+      borderBottomLeftRadius: isDark ? 0 : radius.xl,
+      borderBottomRightRadius: isDark ? 0 : radius.xl,
+    },
+    headerInner: { paddingHorizontal: spacing.lg },
+    body: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl, paddingTop: spacing.lg },
+    titleRow: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      justifyContent: "space-between" as const,
+      gap: spacing.md,
+      marginBottom: spacing.md,
+    },
+    titleActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.sm },
+    pageTitle: { flex: 1, fontSize: 30, fontWeight: "800" as const },
+    goalsBtn: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 4,
+      backgroundColor: isDark ? colors.accentMuted : "rgba(255,255,255,0.55)",
+      borderRadius: radius.full,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+    },
+    goalsBtnText: { fontSize: 14, fontWeight: "700" as const },
 
-  sectionTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
-  mealStack: { gap: spacing.md },
-  mealCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.bg,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  mealIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.accentMuted,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mealName: { fontSize: 16, fontWeight: "700", color: colors.text },
-  mealSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  addBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pressed: { opacity: 0.7 },
+    calHero: { alignItems: "center" as const, paddingVertical: spacing.sm },
+    calValue: { fontSize: 26, fontWeight: "800" as const },
+    calTarget: { fontSize: 12, marginTop: -1 },
+    calUnit: { fontSize: 11, fontWeight: "600" as const },
 
-  loggerSection: { gap: spacing.md },
-  loggerHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  doneLink: { fontSize: 15, fontWeight: "700", color: colors.accent },
-  addLabel: { color: colors.accent, fontWeight: "700", fontSize: 14 },
-  errorBox: {
-    backgroundColor: colors.dangerMuted,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  errorTitle: { color: colors.danger, fontWeight: "700", fontSize: 16 },
-  errorMsg: { color: colors.text, fontSize: 14, lineHeight: 20 },
-  errorHint: { color: colors.accent, fontSize: 14, fontWeight: "700", marginTop: spacing.sm },
-});
+    macroBlock: {
+      flexDirection: "row" as const,
+      justifyContent: "space-between" as const,
+      gap: spacing.sm,
+      backgroundColor: isDark ? colors.surface : colors.bgElevated,
+      borderRadius: radius.lg,
+      borderWidth: isDark ? 1 : 0,
+      borderColor: colors.border,
+      padding: spacing.md,
+      ...shadows.card,
+    },
+
+    sectionTitle: isDark
+      ? { fontSize: 20, fontWeight: "800" as const, color: colors.text }
+      : {
+          fontSize: 11,
+          fontWeight: "600" as const,
+          letterSpacing: 1.2,
+          textTransform: "uppercase" as const,
+          color: colors.textMuted,
+        },
+
+    mealStack: { gap: spacing.md },
+    mealCard: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: spacing.md,
+      backgroundColor: isDark ? colors.bg : colors.bgElevated,
+      borderRadius: 16,
+      borderWidth: isDark ? 1 : 0,
+      borderColor: colors.border,
+      padding: spacing.md,
+      overflow: "hidden" as const,
+      ...shadows.card,
+    },
+    mealIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: radius.md,
+      backgroundColor: colors.accentMuted,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
+    mealName: { fontSize: 16, fontWeight: "700" as const, color: colors.text },
+    mealSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+    addBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: isDark ? colors.accent : colors.surfaceHover,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
+    pressed: { opacity: 0.7 },
+
+    loggerSection: { gap: spacing.md },
+    loggerHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
+    doneLink: { fontSize: 15, fontWeight: "700" as const, color: colors.accent },
+    addLabel: { color: colors.accent, fontWeight: "700" as const, fontSize: 14 },
+    errorBox: {
+      backgroundColor: colors.dangerMuted,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      gap: spacing.sm,
+    },
+    errorTitle: { color: colors.danger, fontWeight: "700" as const, fontSize: 16 },
+    errorMsg: { color: colors.text, fontSize: 14, lineHeight: 20 },
+    errorHint: { color: colors.accent, fontSize: 14, fontWeight: "700" as const, marginTop: spacing.sm },
+  };
+}

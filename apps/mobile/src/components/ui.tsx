@@ -392,13 +392,24 @@ export function Button({
 }
 
 export function FAB({ onPress, icon = "add" }: { onPress: () => void; icon?: IconName }) {
+  const { colors, isDark } = useTheme();
   const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+      style={({ pressed }) => [
+        styles.fab,
+        !isDark && {
+          shadowColor: colors.accent,
+          shadowOpacity: 0.35,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 8,
+        },
+        pressed && styles.fabPressed,
+      ]}
     >
-      <Ionicons name={icon} size={26} color="#fff" />
+      <Ionicons name={icon} size={26} color={colors.onAccent} />
     </Pressable>
   );
 }

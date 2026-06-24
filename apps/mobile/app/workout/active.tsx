@@ -60,7 +60,7 @@ export default function ActiveWorkoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
-  const { data: workout, isLoading, refetch } = trpc.workout.active.useQuery();
+  const { data: workout, isLoading, isFetching, refetch } = trpc.workout.active.useQuery();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const [finishName, setFinishName] = useState("");
@@ -261,7 +261,7 @@ export default function ActiveWorkoutScreen() {
     setFinishNotes(workout.notes ?? "");
   }, [workout?.id]);
 
-  if (isLoading) {
+  if (isLoading || (isFetching && !workout)) {
     return (
       <Screen>
         <ActivityIndicator color={colors.accent} size="large" style={{ marginTop: 48 }} />

@@ -63,18 +63,22 @@ function isLanDevOrigin(origin: string): boolean {
   );
 }
 
-function corsHeaders(origin: string | null) {
+function corsHeaders(origin: string | null): Record<string, string> {
   const isAllowed =
-    origin && (ALLOWED_ORIGINS.has(origin) || isLanDevOrigin(origin));
+    origin != null && (ALLOWED_ORIGINS.has(origin) || isLanDevOrigin(origin));
 
-  const allowed = isAllowed ? origin! : "http://localhost:8081";
-  return {
-    "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, x-api-key",
     "Access-Control-Expose-Headers": "set-auth-token",
     "Access-Control-Allow-Credentials": "true",
   };
+
+  if (isAllowed) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+
+  return headers;
 }
 
 export function middleware(request: NextRequest) {

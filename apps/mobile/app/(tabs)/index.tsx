@@ -6,6 +6,7 @@ import { LineChart } from "../../src/components/charts";
 import { FeedSkeleton } from "../../src/components/skeleton";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
+import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 export default function DashboardScreen() {
@@ -26,9 +27,8 @@ export default function DashboardScreen() {
   const discardActive = trpc.workout.discardActive.useMutation();
 
   const startEmpty = trpc.workout.startEmpty.useMutation({
-    onSuccess: () => {
-      utils.workout.active.invalidate();
-      router.push("/workout/active");
+    onSuccess: (workout) => {
+      navigateToActiveWorkout(utils, router, workout);
     },
     onError: (e) =>
       alertWorkoutConflict(
@@ -43,9 +43,8 @@ export default function DashboardScreen() {
   });
 
   const startRoutine = trpc.workout.startFromRoutine.useMutation({
-    onSuccess: () => {
-      utils.workout.active.invalidate();
-      router.push("/workout/active");
+    onSuccess: (workout) => {
+      navigateToActiveWorkout(utils, router, workout);
     },
     onError: (e, vars) =>
       alertWorkoutConflict(

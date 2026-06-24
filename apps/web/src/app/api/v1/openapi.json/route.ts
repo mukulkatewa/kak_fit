@@ -7,6 +7,7 @@ export async function GET() {
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "public, max-age=300",
+      "Access-Control-Allow-Origin": "*",
     },
   });
 }

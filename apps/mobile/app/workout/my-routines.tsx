@@ -18,6 +18,7 @@ import { HevyIconButton, HevyStackHeader } from "../../src/components/hevy-ui";
 import { Screen } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
+import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
 import type { RouterOutputs } from "@kak-fit/api/router";
 
@@ -38,9 +39,8 @@ export default function MyRoutinesScreen() {
   const discardActive = trpc.workout.discardActive.useMutation();
 
   const startRoutine = trpc.workout.startFromRoutine.useMutation({
-    onSuccess: () => {
-      utils.workout.active.invalidate();
-      router.push("/workout/active");
+    onSuccess: (workout) => {
+      navigateToActiveWorkout(utils, router, workout);
     },
     onError: (e, vars) =>
       alertWorkoutConflict(

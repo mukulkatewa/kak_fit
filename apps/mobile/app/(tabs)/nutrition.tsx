@@ -13,7 +13,7 @@ import {
 } from "../../src/components/ui";
 import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
-import { trpc } from "../../src/lib/trpc";
+import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { radius, spacing, useTheme, type Palette, type ShadowSet } from "../../src/lib/theme";
 
 const MEAL_TYPES = [
@@ -54,8 +54,15 @@ export default function NutritionScreen() {
     isError: summaryError,
     error: summaryErr,
     refetch: refetchSummary,
-  } = trpc.nutrition.dailySummary.useQuery();
-  const { data: meals } = trpc.nutrition.todayMeals.useQuery();
+  } = trpc.nutrition.dailySummary.useQuery(undefined, {
+    staleTime: queryStaleTime.nutritionDaily,
+  });
+  const { data: meals } = trpc.nutrition.todayMeals.useQuery(undefined, {
+    staleTime: queryStaleTime.nutritionMeals,
+  });
+  const { data: targets } = trpc.nutrition.getTargets.useQuery(undefined, {
+    staleTime: queryStaleTime.nutritionTargets,
+  });
   const {
     data: foods,
     isLoading,
@@ -133,7 +140,8 @@ export default function NutritionScreen() {
   };
 
   const cals = summary?.calories ?? 0;
-  const calTarget = summary?.targets.calories ?? 2500;
+  const macroTargets = summary?.targets ?? targets;
+  const calTarget = macroTargets?.calories ?? 2500;
 
   return (
     <Screen scroll padded={false} style={{ backgroundColor: colors.bg }}>
@@ -195,21 +203,21 @@ export default function NutritionScreen() {
             <MacroRingRow
               label="Carbs"
               value={summary.carbs}
-              target={summary.targets.carbs}
+              target={macroTargets?.carbs ?? 0}
               color={colors.carbsColor}
               track={isDark ? undefined : "#E8E5DE"}
             />
             <MacroRingRow
               label="Protein"
               value={summary.protein}
-              target={summary.targets.protein}
+              target={macroTargets?.protein ?? 0}
               color={colors.proteinColor}
               track={isDark ? undefined : "#E8E5DE"}
             />
             <MacroRingRow
               label="Fats"
               value={summary.fat}
-              target={summary.targets.fat}
+              target={macroTargets?.fat ?? 0}
               color={colors.fatColor}
               track={isDark ? undefined : "#E8E5DE"}
             />

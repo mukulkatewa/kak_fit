@@ -62,7 +62,9 @@ export default function ProgressScreen() {
     data: dashboard,
     isError: dashError,
     refetch: refetchDashboard,
-  } = trpc.progress.dashboard.useQuery(undefined, { staleTime: queryStaleTime.progress });
+  } = trpc.progress.dashboard.useQuery(undefined, {
+    staleTime: queryStaleTime.progressStreak,
+  });
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);

@@ -39,11 +39,11 @@ export default function ProfileScreen() {
   const { data: stats } = trpc.auth.stats.useQuery(undefined, { staleTime: queryStaleTime.authStats });
   const { data: volumeHistory, isLoading: chartLoading } = trpc.progress.volumeHistory.useQuery(
     { limit: 8 },
-    { staleTime: queryStaleTime.progress },
+    { staleTime: queryStaleTime.authStats },
   );
   const { data: workouts, isLoading } = trpc.workout.history.useQuery(
     { limit: 6 },
-    { staleTime: queryStaleTime.workoutHistory },
+    { staleTime: queryStaleTime.authStats },
   );
   const utils = trpc.useUtils();
 

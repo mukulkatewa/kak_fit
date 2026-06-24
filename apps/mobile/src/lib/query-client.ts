@@ -1,15 +1,9 @@
 import { QueryClient } from "@tanstack/react-query";
+import { defaultQueryClientOptions } from "./trpc";
 
 export function createQueryClient() {
   return new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: 1,
-        staleTime: 30_000,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: true,
-      },
-    },
+    defaultOptions: defaultQueryClientOptions,
   });
 }
 

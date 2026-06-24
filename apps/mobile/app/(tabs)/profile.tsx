@@ -130,6 +130,7 @@ export default function ProfileScreen() {
             { icon: "barbell-outline", label: "Exercises", onPress: () => router.push("/(tabs)/exercises") },
             { icon: "body-outline", label: "Measures", onPress: () => router.push("/measurements") },
             { icon: "restaurant-outline", label: "Meals", onPress: () => router.push("/(tabs)/nutrition") },
+            { icon: "code-slash-outline", label: "API", onPress: () => router.push("/developer-api") },
             { icon: "settings-outline", label: "Settings", onPress: () => router.push("/settings") },
           ]}
         />

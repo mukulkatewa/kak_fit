@@ -124,11 +124,25 @@ export default function ActiveWorkoutScreen() {
   });
   const addSet = trpc.workout.addSet.useMutation({
     onSuccess: () => refetch(),
-    onError: (e) => Alert.alert("Couldn't add set", e.message),
+    onError: async (e, variables) => {
+      if (!isNetworkError(e)) {
+        Alert.alert("Couldn't add set", e.message);
+        return;
+      }
+      await enqueueWorkoutMutation("addSet", variables);
+      setPendingOffline(await getQueuedWorkoutMutationCount());
+    },
   });
   const deleteSet = trpc.workout.deleteSet.useMutation({
     onSuccess: () => refetch(),
-    onError: (e) => Alert.alert("Couldn't delete set", e.message),
+    onError: async (e, variables) => {
+      if (!isNetworkError(e)) {
+        Alert.alert("Couldn't delete set", e.message);
+        return;
+      }
+      await enqueueWorkoutMutation("deleteSet", variables);
+      setPendingOffline(await getQueuedWorkoutMutationCount());
+    },
   });
   const updateExerciseNotes = trpc.workout.updateExerciseNotes.useMutation({
     onSuccess: () => refetch(),
@@ -162,7 +176,18 @@ export default function ActiveWorkoutScreen() {
       refetch();
       utils.workout.previousSets.invalidate();
     },
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: async (e, variables) => {
+      if (!isNetworkError(e)) {
+        Alert.alert("Error", e.message);
+        return;
+      }
+      await enqueueWorkoutMutation("addExercise", variables);
+      setPendingOffline(await getQueuedWorkoutMutationCount());
+      Alert.alert(
+        "Saved offline",
+        "Exercise will be added when you're back online. Pull to refresh after reconnecting.",
+      );
+    },
   });
 
   const finish = trpc.workout.finish.useMutation({

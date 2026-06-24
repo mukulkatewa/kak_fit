@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Deploy apps/web to Vercel (requires: vercel login, repo env in root .env)
+# Deploy apps/web to Vercel from monorepo root (full repo upload + Root Directory apps/web).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WEB="$ROOT/apps/web"
 ENV_FILE="$ROOT/.env"
 
 if ! command -v vercel >/dev/null 2>&1; then
@@ -19,10 +18,12 @@ fi
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
-cd "$WEB"
+cd "$ROOT"
 
-echo "==> Linking project (root: apps/web) if needed..."
-vercel link --yes 2>/dev/null || vercel link
+echo "==> Linking project from monorepo root..."
+if [[ ! -f "$ROOT/.vercel/project.json" ]]; then
+  vercel link --project web --yes
+fi
 
 echo "==> Pushing env vars to Vercel (production)..."
 ENV_KEYS=(
@@ -47,15 +48,31 @@ for key in "${ENV_KEYS[@]}"; do
   fi
 done
 
-echo "==> Deploying to production..."
-DEPLOY_URL=$(vercel deploy --prod --yes 2>&1 | tee /dev/stderr | grep -oE 'https://[a-zA-Z0-9.-]+\.vercel\.app' | tail -1)
+echo "==> Deploying to production (full monorepo)..."
+DEPLOY_OUTPUT=$(vercel deploy --prod --yes 2>&1)
+echo "$DEPLOY_OUTPUT"
+DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[a-zA-Z0-9-]+-[a-zA-Z0-9-]+\.vercel\.app' | tail -1)
+PROD_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'Production: https://[^ ]+' | sed 's/Production: //' | tail -1)
 
-if [[ -z "$DEPLOY_URL" ]]; then
+FINAL_URL="${PROD_URL:-$DEPLOY_URL}"
+
+if [[ -z "$FINAL_URL" ]]; then
   echo "Deploy finished — check Vercel dashboard for URL."
   exit 0
 fi
 
 echo ""
-echo "Deployed: $DEPLOY_URL"
-echo "Run: ./scripts/set-production-api.sh $DEPLOY_URL"
-echo "Then redeploy so BETTER_AUTH_URL matches: vercel deploy --prod --yes"
+echo "Deployed: $FINAL_URL"
+
+if [[ "$FINAL_URL" != "${BETTER_AUTH_URL:-}" ]]; then
+  echo "==> Updating local env to production API URL..."
+  "$ROOT/scripts/set-production-api.sh" "$FINAL_URL"
+  printf '%s' "$FINAL_URL" | vercel env add BETTER_AUTH_URL production --force
+  printf '%s' "$FINAL_URL" | vercel env add EXPO_PUBLIC_API_URL production --force
+  echo "==> Redeploying with updated BETTER_AUTH_URL..."
+  vercel deploy --prod --yes
+fi
+
+echo ""
+echo "Done. Mobile API: $FINAL_URL"
+echo "Restart Expo or rebuild EAS to pick up apps/mobile/.env"

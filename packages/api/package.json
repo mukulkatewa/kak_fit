@@ -6,7 +6,11 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./router": "./src/router.types.ts"
+    "./router": "./src/router.types.ts",
+    "./public-api": "./src/public-api/index.ts",
+    "./public-api/llm-tools": "./src/public-api/llm-tools.ts",
+    "./public-api/openapi": "./src/public-api/openapi.ts",
+    "./lib/public-api-base-url": "./src/lib/public-api-base-url.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

@@ -78,6 +78,31 @@ model User {
   mealLogs         MealLog[]
   customFoods      Food[]           @relation("CustomFoods")
   progressPhotos   ProgressPhoto[]
+  apiKeys          ApiKey[]
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String    @default("Default")
+  keyPrefix  String
+  keyHash    String    @unique
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WorkoutDeletionLog {
+  id        String   @id @default(cuid())
+  userId    String
+  workoutId String
+  deletedAt DateTime @default(now())
+
+  @@index([userId, deletedAt])
 }
 
 model ProgressPhoto {

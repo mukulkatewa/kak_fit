@@ -81,6 +81,7 @@ function ThemedApp() {
           <Stack.Screen name="photos/compare" />
           <Stack.Screen name="calendar" />
           <Stack.Screen name="tools" options={{ presentation: "modal" }} />
+          <Stack.Screen name="developer-api" options={{ presentation: "modal" }} />
           <Stack.Screen name="routine/share/[token]" />
         </Stack>
       </AuthGate>

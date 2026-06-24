@@ -1,10 +1,14 @@
 import { Platform } from "react-native";
 
-/** API base URL — localhost on web preview, LAN IP on native device. */
+/** API base URL — same origin on web when UI + API share one host (Vercel). */
 export function getApiUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    return envUrl.replace(/\/\/[\d.]+:/, "//localhost:");
+    const { hostname, origin } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return envUrl.replace(/\/\/[\d.]+:/, "//localhost:");
+    }
+    return origin;
   }
   return envUrl;
 }

@@ -71,7 +71,7 @@ function corsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, api-key, x-api-key",
     "Access-Control-Expose-Headers": "set-auth-token",
     "Access-Control-Allow-Credentials": "true",
   };

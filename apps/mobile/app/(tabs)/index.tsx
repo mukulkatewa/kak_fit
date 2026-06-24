@@ -74,8 +74,8 @@ export default function DashboardScreen() {
           </Pressable>
           <View style={styles.statsRow}>
             <Stat value={stats?.workoutCount ?? 0} label="Workouts" />
-            <Stat value={0} label="Followers" />
-            <Stat value={0} label="Following" />
+            <Stat value={stats?.routineCount ?? 0} label="Routines" />
+            <Stat value={stats?.prCount ?? 0} label="PRs" />
           </View>
           <Pressable
             hitSlop={8}

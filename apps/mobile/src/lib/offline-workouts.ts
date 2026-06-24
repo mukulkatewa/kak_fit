@@ -1,7 +1,13 @@
 import * as SQLite from "expo-sqlite";
 import { createTRPCClient } from "./trpc";
 
-type OfflineWorkoutMutationType = "updateSet" | "updateExerciseNotes" | "finishWorkout";
+export type OfflineWorkoutMutationType =
+  | "updateSet"
+  | "updateExerciseNotes"
+  | "finishWorkout"
+  | "addSet"
+  | "deleteSet"
+  | "addExercise";
 
 type OfflineWorkoutMutation = {
   id: number;
@@ -9,6 +15,14 @@ type OfflineWorkoutMutation = {
   payload: string;
   createdAt: number;
 };
+
+/** Mutations that change workout structure — refetch active workout after sync. */
+const STRUCTURAL_MUTATIONS = new Set<OfflineWorkoutMutationType>([
+  "addSet",
+  "deleteSet",
+  "addExercise",
+  "finishWorkout",
+]);
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -55,6 +69,29 @@ async function removeQueuedMutation(id: number) {
   await db.runAsync("DELETE FROM offline_workout_mutations WHERE id = ?", id);
 }
 
+async function applyQueuedMutation(
+  client: ReturnType<typeof createTRPCClient>,
+  type: OfflineWorkoutMutationType,
+  payload: never,
+) {
+  switch (type) {
+    case "updateSet":
+      return client.workout.updateSet.mutate(payload);
+    case "updateExerciseNotes":
+      return client.workout.updateExerciseNotes.mutate(payload);
+    case "finishWorkout":
+      return client.workout.finish.mutate(payload);
+    case "addSet":
+      return client.workout.addSet.mutate(payload);
+    case "deleteSet":
+      return client.workout.deleteSet.mutate(payload);
+    case "addExercise":
+      return client.workout.addExercise.mutate(payload);
+    default:
+      throw new Error(`Unknown offline mutation: ${type satisfies never}`);
+  }
+}
+
 export async function syncQueuedWorkoutMutations() {
   const db = await getDb();
   const queued = await db.getAllAsync<OfflineWorkoutMutation>(
@@ -68,12 +105,9 @@ export async function syncQueuedWorkoutMutations() {
   for (const item of queued) {
     const payload = JSON.parse(item.payload) as never;
     try {
-      if (item.type === "updateSet") {
-        await client.workout.updateSet.mutate(payload);
-      } else if (item.type === "updateExerciseNotes") {
-        await client.workout.updateExerciseNotes.mutate(payload);
-      } else if (item.type === "finishWorkout") {
-        await client.workout.finish.mutate(payload);
+      await applyQueuedMutation(client, item.type, payload);
+      if (STRUCTURAL_MUTATIONS.has(item.type)) {
+        await client.workout.active.query();
       }
       await removeQueuedMutation(item.id);
       synced += 1;

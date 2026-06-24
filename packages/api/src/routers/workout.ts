@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getPreviousSetsBatch } from "../services/previous-values";
 import { recalculatePersonalRecordsForExercise, syncPersonalRecords } from "../services/personal-records";
+import { logWorkoutDeletion } from "../public-api/handlers";
 import { protectedProcedure, router } from "../trpc";
 
 const workoutSetInput = z.object({
@@ -420,7 +421,7 @@ export const workoutRouter = router({
       if (!workout) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
       }
-
+      await logWorkoutDeletion(ctx.prisma, ctx.user.id, workout.id);
       await ctx.prisma.workout.delete({ where: { id: workout.id } });
       return { success: true };
     }),
@@ -431,6 +432,7 @@ export const workoutRouter = router({
       where: { userId: ctx.user.id, finishedAt: null },
     });
     if (active) {
+      await logWorkoutDeletion(ctx.prisma, ctx.user.id, active.id);
       await ctx.prisma.workout.delete({ where: { id: active.id } });
     }
     return { success: true };
@@ -446,6 +448,7 @@ export const workoutRouter = router({
       if (!workout) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
       }
+      await logWorkoutDeletion(ctx.prisma, ctx.user.id, input.id);
       await ctx.prisma.workout.delete({ where: { id: input.id } });
       return { success: true };
     }),

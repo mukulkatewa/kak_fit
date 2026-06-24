@@ -130,9 +130,14 @@ export default function SettingsScreen() {
 
       <Text style={styles.sectionLabel}>Tools</Text>
       <View style={styles.group}>
-        <Pressable style={styles.row} onPress={() => router.push("/tools")}>
+        <Pressable style={[styles.row, styles.rowBorder]} onPress={() => router.push("/tools")}>
           <Ionicons name="calculator-outline" size={20} color={colors.textMuted} />
           <Text style={styles.rowLabel}>Plate & warm-up calculator</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
+        </Pressable>
+        <Pressable style={styles.row} onPress={() => router.push("/developer-api")}>
+          <Ionicons name="code-slash-outline" size={20} color={colors.textMuted} />
+          <Text style={styles.rowLabel}>Developer API</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
         </Pressable>
       </View>

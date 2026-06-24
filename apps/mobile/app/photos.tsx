@@ -28,6 +28,13 @@ export default function PhotosScreen() {
   });
 
   const addPhoto = async () => {
+    if (!enabled) {
+      Alert.alert(
+        "Storage not configured",
+        "Photo uploads require server storage (Supabase or S3). Ask your admin to set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      );
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert("Permission needed", "Allow Kak Fit to access your photos.");

@@ -55,6 +55,13 @@ export default function WorkoutDetailScreen() {
   });
 
   const addPhoto = async () => {
+    if (storage?.enabled === false) {
+      Alert.alert(
+        "Storage not configured",
+        "Photo uploads require server storage (Supabase or S3). Ask your admin to set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      );
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert("Permission needed", "Allow Kak Fit to access your photos.");
@@ -268,7 +275,14 @@ export default function WorkoutDetailScreen() {
       ))}
 
       {/* Workout photos */}
-      {storage?.enabled ? (
+      {storage?.enabled === false ? (
+        <View style={styles.photosSection}>
+          <Text style={styles.exerciseName}>Photos</Text>
+          <Text style={styles.photosEmpty}>
+            Photo storage is not configured on the server. Progress photos are unavailable until storage env vars are set.
+          </Text>
+        </View>
+      ) : storage?.enabled ? (
         <View style={styles.photosSection}>
           <View style={styles.photosHeader}>
             <Text style={styles.exerciseName}>Photos</Text>

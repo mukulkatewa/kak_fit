@@ -9,6 +9,7 @@ import { personalRecordRouter } from "./routers/personal-record";
 import { routineRouter } from "./routers/routine";
 import { workoutRouter } from "./routers/workout";
 import { progressPhotoRouter } from "./routers/progress-photo";
+import { developerRouter } from "./routers/developer";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({
@@ -37,6 +38,7 @@ export const appRouter = router({
   progress: progressRouter,
   bodyMeasurement: bodyMeasurementRouter,
   progressPhoto: progressPhotoRouter,
+  developer: developerRouter,
 });
 
 export type AppRouter = typeof appRouter;

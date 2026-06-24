@@ -1,10 +1,8 @@
-# Kak Fit vs Hevy — End-to-End Feature Comparison
+# Kak Fit vs Hevy — Feature Comparison
 
-> **Demo: everything is free.** No paywall, no subscription limits enforced.
->
 > Legend: ✅ done · 🟡 partial · 🔲 not started · ➕ beyond Hevy
 >
-> _Last updated: June 22, 2026_
+> _Last updated: June 23, 2026_
 
 ---
 
@@ -12,146 +10,100 @@
 
 | Pillar | Hevy | Kak Fit today | Gap |
 |--------|------|---------------|-----|
-| Workout logging | Best-in-class | Live logger, prev values, copy set, set types, rest timer, supersets | ✅ Strong parity |
-| Routine builder | Folders, reorder, programs | Create / edit / duplicate / delete + folders + reorder + supersets + templates | ✅ Strong parity |
-| Exercise library | 400+, custom, detail | 858 exercises, filters, custom create, detail + charts | ✅ Parity |
-| Progress tracking | Charts, streak, muscle map, calendar | Volume/duration/reps charts, streak, muscle heatmap, PRs, calendar | ✅ Strong parity |
-| Body measurements | Weight + 14 fields + photos | Log all fields + per-metric trend + history | 🟡 Photos separate screen |
-| Progress photos | Attached to workouts | Dedicated Photos screen + per-workout attachment | ✅ Parity |
-| Nutrition | ❌ none | USDA food search + macro rings + meal log + editable goals | ➕ Beyond Hevy |
-| Social | Feed, follow, like, comment | DB models only, no UI | 🔲 Phase 5 |
-| Theming | Light + dark | Light (green/white) + dark (black/blue, system auto) | ✅ Parity |
-| Platforms | iOS/Android/Web/Watch | iOS/Android/Web (Expo) | 🟡 No Watch yet |
+| Workout logging | Best-in-class | Live logger, prev values, RPE, supersets, edit history | ✅ Strong parity |
+| Routine builder | Folders, reorder, programs | CRUD + folders + share link + static programs | 🟡 No Hevy-style 26 curated programs |
+| Exercise library | 400+, custom | 858 (Wger) + custom | ✅ Parity |
+| Progress tracking | Charts, PRs, muscle map | Volume charts, PRs, muscle heatmap, calendar | 🟡 No monthly/year-in-review |
+| **Developer API (Pro)** | REST + API key | **REST `/api/v1` + API key** | ✅ Parity (see §9) |
+| Body measurements | 14+ fields | 5 fields + trends | 🟡 Fewer measurement types |
+| Nutrition | ❌ none | USDA + meal log + macros | ➕ Beyond Hevy |
+| Social | Feed, follow, like | DB only | 🔲 Phase 5 |
+| Offline | Full offline sync | Scaffold only | 🔲 |
+| Watch apps | Apple Watch / Wear OS | — | 🔲 |
 
 ---
 
-## 1. Workout Logging
+## 9. Developer API (Hevy Pro)
 
-| Feature | Hevy | Kak Fit |
-|---------|------|---------|
-| Live session (volume, timer) | ✅ | ✅ |
-| Empty / from-routine start | ✅ | ✅ |
-| Weight / reps / duration per set | ✅ | ✅ |
-| Set types (normal/warmup/drop/failure) | ✅ | ✅ |
-| Previous workout values | ✅ | ✅ |
-| Copy previous set | ✅ | ✅ |
-| Add / delete sets | ✅ | ✅ |
-| Rest timer | ✅ | ✅ |
-| Supersets | ✅ | ✅ |
-| Live PR notification | ✅ | ✅ |
-| Workout detail view (read-only) | ✅ | ✅ |
-| Rename / delete past workouts | ✅ | ✅ |
-| Edit past workouts (modify sets) | ✅ | ✅ |
-| RPE per set | ✅ | ✅ |
-| Copy workout → new session | ✅ | ✅ |
-| Create routine from workout | ✅ | ✅ |
-| Offline logging | ✅ | 🔲 |
-| Plate / warm-up calculator | ✅ Pro | ✅ |
+Hevy exposes a [public REST API](https://api.hevyapp.com/docs/) for **Pro subscribers** — API key in `api-key` header, access to workouts, routines, exercise templates, history, and body measurements.
 
-## 2. Routine Builder
+| Capability | Hevy Pro API | Kak Fit Developer API |
+|------------|--------------|------------------------|
+| Pro-gated access | ✅ | ✅ (`DEVELOPER_API_REQUIRE_PRO=true` in production; open in beta) |
+| API key management UI | Web settings | ✅ Mobile **Settings → Developer API** |
+| `GET /user/info` | ✅ | ✅ `/api/v1/user/info` |
+| Workouts list / get / create / update | ✅ | ✅ |
+| Workout count | ✅ | ✅ |
+| Workout sync events | ✅ | ✅ (created/updated/deleted since `since`) |
+| Routines CRUD | ✅ | ✅ (no DELETE yet — 🟡) |
+| Routine folders | ✅ | ✅ (no folder update/delete — 🟡) |
+| Exercise templates / catalog | ✅ | ✅ |
+| Custom exercise create | ✅ | ✅ |
+| Exercise history per exercise | ✅ | ✅ |
+| Personal records | In history/charts | ✅ dedicated `/personal_records` |
+| Body measurements CRUD | ✅ by date | ✅ |
+| OpenAPI / Swagger | ✅ | 🟡 HTML docs at `/api/v1/docs` |
+| Official SDKs | Community only | 🔲 |
 
-| Feature | Hevy | Kak Fit |
-|---------|------|---------|
-| Create / edit / duplicate / delete | ✅ | ✅ |
-| Folders + reorder | ✅ | ✅ |
-| Exercise reorder (up/down) | ✅ | ✅ |
-| Supersets | ✅ | ✅ |
-| Unlimited routines | Pro only | ✅ free |
-| Pre-made programs (26) | ✅ | 🟡 Static templates |
-| Share routine link | ✅ | ✅ |
-| Drag-to-reorder (gesture) | ✅ | ✅ |
+**Auth:** `api-key: kak_…` · **Base URL:** `https://web-eight-khaki-87.vercel.app/api/v1`
 
-## 3. Exercise Library
+---
 
-| Feature | Hevy | Kak Fit |
-|---------|------|---------|
-| Built-in exercises | 400+ | ✅ 858 (Wger) |
-| Search + muscle/category filter | ✅ | ✅ |
-| Custom exercises (create) | ✅ | ✅ |
-| Exercise detail + history + 1RM | ✅ | ✅ |
-| Exercise GIFs/images | ✅ | ✅ (Wger demo images) |
-| Strength-level benchmarks | ✅ | 🔲 |
+## 8. Hevy Pro features (app + API)
 
-## 4. Progress Tracking
-
-| Feature | Hevy | Kak Fit |
-|---------|------|---------|
-| Volume / duration / reps charts | ✅ | ✅ |
-| Weight chart per exercise | ✅ | ✅ |
-| PR history | ✅ | ✅ |
-| Estimated 1RM | ✅ | ✅ |
-| Muscle heatmap | ✅ | ✅ |
-| Active streak | ✅ | ✅ |
-| Workout calendar | ✅ | ✅ |
-| Monthly report | ✅ | 🔲 |
-| Year-in-review | ✅ | 🔲 |
-
-## 5. Body & Photos
-
-| Feature | Hevy | Kak Fit |
-|---------|------|---------|
-| Body weight + measurements | ✅ | ✅ |
-| Per-metric trend charts | ✅ | ✅ |
-| Progress photos (dedicated screen) | ✅ | ✅ |
-| Photos attached to workouts | ✅ | ✅ |
-| Side-by-side photo compare | ✅ | ✅ |
-
-## 6. Nutrition (Kak Fit advantage ➕)
-
-| Feature | Hevy | Kak Fit |
-|---------|------|---------|
-| Food search (USDA) | ❌ | ✅ |
-| Meal logging | ❌ | ✅ |
-| Daily calorie + macro rings | ❌ | ✅ |
-| Editable macro targets per user | ❌ | ✅ |
-| Custom food management | ❌ | 🔲 |
-
-## 7. Profile & Social
-
-| Feature | Hevy | Kak Fit |
-|---------|------|---------|
-| Edit profile (name + bio) | ✅ | ✅ |
-| Profile completion prompt | ✅ | ✅ |
-| Light/dark/system theme | ✅ | ✅ |
-| Follow / unfollow | ✅ | 🔲 Phase 5 |
-| Home feed (workouts from following) | ✅ | 🔲 |
-| Like workouts | ✅ | 🔲 |
-| Comment | ✅ | 🔲 |
-| User profiles | ✅ | 🔲 |
-| Leaderboards | ✅ | 🔲 |
-
-## 8. Hevy Pro features (they charge for, we offer free)
-
-| Pro Feature | Hevy cost | Kak Fit |
-|-------------|-----------|---------|
-| Unlimited routines | Pro | ✅ Free |
+| Pro feature | Hevy | Kak Fit |
+|-------------|------|---------|
+| Unlimited routines | Pro | ✅ Free (demo) |
 | Unlimited custom exercises | Pro | ✅ Free |
 | All-time chart history | Pro | ✅ Free |
-| Hevy Trainer (AI programming) | Pro | 🔲 (Phase 5+) |
-| Warm-up / plate calculator | Pro | 🔲 |
+| **Public Developer API** | **Pro** | **✅ Implemented** |
+| Hevy Trainer (AI programming) | Pro | 🔲 |
+| Warm-up / plate calculator | Pro | ✅ |
 | CSV export | Pro | 🔲 |
-| Advanced analytics | Pro | 🔲 |
+| Advanced analytics / reports | Pro | 🟡 Charts yes, monthly report 🔲 |
+| Apple Watch / Wear OS | Pro ecosystem | 🔲 |
+| Strength-level benchmarks | Pro charts | 🔲 |
+| Offline logging | ✅ | 🔲 |
 
 ---
 
-## Remaining backlog (priority order)
+## Remaining Pro / parity backlog
 
-**Medium effort — connect what's in the DB:**
-1. ~~Copy workout → new session~~ ✅
-2. ~~Edit past workout sets~~ ✅
-3. ~~Exercise GIFs~~ ✅
-4. ~~Drag-to-reorder exercises~~ ✅
-5. Custom food management screen
-6. ~~Settings (units, rest timer)~~ ✅
+**High value (Hevy Pro gaps):**
+1. Routine DELETE via API + app
+2. CSV export (workouts + measurements)
+3. OpenAPI JSON spec + Postman collection
+4. Monthly / year-in-review reports
+5. Offline logging + sync
+6. Enforce `DEVELOPER_API_REQUIRE_PRO=true` when billing ships
 
 **Larger:**
-6. Social feed (follow/like/comment) — Phase 5
-7. Side-by-side photo comparison
-8. Monthly / year-in-review reports
-9. CSV export
-10. Offline logging (SQLite + sync)
-11. AI programming (Hevy Trainer equivalent)
-12. Apple Watch / Wear OS
+7. Hevy Trainer equivalent (AI programming)
+8. Social feed
+9. Apple Watch / Wear OS
+10. Extra body measurement fields (hips, thighs, etc.)
+11. Strength-level benchmarks per exercise
 
-**DB region note:** Database is now on **ap-south-1 (Mumbai)** — warm requests
-run at ~300–500ms vs the former ~1.7s on Tokyo.
+**Kak Fit advantages (not in Hevy):**
+- Nutrition tracking (USDA, macros, meal log)
+- Dedicated progress photo compare screen
+- Lower target pricing
+
+---
+
+## Quick reference — app features
+
+| Area | Status |
+|------|--------|
+| Workout logging | ✅ |
+| Edit past workouts | ✅ |
+| Routines + folders + share | ✅ |
+| PRs + 1RM | ✅ |
+| Progress charts + muscle heatmap | ✅ |
+| Body measurements | ✅ |
+| Progress photos | ✅ |
+| Settings (units, rest, theme) | ✅ |
+| Developer API | ✅ **new** |
+| Social | 🔲 |
+| Offline | 🔲 |
+| Watch | 🔲 |

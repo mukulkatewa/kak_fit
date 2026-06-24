@@ -4,6 +4,8 @@
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "dev:web": "pnpm --filter @kak-fit/web dev",
+    "dev:web-app": "pnpm --filter @kak-fit/mobile web",
+    "export:web": "pnpm --filter @kak-fit/mobile export:web",
     "dev:api": "bash scripts/start-api.sh",
     "dev:mobile": "bash scripts/start-expo.sh",
     "sync:ip": "bash scripts/sync-ip.sh",

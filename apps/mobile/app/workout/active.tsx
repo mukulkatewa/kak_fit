@@ -294,7 +294,8 @@ export default function ActiveWorkoutScreen() {
     setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedMs) / 1000)));
 
     const id = setInterval(() => {
-      setElapsedSeconds((seconds) => seconds + 60);
+      const freshElapsed = Math.floor((Date.now() - startedMs) / 1000);
+      setElapsedSeconds(Math.max(0, freshElapsed));
     }, 60_000);
 
     return () => clearInterval(id);

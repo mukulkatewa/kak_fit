@@ -13,13 +13,17 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { RectButton, Swipeable } from "react-native-gesture-handler";
 import {
   addSetToWorkout,
+  addExerciseToWorkout,
   patchExerciseNotes,
   patchSetInWorkout,
   removeSetFromWorkout,
+  reorderExercisesInWorkout,
   type ActiveWorkout,
 } from "../../src/lib/active-workout-cache";
+import { ReorderableExerciseList } from "../../src/components/reorderable-exercises";
 import {
   Button,
   Card,
@@ -65,6 +69,16 @@ const setTypeColor = (colors: Palette): Record<SetType, string> => ({
   FAILURE: colors.danger,
 });
 
+function exercisesToSuperLinks(exercises: ActiveWorkout["exercises"]): boolean[] {
+  return exercises.map(
+    (exercise, index) =>
+      index > 0 &&
+      exercise.supersetGroup != null &&
+      exercises[index - 1]?.supersetGroup != null &&
+      exercise.supersetGroup === exercises[index - 1]?.supersetGroup,
+  );
+}
+
 export default function ActiveWorkoutScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
@@ -80,6 +94,7 @@ export default function ActiveWorkoutScreen() {
   const [pendingOffline, setPendingOffline] = useState(0);
   const [search, setSearch] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [reorderMode, setReorderMode] = useState(false);
 
   const exerciseIds = useMemo(
     () => workout?.exercises.map((e) => e.exercise.id) ?? [],
@@ -189,6 +204,13 @@ export default function ActiveWorkoutScreen() {
     },
   });
 
+  const reorderExercises = trpc.workout.reorderExercises.useMutation({
+    onSuccess: (updatedWorkout) => {
+      utils.workout.active.setData(undefined, updatedWorkout);
+    },
+    onError: (e) => Alert.alert("Couldn't reorder", e.message),
+  });
+
   const handleSetUpdate = (
     setId: string,
     data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType; rpe?: number | null },
@@ -198,10 +220,10 @@ export default function ActiveWorkoutScreen() {
   };
 
   const addExercise = trpc.workout.addExercise.useMutation({
-    onSuccess: () => {
+    onSuccess: (newExercise) => {
       setPickerOpen(false);
       setSearch("");
-      void refetch();
+      patchActiveWorkout((workout) => addExerciseToWorkout(workout, newExercise));
       utils.workout.previousSets.invalidate();
     },
     onError: async (e, variables) => {
@@ -227,15 +249,7 @@ export default function ActiveWorkoutScreen() {
       utils.progress.volumeHistory.invalidate();
       utils.progress.muscleDistribution.invalidate();
       utils.auth.stats.invalidate();
-      const prCount = result.newRecords.length;
-      const summary = result.summary;
-      Alert.alert(
-        "Workout saved",
-        `${summary.completedSets} sets · ${Math.round(tonnageFromKg(summary.totalVolume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)} · ${summary.durationMinutes} min${
-          prCount > 0 ? ` · ${prCount} PR${prCount > 1 ? "s" : ""}` : ""
-        }`,
-        [{ text: "Done", onPress: () => router.back() }],
-      );
+      router.replace(`/workout/${result.workout.id}`);
     },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
@@ -324,9 +338,23 @@ export default function ActiveWorkoutScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.accent} />
         </Pressable>
-        <Text style={styles.volume}>
-          {Math.round(volume).toLocaleString()} {weightLabel(weightUnit)}
-        </Text>
+        <View style={styles.topBarRight}>
+          <Pressable
+            onPress={() => setReorderMode((open) => !open)}
+            onLongPress={() => setReorderMode(true)}
+            hitSlop={8}
+            style={styles.reorderBtn}
+          >
+            <Ionicons
+              name={reorderMode ? "checkmark" : "reorder-three-outline"}
+              size={22}
+              color={reorderMode ? colors.accent : colors.textMuted}
+            />
+          </Pressable>
+          <Text style={styles.volume}>
+            {Math.round(volume).toLocaleString()} {weightLabel(weightUnit)}
+          </Text>
+        </View>
       </View>
 
       <Text style={styles.workoutTitle}>{workout.name ?? "Workout"}</Text>
@@ -343,24 +371,48 @@ export default function ActiveWorkoutScreen() {
       ) : null}
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {workout.exercises.map((exercise) => (
-          <ExerciseBlock
-            key={exercise.id}
-            name={exercise.exercise.name}
-            supersetGroup={exercise.supersetGroup ?? null}
-            workoutExerciseId={exercise.id}
-            sets={exercise.sets}
-            notes={exercise.notes ?? null}
-            previous={previousMap?.[exercise.exercise.id] ?? null}
-            onUpdateSet={handleSetUpdate}
-            onAddSet={() => addSet.mutate({ workoutExerciseId: exercise.id })}
-            onDeleteSet={(setId) => deleteSet.mutate({ setId })}
-            onUpdateNotes={(notes) => updateExerciseNotes.mutate({ workoutExerciseId: exercise.id, notes })}
-            weightUnit={weightUnit}
-          />
-        ))}
+        {reorderMode ? (
+          <Card>
+            <SectionHeader title="Reorder exercises" />
+            <ReorderableExerciseList
+              items={workout.exercises.map((exercise) => ({
+                exerciseId: exercise.id,
+                name: exercise.exercise.name,
+              }))}
+              superLinks={exercisesToSuperLinks(workout.exercises)}
+              onReorder={(items) => {
+                const orderedIds = items.map((item) => item.exerciseId);
+                patchActiveWorkout((current) => reorderExercisesInWorkout(current, orderedIds));
+                reorderExercises.mutate({
+                  workoutId: workout.id,
+                  workoutExerciseIds: orderedIds,
+                });
+              }}
+              onToggleLink={() => undefined}
+              onRemove={() => undefined}
+            />
+            <Button label="Done reordering" fullWidth onPress={() => setReorderMode(false)} />
+          </Card>
+        ) : (
+          workout.exercises.map((exercise) => (
+            <ExerciseBlock
+              key={exercise.id}
+              name={exercise.exercise.name}
+              supersetGroup={exercise.supersetGroup ?? null}
+              workoutExerciseId={exercise.id}
+              sets={exercise.sets}
+              notes={exercise.notes ?? null}
+              previous={previousMap?.[exercise.exercise.id] ?? null}
+              onUpdateSet={handleSetUpdate}
+              onAddSet={() => addSet.mutate({ workoutExerciseId: exercise.id })}
+              onDeleteSet={(setId) => deleteSet.mutate({ setId })}
+              onUpdateNotes={(notes) => updateExerciseNotes.mutate({ workoutExerciseId: exercise.id, notes })}
+              weightUnit={weightUnit}
+            />
+          ))
+        )}
 
-        {pickerOpen ? (
+        {!reorderMode && pickerOpen ? (
           <Card>
             <SectionHeader title="Add Exercise" />
             <SearchBar placeholder="Search exercise" value={search} onChangeText={setSearch} />
@@ -387,11 +439,11 @@ export default function ActiveWorkoutScreen() {
             />
             <Button label="Close" variant="ghost" fullWidth onPress={() => setPickerOpen(false)} />
           </Card>
-        ) : (
+        ) : !reorderMode ? (
           <Button label="Add Exercise" icon="add" fullWidth onPress={() => setPickerOpen(true)} variant="secondary" />
-        )}
+        ) : null}
 
-        {finishOpen ? (
+        {!reorderMode && finishOpen ? (
           <Card>
             <SectionHeader title="Finish Workout" />
             <View style={styles.summaryGrid}>
@@ -501,7 +553,6 @@ function ExerciseBlock({
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const lastSet = sets[sets.length - 1];
   const [notesOpen, setNotesOpen] = useState(Boolean(notes));
   const [draftNotes, setDraftNotes] = useState(notes ?? "");
 
@@ -509,19 +560,6 @@ function ExerciseBlock({
     setDraftNotes(notes ?? "");
     setNotesOpen(Boolean(notes));
   }, [notes, workoutExerciseId]);
-
-  const copyLastSet = () => {
-    if (!lastSet) return;
-    const source = pickPreviousForSet(previous, lastSet.setNumber);
-    if (!source) {
-      Alert.alert("No previous data", "Complete this exercise in a past workout first.");
-      return;
-    }
-    onUpdateSet(lastSet.id, {
-      weight: source.weight ?? undefined,
-      reps: source.reps ?? undefined,
-    });
-  };
 
   return (
     <Card>
@@ -533,17 +571,9 @@ function ExerciseBlock({
       ) : null}
       <View style={styles.exerciseHeader}>
         <Text style={styles.exerciseName}>{name}</Text>
-        <View style={styles.exerciseActions}>
-          <Pressable onPress={() => setNotesOpen((open) => !open)} hitSlop={8} style={styles.iconBtn}>
-            <Ionicons name={notesOpen ? "document-text" : "document-text-outline"} size={17} color={colors.accent} />
-          </Pressable>
-          {previous ? (
-            <Pressable onPress={copyLastSet} hitSlop={8} style={styles.copyBtn}>
-              <Ionicons name="copy-outline" size={16} color={colors.accent} />
-              <Text style={styles.copyBtnText}>Copy prev</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <Pressable onPress={() => setNotesOpen((open) => !open)} hitSlop={8} style={styles.iconBtn}>
+          <Ionicons name={notesOpen ? "document-text" : "document-text-outline"} size={17} color={colors.accent} />
+        </Pressable>
       </View>
 
       {notesOpen ? (
@@ -567,7 +597,6 @@ function ExerciseBlock({
 
       <View style={styles.setHeader}>
         <Text style={[styles.setCol, styles.setColNarrow]}>SET</Text>
-        <Text style={[styles.setCol, styles.setColPrev]}>PREV</Text>
         <Text style={styles.setCol}>{weightLabel(weightUnit).toUpperCase()}</Text>
         <Text style={styles.setCol}>REPS</Text>
         <Text style={[styles.setCol, styles.setColRpe]}>RPE</Text>
@@ -628,95 +657,111 @@ function SetRow({
     setReps(set.reps?.toString() ?? "");
   }, [set.weight, set.reps, weightUnit]);
 
-  const flushDraft = () => {
-    const w = parseOptionalNumber(weight);
-    return {
-      weight: w !== undefined ? toKg(w, weightUnit) : undefined,
-      reps: parseOptionalNumber(reps),
-    };
+  const flushDraft = (useGhost = false) => {
+    const parsedWeight = parseOptionalNumber(weight);
+    const parsedReps = parseOptionalNumber(reps);
+
+    let weightKg: number | undefined;
+    if (parsedWeight !== undefined) {
+      weightKg = toKg(parsedWeight, weightUnit);
+    } else if (useGhost && previousValues?.weight != null) {
+      weightKg = previousValues.weight;
+    }
+
+    let repsValue: number | undefined;
+    if (parsedReps !== undefined) {
+      repsValue = parsedReps;
+    } else if (useGhost && previousValues?.reps != null) {
+      repsValue = previousValues.reps;
+    }
+
+    return { weight: weightKg, reps: repsValue };
   };
 
   const commit = () => {
     onUpdateSet(set.id, flushDraft());
   };
 
-  const copyPrevious = () => {
-    if (!previousValues) return;
-    const w =
-      previousValues.weight != null ? String(fromKg(previousValues.weight, weightUnit)) : "";
-    const r = previousValues.reps?.toString() ?? "";
-    setWeight(w);
-    setReps(r);
-    onUpdateSet(set.id, {
-      weight: previousValues.weight ?? undefined,
-      reps: previousValues.reps ?? undefined,
-    });
+  const weightPlaceholder =
+    weight.trim() === "" && previousValues?.weight != null
+      ? String(fromKg(previousValues.weight, weightUnit))
+      : "—";
+  const repsPlaceholder =
+    reps.trim() === "" && previousValues?.reps != null
+      ? String(previousValues.reps)
+      : "—";
+
+  const confirmDelete = () => {
+    const hasData = set.weight != null || set.reps != null || set.isCompleted;
+    if (!hasData) {
+      onDeleteSet(set.id);
+      return;
+    }
+    Alert.alert("Delete set?", "Remove this set from the workout?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => onDeleteSet(set.id) },
+    ]);
   };
 
-  const prevLabel = formatPreviousSet(previousValues);
+  const renderDeleteAction = () => (
+    <RectButton style={styles.deleteAction} onPress={confirmDelete}>
+      <Text style={styles.deleteActionText}>Delete</Text>
+    </RectButton>
+  );
 
   return (
-    <View style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
-      <Pressable
-        onPress={() => onUpdateSet(set.id, { ...flushDraft(), setType: cycleSetType(set.setType) })}
-        style={styles.setTypeBtn}
-      >
-        <Text style={[styles.setNumber, { color: setTypeColor(colors)[set.setType] }]}>{typeLabel}</Text>
-      </Pressable>
+    <Swipeable renderRightActions={renderDeleteAction} overshootRight={false} friction={2}>
+      <View style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
+        <Pressable
+          onPress={() => onUpdateSet(set.id, { ...flushDraft(), setType: cycleSetType(set.setType) })}
+          style={styles.setTypeBtn}
+        >
+          <Text style={[styles.setNumber, { color: setTypeColor(colors)[set.setType] }]}>{typeLabel}</Text>
+        </Pressable>
 
-      <Pressable
-        onPress={copyPrevious}
-        disabled={!previousValues}
-        style={[styles.prevCell, !previousValues && styles.prevCellDisabled]}
-      >
-        <Text style={styles.prevText} numberOfLines={1}>
-          {prevLabel}
-        </Text>
-      </Pressable>
-
-      <TextInput
-        style={[styles.setInput, set.isCompleted && styles.setInputDone]}
-        value={weight}
-        onChangeText={setWeight}
-        onBlur={commit}
-        keyboardType="decimal-pad"
-        placeholder="—"
-        placeholderTextColor={colors.textDim}
-      />
-      <TextInput
-        style={[styles.setInput, set.isCompleted && styles.setInputDone]}
-        value={reps}
-        onChangeText={setReps}
-        onBlur={commit}
-        keyboardType="number-pad"
-        placeholder="—"
-        placeholderTextColor={colors.textDim}
-      />
-      <Pressable
-        onPress={() => onUpdateSet(set.id, { ...flushDraft(), rpe: cycleRpe(set.rpe) })}
-        style={styles.rpeCell}
-      >
-        <Text style={styles.rpeText}>{formatRpe(set.rpe)}</Text>
-      </Pressable>
-      <Pressable
-        style={[styles.check, set.isCompleted && styles.checkDone]}
-        onPress={() =>
-          onUpdateSet(set.id, { ...flushDraft(), isCompleted: !set.isCompleted })
-        }
-      >
-        {set.isCompleted ? (
-          <Ionicons name="checkmark" size={18} color={colors.accent} />
-        ) : null}
-      </Pressable>
-      <Pressable onPress={() => onDeleteSet(set.id)} hitSlop={8}>
-        <Ionicons name="close" size={18} color={colors.danger} />
-      </Pressable>
-    </View>
+        <TextInput
+          style={[styles.setInput, set.isCompleted && styles.setInputDone]}
+          value={weight}
+          onChangeText={setWeight}
+          onBlur={commit}
+          keyboardType="decimal-pad"
+          placeholder={weightPlaceholder}
+          placeholderTextColor={colors.textDim}
+        />
+        <TextInput
+          style={[styles.setInput, set.isCompleted && styles.setInputDone]}
+          value={reps}
+          onChangeText={setReps}
+          onBlur={commit}
+          keyboardType="number-pad"
+          placeholder={repsPlaceholder}
+          placeholderTextColor={colors.textDim}
+        />
+        <Pressable
+          onPress={() => onUpdateSet(set.id, { ...flushDraft(), rpe: cycleRpe(set.rpe) })}
+          style={styles.rpeCell}
+        >
+          <Text style={styles.rpeText}>{formatRpe(set.rpe)}</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.check, set.isCompleted && styles.checkDone]}
+          onPress={() =>
+            onUpdateSet(set.id, { ...flushDraft(true), isCompleted: !set.isCompleted })
+          }
+        >
+          {set.isCompleted ? (
+            <Ionicons name="checkmark" size={18} color={colors.accent} />
+          ) : null}
+        </Pressable>
+      </View>
+    </Swipeable>
   );
 }
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
   topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  topBarRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  reorderBtn: { padding: 4 },
   backBtn: { padding: 4 },
   volume: { color: colors.textMuted, fontSize: 15, fontWeight: "600" },
   workoutTitle: { fontSize: 28, fontWeight: "700", color: colors.text },
@@ -737,10 +782,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   scrollContent: { gap: spacing.md, paddingBottom: spacing.xl },
   exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   exerciseName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: "600" },
-  exerciseActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   iconBtn: { padding: 2 },
-  copyBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  copyBtnText: { color: colors.accent, fontSize: 13, fontWeight: "600" },
   supersetBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginBottom: 4 },
   supersetBadgeText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
   prevMeta: { color: colors.textDim, fontSize: 12, marginTop: -4 },
@@ -756,19 +798,16 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   setHeader: { flexDirection: "row", gap: spacing.xs, paddingHorizontal: 2, marginTop: spacing.sm },
   setCol: { flex: 1, color: colors.textDim, fontSize: 11, fontWeight: "600", textAlign: "center" },
   setColNarrow: { flex: 0, width: 28 },
-  setColPrev: { flex: 0, width: 48 },
   setColRpe: { flex: 0, width: 36 },
-  setRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  setRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.bgElevated,
+  },
   setRowDone: { opacity: 0.85 },
   setNumber: { fontSize: 14, fontWeight: "700", textAlign: "center" },
   setTypeBtn: { width: 28, alignItems: "center" },
-  prevCell: {
-    width: 48,
-    paddingVertical: 8,
-    paddingHorizontal: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   rpeCell: {
     width: 36,
     paddingVertical: 8,
@@ -778,8 +817,6 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderRadius: radius.sm,
   },
   rpeText: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
-  prevCellDisabled: { opacity: 0.35 },
-  prevText: { fontSize: 11, color: colors.textMuted, fontWeight: "500", textAlign: "center" },
   setInput: {
     flex: 1,
     backgroundColor: colors.surfaceHover,
@@ -802,6 +839,16 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     backgroundColor: colors.surfaceHover,
   },
   checkDone: { backgroundColor: colors.accentMuted },
+  deleteAction: {
+    backgroundColor: colors.danger,
+    justifyContent: "center",
+    alignItems: "flex-end",
+    paddingHorizontal: spacing.lg,
+    marginVertical: 1,
+    borderRadius: radius.sm,
+    width: 88,
+  },
+  deleteActionText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   addSetBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm },
   addSet: { color: colors.accent, fontSize: 15, fontWeight: "600" },
   pickerList: { maxHeight: 220 },

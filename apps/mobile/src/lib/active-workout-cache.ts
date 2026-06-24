@@ -58,3 +58,15 @@ export function addExerciseToWorkout(workout: ActiveWorkout, exercise: WorkoutEx
     exercises: [...workout.exercises, exercise],
   };
 }
+
+export function reorderExercisesInWorkout(
+  workout: ActiveWorkout,
+  orderedWorkoutExerciseIds: string[],
+): ActiveWorkout {
+  const byId = new Map(workout.exercises.map((exercise) => [exercise.id, exercise]));
+  const exercises = orderedWorkoutExerciseIds
+    .map((id) => byId.get(id))
+    .filter((exercise): exercise is ActiveWorkout["exercises"][number] => exercise != null)
+    .map((exercise, order) => ({ ...exercise, order }));
+  return { ...workout, exercises };
+}

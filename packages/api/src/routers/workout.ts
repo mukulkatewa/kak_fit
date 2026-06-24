@@ -285,6 +285,59 @@ export const workoutRouter = router({
       });
     }),
 
+  reorderExercises: protectedProcedure
+    .input(
+      z.object({
+        workoutId: z.string(),
+        workoutExerciseIds: z.array(z.string()).min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const workout = await ctx.prisma.workout.findFirst({
+        where: {
+          id: input.workoutId,
+          userId: ctx.user.id,
+          finishedAt: null,
+        },
+        include: { exercises: true },
+      });
+
+      if (!workout) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Active workout not found" });
+      }
+
+      const existingIds = new Set(workout.exercises.map((exercise) => exercise.id));
+      if (
+        input.workoutExerciseIds.length !== workout.exercises.length ||
+        !input.workoutExerciseIds.every((id) => existingIds.has(id))
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Exercise order must include every exercise exactly once",
+        });
+      }
+
+      await ctx.prisma.$transaction(async (tx) => {
+        for (let i = 0; i < input.workoutExerciseIds.length; i++) {
+          await tx.workoutExercise.update({
+            where: { id: input.workoutExerciseIds[i] },
+            data: { order: 10_000 + i },
+          });
+        }
+        for (let i = 0; i < input.workoutExerciseIds.length; i++) {
+          await tx.workoutExercise.update({
+            where: { id: input.workoutExerciseIds[i] },
+            data: { order: i },
+          });
+        }
+      });
+
+      return ctx.prisma.workout.findFirstOrThrow({
+        where: { id: workout.id },
+        include: workoutDetailInclude,
+      });
+    }),
+
   addSet: protectedProcedure
     .input(z.object({ workoutExerciseId: z.string() }))
     .mutation(async ({ ctx, input }) => {

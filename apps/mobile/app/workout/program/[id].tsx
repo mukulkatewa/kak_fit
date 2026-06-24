@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useRef, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HevyButton, ListGroup, ListRow, Screen, ThemedDialog } from "../../../src/components/ui";
 import { HevyProgramCard, HevyStackHeader } from "../../../src/components/hevy-ui";
@@ -29,6 +29,7 @@ export default function ProgramDetailScreen() {
   const [isStarting, setIsStarting] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
   const [startingTemplateName, setStartingTemplateName] = useState<string | null>(null);
+  const [expandedRoutine, setExpandedRoutine] = useState<string | null>(null);
   const importActionRef = useRef<"save-only" | "start-after">("save-only");
   const [dialog, setDialog] = useState<{
     title: string;
@@ -240,31 +241,51 @@ export default function ProgramDetailScreen() {
 
         <Text style={styles.sectionTitle}>Routines in this program</Text>
         <ListGroup>
-          {program.routines.map((routine, index) => (
-            <ListRow
-              key={routine.name}
-              title={routine.name}
-              subtitle={`${routine.exerciseNames.length} exercises · tap to start`}
-              icon="list-outline"
-              last={index === program.routines.length - 1}
-              onPress={
-                isRoutineRowBusy(routine) ? undefined : () => handleRoutinePress(routine)
-              }
-            />
-          ))}
-        </ListGroup>
-
-        {program.routines.map((routine) => (
-          <View key={routine.name} style={styles.routineBlock}>
-            <Text style={styles.routineName}>{routine.name}</Text>
-            {routine.exerciseNames.map((name) => (
-              <View key={name} style={styles.exerciseRow}>
-                <Ionicons name="ellipse" size={6} color={colors.textDim} />
-                <Text style={styles.exerciseName}>{name}</Text>
+          {program.routines.map((routine, index) => {
+            const isExpanded = expandedRoutine === routine.name;
+            const isLast = index === program.routines.length - 1;
+            return (
+              <View key={routine.name}>
+                <ListRow
+                  title={routine.name}
+                  subtitle={`${routine.exerciseNames.length} exercises · tap to start`}
+                  icon="list-outline"
+                  last={isLast && !isExpanded}
+                  onPress={
+                    isRoutineRowBusy(routine) ? undefined : () => handleRoutinePress(routine)
+                  }
+                  right={
+                    <Pressable
+                      hitSlop={8}
+                      onPress={() =>
+                        setExpandedRoutine((current) =>
+                          current === routine.name ? null : routine.name,
+                        )
+                      }
+                      style={styles.expandBtn}
+                    >
+                      <Ionicons
+                        name={isExpanded ? "chevron-up" : "chevron-down"}
+                        size={18}
+                        color={colors.textDim}
+                      />
+                    </Pressable>
+                  }
+                />
+                {isExpanded ? (
+                  <View style={[styles.exerciseExpand, isLast && styles.exerciseExpandLast]}>
+                    {routine.exerciseNames.map((name) => (
+                      <View key={name} style={styles.exerciseRow}>
+                        <Ionicons name="ellipse" size={6} color={colors.textDim} />
+                        <Text style={styles.exerciseName}>{name}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
               </View>
-            ))}
-          </View>
-        ))}
+            );
+          })}
+        </ListGroup>
       </View>
 
       <ThemedDialog
@@ -301,8 +322,15 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   pillText: { color: colors.textMuted, fontSize: 13, fontWeight: "500" },
   sectionTitle: { fontSize: 20, fontWeight: "700", color: colors.text },
-  routineBlock: { gap: spacing.sm },
-  routineName: { fontSize: 17, fontWeight: "600", color: colors.text },
+  expandBtn: { padding: 4 },
+  exerciseExpand: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.separator,
+  },
+  exerciseExpandLast: { borderBottomWidth: 0 },
   exerciseRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingLeft: spacing.sm },
   exerciseName: { color: colors.textMuted, fontSize: 15 },
 });

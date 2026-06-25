@@ -135,7 +135,7 @@ export default function ActiveWorkoutScreen() {
     { enabled: pickerOpen },
   );
 
-  const { secondsLeft, isRunning, start, tick, stop, setDefault } = useRestTimer();
+  const { secondsLeft, isRunning, start, tick, stop, setDefault, addSeconds } = useRestTimer();
 
   useEffect(() => {
     if (!isRunning) return;
@@ -435,11 +435,21 @@ export default function ActiveWorkoutScreen() {
       ) : null}
 
       {isRunning ? (
-        <Pressable style={[styles.restBar, styles.contentPad]} onPress={stop}>
-          <Text style={styles.restLabel}>Rest</Text>
-          <Text style={styles.restTime}>{formatRestTime(secondsLeft)}</Text>
-          <Text style={styles.restHint}>Tap to skip</Text>
-        </Pressable>
+        <View style={[styles.restBar, styles.contentPad]}>
+          <Pressable onPress={() => addSeconds(-15)} hitSlop={8} style={styles.restAdjustBtn}>
+            <Text style={styles.restAdjustText}>-15</Text>
+          </Pressable>
+          <Pressable onPress={stop} style={styles.restCenter}>
+            <View style={styles.restCenterTop}>
+              <Text style={styles.restLabel}>Rest</Text>
+              <Text style={styles.restTime}>{formatRestTime(secondsLeft)}</Text>
+            </View>
+            <Text style={styles.restHint}>Tap to skip</Text>
+          </Pressable>
+          <Pressable onPress={() => addSeconds(15)} hitSlop={8} style={styles.restAdjustBtn}>
+            <Text style={styles.restAdjustText}>+15</Text>
+          </Pressable>
+        </View>
       ) : null}
 
       <ScrollView
@@ -1077,8 +1087,17 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginBottom: spacing.sm,
   },
   restLabel: { color: colors.accent, fontWeight: "600", fontSize: 15 },
-  restTime: { flex: 1, color: colors.text, fontWeight: "700", fontSize: 28, textAlign: "center" },
+  restCenter: { flex: 1, alignItems: "center" },
+  restCenterTop: { flexDirection: "row", alignItems: "center", gap: 6 },
+  restTime: { color: colors.text, fontWeight: "700", fontSize: 28 },
   restHint: { color: colors.textDim, fontSize: 12 },
+  restAdjustBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 44,
+    alignItems: "center",
+  },
+  restAdjustText: { fontSize: 14, fontWeight: "600", color: colors.accent },
   scroll: { flex: 1 },
   scrollContent: { gap: spacing.md, paddingBottom: spacing.xl },
   exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },

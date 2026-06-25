@@ -256,6 +256,7 @@ export default function ActiveWorkoutScreen() {
 
   const finish = trpc.workout.finish.useMutation({
     onSuccess: (result) => {
+      setFinishOpen(false);
       utils.workout.active.invalidate();
       utils.workout.history.invalidate();
       utils.personalRecord.list.invalidate();
@@ -484,47 +485,6 @@ export default function ActiveWorkoutScreen() {
             />
           ))
         )}
-
-        {!reorderMode && finishOpen ? (
-          <Card>
-            <SectionHeader title="Finish Workout" />
-            <View style={styles.summaryGrid}>
-              <SummaryItem label="Sets" value={completedSetCount} />
-              <SummaryItem
-                label="Volume"
-                value={`${Math.round(completedVolume).toLocaleString()} ${weightLabel(weightUnit)}`}
-              />
-              <SummaryItem label="Time" value={formatElapsedDuration(elapsedSeconds)} />
-            </View>
-            <TextInput
-              style={styles.finishInput}
-              value={finishName}
-              onChangeText={setFinishName}
-              placeholder="Workout name"
-              placeholderTextColor={colors.textDim}
-            />
-            <TextInput
-              style={[styles.finishInput, styles.finishNotes]}
-              value={finishNotes}
-              onChangeText={setFinishNotes}
-              placeholder="Session notes"
-              placeholderTextColor={colors.textDim}
-              multiline
-            />
-            <HevyButton
-              label="Save Workout"
-              onPress={() =>
-                finish.mutate({
-                  workoutId: workout.id,
-                  name: finishName.trim() || workout.name || "Workout",
-                  notes: finishNotes.trim() || undefined,
-                })
-              }
-              loading={finish.isPending}
-            />
-            <Button label="Keep logging" variant="ghost" fullWidth onPress={() => setFinishOpen(false)} />
-          </Card>
-        ) : null}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
@@ -547,6 +507,65 @@ export default function ActiveWorkoutScreen() {
         </Pressable>
       </View>
     </Screen>
+
+    <Modal
+      visible={finishOpen}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setFinishOpen(false)}
+    >
+      <Screen scroll style={styles.finishModal}>
+        <View style={styles.finishModalHeader}>
+          <Pressable onPress={() => setFinishOpen(false)} hitSlop={8}>
+            <Ionicons name="close" size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.finishModalTitle}>Finish Workout</Text>
+          <View style={styles.finishModalHeaderSpacer} />
+        </View>
+
+        <View style={styles.summaryGrid}>
+          <SummaryItem label="Duration" value={formatElapsedDuration(elapsedSeconds)} />
+          <SummaryItem
+            label="Volume"
+            value={`${Math.round(completedVolume).toLocaleString()} ${weightLabel(weightUnit)}`}
+          />
+          <SummaryItem label="Sets" value={completedSetCount} />
+          <SummaryItem label="Exercises" value={workout.exercises.length} />
+        </View>
+
+        <Text style={styles.finishFieldLabel}>Workout name</Text>
+        <TextInput
+          style={styles.finishInput}
+          value={finishName}
+          onChangeText={setFinishName}
+          placeholder="Workout name"
+          placeholderTextColor={colors.textDim}
+        />
+
+        <Text style={styles.finishFieldLabel}>Notes</Text>
+        <TextInput
+          style={[styles.finishInput, styles.finishNotes]}
+          value={finishNotes}
+          onChangeText={setFinishNotes}
+          placeholder="Session notes"
+          placeholderTextColor={colors.textDim}
+          multiline
+        />
+
+        <HevyButton
+          label="Save Workout"
+          onPress={() =>
+            finish.mutate({
+              workoutId: workout.id,
+              name: finishName.trim() || workout.name || "Workout",
+              notes: finishNotes.trim() || undefined,
+            })
+          }
+          loading={finish.isPending}
+        />
+        <Button label="Cancel" variant="ghost" fullWidth onPress={() => setFinishOpen(false)} />
+      </Screen>
+    </Modal>
 
     <Modal
       visible={pickerOpen}
@@ -1038,9 +1057,10 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginBottom: 6,
   },
   pickerText: { color: colors.text, fontSize: 15, fontWeight: "500", flex: 1 },
-  summaryGrid: { flexDirection: "row", gap: spacing.sm },
+  summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   summaryItem: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: "45%",
     backgroundColor: colors.surfaceHover,
     borderRadius: radius.md,
     padding: spacing.md,
@@ -1056,6 +1076,21 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     padding: spacing.md,
   },
   finishNotes: { minHeight: 86, textAlignVertical: "top" },
+  finishModal: { gap: spacing.md, paddingBottom: spacing.xxl },
+  finishModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  finishModalTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
+  finishModalHeaderSpacer: { width: 24 },
+  finishFieldLabel: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: -spacing.xs,
+  },
   footer: {
     flexDirection: "row",
     alignItems: "center",

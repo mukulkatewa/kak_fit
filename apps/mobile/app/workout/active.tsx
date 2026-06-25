@@ -105,6 +105,9 @@ export default function ActiveWorkoutScreen() {
   const [search, setSearch] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [reorderMode, setReorderMode] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [discardError, setDiscardError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const closePicker = () => {
     setPickerOpen(false);
@@ -282,8 +285,13 @@ export default function ActiveWorkoutScreen() {
 
   const cancel = trpc.workout.cancel.useMutation({
     onSuccess: () => {
+      setDiscardConfirmOpen(false);
+      setDiscardError(null);
       utils.workout.active.invalidate();
       router.back();
+    },
+    onError: (e) => {
+      setDiscardError(e.message);
     },
   });
 
@@ -342,21 +350,14 @@ export default function ActiveWorkoutScreen() {
     );
   };
 
-  const openWorkoutSettings = () => {
-    Alert.alert("Workout settings", undefined, [
-      { text: "Workout Settings", onPress: () => router.push("/settings") },
-      ...(reorderMode
-        ? [{ text: "Done reordering", onPress: () => setReorderMode(false) }]
-        : [{ text: "Reorder exercises", onPress: () => setReorderMode(true) }]),
-      { text: "Cancel", style: "cancel" },
-    ]);
+  const openDiscardConfirm = () => {
+    setDiscardError(null);
+    setDiscardConfirmOpen(true);
   };
 
-  const confirmDiscard = () => {
-    Alert.alert("Discard workout?", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Discard", style: "destructive", onPress: () => cancel.mutate({ workoutId: workout!.id }) },
-    ]);
+  const handleDiscardWorkout = () => {
+    if (!workout) return;
+    cancel.mutate({ workoutId: workout.id });
   };
 
   if (isLoading || (isFetching && !workout)) {
@@ -488,7 +489,7 @@ export default function ActiveWorkoutScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
-        <Pressable onPress={confirmDiscard} hitSlop={8} style={styles.footerSide}>
+        <Pressable onPress={openDiscardConfirm} hitSlop={8} style={styles.footerSide}>
           <Text style={styles.discardText}>Discard Workout</Text>
         </Pressable>
         {!reorderMode ? (
@@ -502,7 +503,7 @@ export default function ActiveWorkoutScreen() {
         ) : (
           <View style={styles.footerSide} />
         )}
-        <Pressable onPress={openWorkoutSettings} hitSlop={8} style={[styles.footerSide, styles.footerSideEnd]}>
+        <Pressable onPress={() => setSettingsOpen(true)} hitSlop={8} style={[styles.footerSide, styles.footerSideEnd]}>
           <Text style={styles.settingsText}>Settings</Text>
         </Pressable>
       </View>
@@ -605,6 +606,71 @@ export default function ActiveWorkoutScreen() {
         />
         <Button label="Close" variant="ghost" fullWidth onPress={closePicker} />
       </View>
+    </Modal>
+
+    <Modal
+      visible={discardConfirmOpen}
+      animationType="fade"
+      transparent
+      onRequestClose={() => setDiscardConfirmOpen(false)}
+    >
+      <Pressable style={styles.confirmBackdropBottom} onPress={() => setDiscardConfirmOpen(false)}>
+        <Pressable style={styles.confirmCard} onPress={(event) => event.stopPropagation()}>
+          <Text style={styles.confirmTitle}>Discard workout?</Text>
+          <Text style={styles.confirmSubtitle}>This cannot be undone.</Text>
+          {discardError ? <Text style={styles.confirmError}>{discardError}</Text> : null}
+          <Pressable
+            style={[styles.confirmAction, styles.confirmActionDanger]}
+            onPress={handleDiscardWorkout}
+            disabled={cancel.isPending}
+          >
+            {cancel.isPending ? (
+              <ActivityIndicator color={colors.danger} size="small" />
+            ) : (
+              <Text style={styles.confirmActionDangerText}>Discard Workout</Text>
+            )}
+          </Pressable>
+          <Pressable style={styles.confirmAction} onPress={() => setDiscardConfirmOpen(false)}>
+            <Text style={styles.confirmActionText}>Cancel</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+
+    <Modal
+      visible={settingsOpen}
+      animationType="fade"
+      transparent
+      onRequestClose={() => setSettingsOpen(false)}
+    >
+      <Pressable style={styles.confirmBackdrop} onPress={() => setSettingsOpen(false)}>
+        <Pressable style={styles.confirmCard} onPress={(event) => event.stopPropagation()}>
+          <Text style={styles.confirmTitle}>Workout settings</Text>
+          <Pressable
+            style={styles.confirmAction}
+            onPress={() => {
+              setSettingsOpen(false);
+              router.push("/settings");
+            }}
+          >
+            <Text style={styles.confirmActionText}>Workout Settings</Text>
+          </Pressable>
+          <Pressable
+            style={styles.confirmAction}
+            onPress={() => {
+              setSettingsOpen(false);
+              setReorderMode((current) => !current);
+            }}
+          >
+            <Text style={styles.confirmActionText}>
+              {reorderMode ? "Done reordering" : "Reorder exercises"}
+            </Text>
+          </Pressable>
+          <Pressable style={styles.confirmAction} onPress={() => setSettingsOpen(false)}>
+            <Text style={styles.confirmActionMutedText}>Cancel</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
     </Modal>
     </>
   );
@@ -1091,6 +1157,47 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     fontWeight: "600",
     marginBottom: -spacing.xs,
   },
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
+  confirmBackdropBottom: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+    padding: spacing.lg,
+  },
+  confirmCard: {
+    width: "100%",
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  confirmTitle: { fontSize: 18, fontWeight: "800", color: colors.text, textAlign: "center" },
+  confirmSubtitle: {
+    color: colors.textMuted,
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: spacing.sm,
+  },
+  confirmError: { color: colors.danger, fontSize: 14, textAlign: "center" },
+  confirmAction: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceHover,
+  },
+  confirmActionDanger: { backgroundColor: "rgba(239,68,68,0.12)" },
+  confirmActionText: { color: colors.text, fontSize: 16, fontWeight: "600" },
+  confirmActionMutedText: { color: colors.textMuted, fontSize: 16, fontWeight: "600" },
+  confirmActionDangerText: { color: colors.danger, fontSize: 16, fontWeight: "700" },
   footer: {
     flexDirection: "row",
     alignItems: "center",

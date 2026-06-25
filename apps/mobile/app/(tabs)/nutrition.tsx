@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  Button,
   EmptyState,
   ListGroup,
   ListRow,
@@ -141,7 +142,14 @@ export default function NutritionScreen() {
 
   const cals = summary?.calories ?? 0;
   const macroTargets = summary?.targets ?? targets;
-  const calTarget = macroTargets?.calories ?? 2500;
+  const calTarget = macroTargets?.calories ?? 0;
+  const calProgress = calTarget > 0 ? Math.min(1, cals / calTarget) : 0;
+  const goalsUnset =
+    macroTargets?.configured === false ||
+    ((macroTargets?.calories ?? 0) === 0 &&
+      (macroTargets?.protein ?? 0) === 0 &&
+      (macroTargets?.carbs ?? 0) === 0 &&
+      (macroTargets?.fat ?? 0) === 0);
 
   return (
     <Screen scroll padded={false} style={{ backgroundColor: colors.bg }}>
@@ -180,7 +188,7 @@ export default function NutritionScreen() {
             <View style={styles.calHero}>
               <ProgressRing
                 size={140}
-                progress={cals / Math.max(calTarget, 1)}
+                progress={calProgress}
                 color={colors.accent}
                 track={isDark ? colors.surfaceHover : "#E8E5DE"}
                 ticks={56}
@@ -188,7 +196,7 @@ export default function NutritionScreen() {
               >
                 <Text style={[styles.calValue, { color: headerText }]}>{cals.toLocaleString()}</Text>
                 <Text style={[styles.calTarget, { color: isDark ? colors.textMuted : "#6B6B6B" }]}>
-                  / {calTarget.toLocaleString()}
+                  {calTarget > 0 ? `/ ${calTarget.toLocaleString()}` : "No goal set"}
                 </Text>
                 <Text style={[styles.calUnit, { color: isDark ? colors.textDim : "#A8A8A8" }]}>Calories</Text>
               </ProgressRing>
@@ -199,29 +207,39 @@ export default function NutritionScreen() {
 
       <View style={styles.body}>
         {summary && !summaryLoading && !summaryError ? (
-          <View style={styles.macroBlock}>
-            <MacroRingRow
-              label="Carbs"
-              value={summary.carbs}
-              target={macroTargets?.carbs ?? 0}
-              color={colors.carbsColor}
-              track={isDark ? undefined : "#E8E5DE"}
-            />
-            <MacroRingRow
-              label="Protein"
-              value={summary.protein}
-              target={macroTargets?.protein ?? 0}
-              color={colors.proteinColor}
-              track={isDark ? undefined : "#E8E5DE"}
-            />
-            <MacroRingRow
-              label="Fats"
-              value={summary.fat}
-              target={macroTargets?.fat ?? 0}
-              color={colors.fatColor}
-              track={isDark ? undefined : "#E8E5DE"}
-            />
-          </View>
+          goalsUnset ? (
+            <View style={styles.goalsCta}>
+              <Text style={styles.goalsCtaTitle}>Set your daily nutrition goals</Text>
+              <Text style={styles.goalsCtaText}>
+                Add calorie and macro targets to track your progress with the rings below.
+              </Text>
+              <Button label="Set goals" onPress={() => router.push("/nutrition-goals")} />
+            </View>
+          ) : (
+            <View style={styles.macroBlock}>
+              <MacroRingRow
+                label="Carbs"
+                value={summary.carbs}
+                target={macroTargets?.carbs ?? 0}
+                color={colors.carbsColor}
+                track={isDark ? undefined : "#E8E5DE"}
+              />
+              <MacroRingRow
+                label="Protein"
+                value={summary.protein}
+                target={macroTargets?.protein ?? 0}
+                color={colors.proteinColor}
+                track={isDark ? undefined : "#E8E5DE"}
+              />
+              <MacroRingRow
+                label="Fats"
+                value={summary.fat}
+                target={macroTargets?.fat ?? 0}
+                color={colors.fatColor}
+                track={isDark ? undefined : "#E8E5DE"}
+              />
+            </View>
+          )
         ) : null}
 
         <Text style={styles.sectionTitle}>Today&apos;s Meals</Text>
@@ -378,13 +396,13 @@ function MacroRingRow({
     () => StyleSheet.create(makeMacroStyles(colors, isDark)),
     [colors, isDark],
   );
-  const safeTarget = Math.max(target, 1);
-  const pct = Math.round((value / safeTarget) * 100);
+  const progress = target > 0 ? Math.min(1, value / target) : 0;
+  const pct = Math.round(progress * 100);
   return (
     <View style={styles.macroRow}>
       <ProgressRing
         size={52}
-        progress={value / safeTarget}
+        progress={progress}
         color={color}
         track={track}
         ticks={28}
@@ -396,7 +414,7 @@ function MacroRingRow({
       <View>
         <Text style={styles.macroLabel}>{label}</Text>
         <Text style={styles.macroValue}>
-          {Math.round(value)}g / {target}g
+          {Math.round(value)}g / {target > 0 ? `${target}g` : "—"}
         </Text>
       </View>
     </View>
@@ -456,6 +474,23 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       borderColor: colors.border,
       padding: spacing.md,
       ...shadows.card,
+    },
+    goalsCta: {
+      backgroundColor: isDark ? colors.surface : colors.bgElevated,
+      borderRadius: radius.lg,
+      borderWidth: isDark ? 1 : 0,
+      borderColor: colors.border,
+      padding: spacing.lg,
+      gap: spacing.md,
+      alignItems: "center" as const,
+      ...shadows.card,
+    },
+    goalsCtaTitle: { fontSize: 18, fontWeight: "800" as const, color: colors.text, textAlign: "center" as const },
+    goalsCtaText: {
+      fontSize: 14,
+      color: colors.textMuted,
+      textAlign: "center" as const,
+      lineHeight: 20,
     },
 
     sectionTitle: isDark

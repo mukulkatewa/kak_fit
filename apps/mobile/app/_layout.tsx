@@ -5,12 +5,13 @@ import {
   DefaultTheme as NavDefaultTheme,
   ThemeProvider as NavThemeProvider,
 } from "@react-navigation/native";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
+import { DevApiBanner } from "../src/components/dev-api-banner";
 import { AuthSessionValidator } from "../src/lib/auth-session-validator";
 import { AuthProvider, useAuth } from "../src/lib/auth-context";
 import { queryClient } from "../src/lib/query-client";
@@ -19,33 +20,48 @@ import { ThemeProvider, useTheme } from "../src/lib/theme";
 
 const trpcClient = createTRPCClient();
 
-function AuthGate({ children }: { children: React.ReactNode }) {
+/** Redirect after the root navigator has mounted — never wrap Stack in a gate. */
+function AuthRedirect() {
   const router = useRouter();
   const segments = useSegments();
+  const navigationState = useRootNavigationState();
   const { isAuthenticated, isLoading } = useAuth();
-  const { colors } = useTheme();
 
   useEffect(() => {
-    if (isLoading) return;
+    if (!navigationState?.key || isLoading) return;
 
-    const inAuth = segments[0] === "login";
+    const id = setTimeout(() => {
+      const first = segments[0];
+      const inAuth = first === "login";
+      const onIndex = !first || first === "index";
 
-    if (!isAuthenticated && !inAuth) {
-      router.replace("/login");
-    } else if (isAuthenticated && inAuth) {
-      router.replace("/(tabs)");
-    }
-  }, [isLoading, isAuthenticated, segments, router]);
+      if (!isAuthenticated && !inAuth) {
+        router.replace("/login");
+      } else if (isAuthenticated && (inAuth || onIndex)) {
+        router.replace("/(tabs)");
+      }
+    }, 0);
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.accent} size="large" />
-      </View>
-    );
-  }
+    return () => clearTimeout(id);
+  }, [navigationState?.key, isLoading, isAuthenticated, segments, router]);
 
-  return <>{children}</>;
+  return null;
+}
+
+function AuthLoadingOverlay() {
+  const { isLoading } = useAuth();
+  const { colors } = useTheme();
+
+  if (!isLoading) return null;
+
+  return (
+    <View
+      pointerEvents="auto"
+      style={[StyleSheet.absoluteFillObject, styles.loadingOverlay, { backgroundColor: colors.bg }]}
+    >
+      <ActivityIndicator color={colors.accent} size="large" />
+    </View>
+  );
 }
 
 function ThemedApp() {
@@ -66,30 +82,32 @@ function ThemedApp() {
   return (
     <NavThemeProvider value={navTheme}>
       <StatusBar style={isDark ? "light" : "dark"} />
-      <AuthGate>
-        <View style={{ flex: 1 }}>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-            <Stack.Screen name="login" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="workout" />
-            <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
-            <Stack.Screen name="exercise/create" options={{ presentation: "modal" }} />
-            <Stack.Screen name="exercise/[id]" />
-            <Stack.Screen name="measurements" />
-            <Stack.Screen name="settings" options={{ presentation: "modal" }} />
-            <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
-            <Stack.Screen name="nutrition-foods" options={{ presentation: "modal" }} />
-            <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
-            <Stack.Screen name="photos" />
-            <Stack.Screen name="photos/compare" />
-            <Stack.Screen name="calendar" />
-            <Stack.Screen name="tools" options={{ presentation: "modal" }} />
-            <Stack.Screen name="developer-api" options={{ presentation: "modal" }} />
-            <Stack.Screen name="routine/share/[token]" />
-          </Stack>
-          <ActiveWorkoutOverlay />
-        </View>
-      </AuthGate>
+      <View style={styles.root}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="workout" />
+          <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
+          <Stack.Screen name="exercise/create" options={{ presentation: "modal" }} />
+          <Stack.Screen name="exercise/[id]" />
+          <Stack.Screen name="measurements" />
+          <Stack.Screen name="settings" options={{ presentation: "modal" }} />
+          <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
+          <Stack.Screen name="nutrition-foods" options={{ presentation: "modal" }} />
+          <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
+          <Stack.Screen name="photos" />
+          <Stack.Screen name="photos/compare" />
+          <Stack.Screen name="calendar" />
+          <Stack.Screen name="tools" options={{ presentation: "modal" }} />
+          <Stack.Screen name="developer-api" options={{ presentation: "modal" }} />
+          <Stack.Screen name="routine/share/[token]" />
+        </Stack>
+        <AuthRedirect />
+        <AuthLoadingOverlay />
+        <DevApiBanner />
+        <ActiveWorkoutOverlay />
+      </View>
     </NavThemeProvider>
   );
 }
@@ -110,3 +128,8 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  loadingOverlay: { alignItems: "center", justifyContent: "center", zIndex: 100 },
+});

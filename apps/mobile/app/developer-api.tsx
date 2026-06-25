@@ -35,6 +35,7 @@ export default function DeveloperApiScreen() {
   const { data: keys, isLoading } = trpc.developer.listKeys.useQuery();
   const [keyName, setKeyName] = useState("My AI Key");
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [manualKey, setManualKey] = useState("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [setupLoading, setSetupLoading] = useState(false);
   const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,11 +84,13 @@ export default function DeveloperApiScreen() {
     </Pressable>
   );
 
+  const setupKey = revealedKey ?? (manualKey.startsWith("kak_") ? manualKey.trim() : null);
+
   const copySetupMessage = async () => {
-    if (!revealedKey) return;
+    if (!setupKey) return;
     setSetupLoading(true);
     try {
-      const message = await buildSetupMessage(revealedKey, apiBase);
+      const message = await buildSetupMessage(setupKey, apiBase);
       await copy(message);
     } catch (e) {
       Alert.alert(
@@ -175,24 +178,42 @@ export default function DeveloperApiScreen() {
         <Text style={styles.muted}>No API keys yet.</Text>
       )}
 
+      <Text style={styles.manualKeyHint}>
+        Your full API key was shown once when created. To copy the AI setup message, paste it here.
+        Never share this key publicly.
+      </Text>
+      <Text style={styles.sectionLabel}>Enter your full API key to copy setup message</Text>
+      <TextInput
+        style={styles.input}
+        value={manualKey}
+        onChangeText={setManualKey}
+        placeholder="kak_…"
+        placeholderTextColor={colors.textDim}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+      />
+
       <Text style={styles.sectionLabel}>How to use with AI</Text>
       <View style={styles.aiCard}>
         <Text style={styles.aiStep}>1. Generate an API key above.</Text>
 
         <Text style={styles.aiStep}>
-          2. When the key is revealed, tap &quot;Copy Setup Message&quot; — it copies your key, base
-          URL, and a ready-made system prompt.
+          2. Tap &quot;Copy Setup Message&quot; when your key is revealed, or paste a saved key above
+          first — it copies your key, base URL, and a ready-made system prompt.
         </Text>
         <Button
           label={setupLoading ? "Loading setup…" : "Copy Setup Message"}
           onPress={() => void copySetupMessage()}
-          disabled={!revealedKey || setupLoading}
+          disabled={!setupKey || setupLoading}
         />
         {setupLoading ? (
           <ActivityIndicator color={colors.accent} style={styles.setupSpinner} />
         ) : null}
-        {!revealedKey ? (
-          <Text style={styles.aiHint}>Create a new key to get the full setup message.</Text>
+        {!setupKey ? (
+          <Text style={styles.aiHint}>
+            Create a new key or paste an existing key starting with kak_ to copy the setup message.
+          </Text>
         ) : null}
 
         <Text style={styles.aiStep}>
@@ -268,6 +289,13 @@ const makeStyles = (colors: Palette) =>
     rowTitle: { fontSize: 16, color: colors.text, fontWeight: "600" },
     rowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
     muted: { color: colors.textMuted, fontSize: 14 },
+    manualKeyHint: {
+      color: colors.textMuted,
+      fontSize: 13,
+      lineHeight: 18,
+      marginTop: spacing.md,
+      marginBottom: spacing.xs,
+    },
     aiCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,

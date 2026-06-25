@@ -1,0 +1,248 @@
+import { Ionicons } from "@expo/vector-icons";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  exerciseSummary,
+  formatRoutineExerciseDetail,
+  type RoutineListItem,
+} from "../lib/routine-display";
+import { useUserPreferences } from "../lib/use-preferences";
+import { spacing, shadows, useTheme, useThemedStyles, type Palette } from "../lib/theme";
+
+type RoutineExpandableRowProps = {
+  routine: RoutineListItem;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onStart: () => void;
+  disabled?: boolean;
+  last?: boolean;
+};
+
+export function RoutineExpandableRow({
+  routine,
+  expanded,
+  onToggleExpand,
+  onStart,
+  disabled,
+  last,
+}: RoutineExpandableRowProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { weightUnit } = useUserPreferences();
+
+  return (
+    <View style={!last ? styles.itemBorder : undefined}>
+      <View style={styles.row}>
+        <Pressable
+          disabled={disabled}
+          onPress={onStart}
+          style={({ pressed }) => [
+            styles.mainTap,
+            pressed && !disabled && styles.mainTapPressed,
+            disabled && styles.disabled,
+          ]}
+        >
+          <View style={styles.icon}>
+            <Ionicons name="barbell-outline" size={18} color={colors.textMuted} />
+          </View>
+          <View style={styles.body}>
+            <Text style={styles.title} numberOfLines={1}>
+              {routine.name}
+            </Text>
+            <Text style={styles.subtitle} numberOfLines={2}>
+              {exerciseSummary(routine.exercises)}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          hitSlop={8}
+          onPress={(event) => {
+            event.stopPropagation();
+            onToggleExpand();
+          }}
+          style={styles.chevronBtn}
+          accessibilityLabel={expanded ? "Collapse exercises" : "Expand exercises"}
+        >
+          <Ionicons
+            name={expanded ? "chevron-down" : "chevron-forward"}
+            size={16}
+            color={colors.textDim}
+          />
+        </Pressable>
+      </View>
+      {expanded ? (
+        <View style={styles.expanded}>
+          {routine.exercises.map((exercise) => (
+            <Text key={exercise.id} style={styles.expandedLine}>
+              • {formatRoutineExerciseDetail(exercise, weightUnit)}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    itemBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.separator,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      minHeight: 56,
+      paddingLeft: spacing.md,
+    },
+    mainTap: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+      paddingRight: spacing.sm,
+    },
+    mainTapPressed: { opacity: 0.7 },
+    disabled: { opacity: 0.5 },
+    icon: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceHover,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    body: { flex: 1, gap: 2 },
+    title: { fontSize: 17, color: colors.text, fontWeight: "400" },
+    subtitle: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    chevronBtn: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+    },
+    expanded: {
+      paddingLeft: spacing.md + 32 + spacing.md,
+      paddingRight: spacing.md,
+      paddingBottom: spacing.md,
+      gap: 6,
+    },
+    expandedLine: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+  });
+
+type RoutineExpandableCardProps = {
+  routine: RoutineListItem;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onStart: () => void;
+  disabled?: boolean;
+};
+
+export function RoutineExpandableCard({
+  routine,
+  expanded,
+  onToggleExpand,
+  onStart,
+  disabled,
+}: RoutineExpandableCardProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeCardStyles);
+  const { weightUnit } = useUserPreferences();
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.row}>
+        <Pressable
+          disabled={disabled}
+          onPress={onStart}
+          style={({ pressed }) => [
+            styles.mainTap,
+            pressed && !disabled && styles.pressed,
+            disabled && styles.disabled,
+          ]}
+        >
+          <View style={styles.icon}>
+            <Ionicons name="barbell" size={20} color={colors.onAccent} />
+          </View>
+          <View style={styles.body}>
+            <Text style={styles.title} numberOfLines={1}>
+              {routine.name}
+            </Text>
+            <Text style={styles.subtitle} numberOfLines={2}>
+              {exerciseSummary(routine.exercises)}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          hitSlop={8}
+          onPress={(event) => {
+            event.stopPropagation();
+            onToggleExpand();
+          }}
+          style={styles.chevronBtn}
+          accessibilityLabel={expanded ? "Collapse exercises" : "Expand exercises"}
+        >
+          <Ionicons
+            name={expanded ? "chevron-down" : "chevron-forward"}
+            size={18}
+            color={colors.textDim}
+          />
+        </Pressable>
+      </View>
+      {expanded ? (
+        <View style={styles.expanded}>
+          {routine.exercises.map((exercise) => (
+            <Text key={exercise.id} style={styles.expandedLine}>
+              • {formatRoutineExerciseDetail(exercise, weightUnit)}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const makeCardStyles = (colors: Palette) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: colors.bg,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+      ...shadows.card,
+    },
+    row: { flexDirection: "row", alignItems: "center" },
+    mainTap: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      padding: spacing.md,
+    },
+    pressed: { opacity: 0.7 },
+    disabled: { opacity: 0.5 },
+    icon: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      backgroundColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    body: { flex: 1, gap: 2 },
+    title: { fontSize: 16, fontWeight: "700", color: colors.text },
+    subtitle: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    chevronBtn: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+    },
+    expanded: {
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.md,
+      paddingTop: 0,
+      gap: 6,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
+      marginTop: -4,
+    },
+    expandedLine: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+  });

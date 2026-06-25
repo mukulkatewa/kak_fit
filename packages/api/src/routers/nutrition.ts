@@ -159,6 +159,7 @@ function resolveTargets(user: {
     protein: user.proteinGoal ?? DEFAULT_TARGETS.protein,
     carbs: user.carbGoal ?? DEFAULT_TARGETS.carbs,
     fat: user.fatGoal ?? DEFAULT_TARGETS.fat,
+    configured: user.calorieGoal != null,
   };
 }
 

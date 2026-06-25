@@ -1,6 +1,109 @@
 import type { PrismaClient } from "@kak-fit/db";
 import { PublicApiError } from "./auth";
 
+export type ExerciseNameMatch = {
+  id: string;
+  name: string;
+  matchScore: number;
+};
+
+export function exerciseAccessWhere(userId: string) {
+  return { OR: [{ isCustom: false as const }, { isCustom: true as const, userId }] };
+}
+
+function normalizeExerciseText(value: string) {
+  return value.trim().toLowerCase();
+}
+
+/** Words longer than 2 chars — skips abbreviations like "db" when matching multi-word queries. */
+export function significantExerciseWords(query: string) {
+  return normalizeExerciseText(query)
+    .split(/\s+/)
+    .map((word) => word.replace(/[^a-z0-9]/g, ""))
+    .filter((word) => word.length > 2);
+}
+
+export function scoreExerciseNameMatch(exerciseName: string, query: string): number {
+  const nameNorm = normalizeExerciseText(exerciseName);
+  const queryNorm = normalizeExerciseText(query);
+  if (!nameNorm || !queryNorm) return 0;
+
+  if (nameNorm === queryNorm) return 1000;
+  if (nameNorm.includes(queryNorm)) return 800 + queryNorm.length;
+  if (queryNorm.includes(nameNorm)) return 700 + nameNorm.length;
+
+  const words = significantExerciseWords(query);
+  if (words.length === 0) return 0;
+
+  const matchedWords = words.filter((word) => nameNorm.includes(word));
+  if (matchedWords.length === 0) return 0;
+
+  const wordCoverage = matchedWords.length / words.length;
+  return Math.round(100 * wordCoverage + matchedWords.length * 50);
+}
+
+async function fetchExerciseNameCandidates(prisma: PrismaClient, userId: string, query: string) {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const where = exerciseAccessWhere(userId);
+  const words = significantExerciseWords(trimmed);
+  const batches = await Promise.all([
+    prisma.exercise.findMany({
+      where: { ...where, name: { contains: trimmed, mode: "insensitive" } },
+      select: { id: true, name: true },
+      take: 50,
+    }),
+    ...words.map((word) =>
+      prisma.exercise.findMany({
+        where: { ...where, name: { contains: word, mode: "insensitive" } },
+        select: { id: true, name: true },
+        take: 80,
+      }),
+    ),
+  ]);
+
+  const byId = new Map<string, { id: string; name: string }>();
+  for (const batch of batches) {
+    for (const exercise of batch) {
+      byId.set(exercise.id, exercise);
+    }
+  }
+  return [...byId.values()];
+}
+
+export async function rankExerciseNameMatches(
+  prisma: PrismaClient,
+  userId: string,
+  query: string,
+): Promise<ExerciseNameMatch[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const candidates = await fetchExerciseNameCandidates(prisma, userId, trimmed);
+  const ranked: ExerciseNameMatch[] = [];
+
+  for (const candidate of candidates) {
+    const matchScore = scoreExerciseNameMatch(candidate.name, trimmed);
+    if (matchScore > 0) {
+      ranked.push({ ...candidate, matchScore });
+    }
+  }
+
+  return ranked.sort(
+    (a, b) => b.matchScore - a.matchScore || a.name.localeCompare(b.name),
+  );
+}
+
+export async function suggestExerciseMatches(
+  prisma: PrismaClient,
+  userId: string,
+  query: string,
+  limit = 5,
+): Promise<ExerciseNameMatch[]> {
+  return (await rankExerciseNameMatches(prisma, userId, query)).slice(0, limit);
+}
+
 export async function resolveExercise(
   prisma: PrismaClient,
   userId: string,
@@ -10,7 +113,7 @@ export async function resolveExercise(
     const exercise = await prisma.exercise.findFirst({
       where: {
         id: input.exercise_template_id,
-        OR: [{ isCustom: false }, { isCustom: true, userId }],
+        ...exerciseAccessWhere(userId),
       },
     });
     if (!exercise) throw new PublicApiError(404, "Exercise not found");
@@ -24,23 +127,25 @@ export async function resolveExercise(
 
   const exact = await prisma.exercise.findFirst({
     where: {
-      OR: [{ isCustom: false }, { isCustom: true, userId }],
+      ...exerciseAccessWhere(userId),
       name: { equals: name, mode: "insensitive" },
     },
   });
   if (exact) return exact;
 
-  const fuzzy = await prisma.exercise.findFirst({
-    where: {
-      OR: [{ isCustom: false }, { isCustom: true, userId }],
-      name: { contains: name, mode: "insensitive" },
-    },
-    orderBy: { name: "asc" },
-  });
-  if (!fuzzy) {
+  const ranked = await rankExerciseNameMatches(prisma, userId, name);
+  const best = ranked[0];
+  if (!best) {
     throw new PublicApiError(404, `No exercise matching "${name}"`);
   }
-  return fuzzy;
+
+  const exercise = await prisma.exercise.findFirst({
+    where: { id: best.id, ...exerciseAccessWhere(userId) },
+  });
+  if (!exercise) {
+    throw new PublicApiError(404, `No exercise matching "${name}"`);
+  }
+  return exercise;
 }
 
 export async function resolveRoutine(

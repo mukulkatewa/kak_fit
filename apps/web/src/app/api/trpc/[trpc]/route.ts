@@ -1,3 +1,4 @@
+import "@/lib/env-check";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "@kak-fit/api";
 import { prisma } from "@kak-fit/db";

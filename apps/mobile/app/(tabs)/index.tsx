@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar, HevyButton, Screen } from "../../src/components/ui";
+import { QueryErrorState } from "../../src/components/query-error-state";
+import { RoutineExpandableCard } from "../../src/components/routine-expandable-row";
 import { LineChart } from "../../src/components/charts";
 import { FeedSkeleton } from "../../src/components/skeleton";
 import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
@@ -20,15 +22,30 @@ export default function DashboardScreen() {
   const { weightUnit } = useUserPreferences();
   const { data: me } = trpc.auth.me.useQuery(undefined, authMeQueryOptions);
   const { data: stats } = trpc.auth.stats.useQuery(undefined, { staleTime: queryStaleTime.authStats });
-  const { data: active, isPending: activePending } = trpc.workout.active.useQuery(undefined, { staleTime: 0 });
-  const { data: recent, isPending: recentPending } = trpc.workout.history.useQuery(
+  const {
+    data: active,
+    isPending: activePending,
+    isError: activeError,
+    refetch: refetchActive,
+  } = trpc.workout.active.useQuery(undefined, { staleTime: 0 });
+  const {
+    data: recent,
+    isPending: recentPending,
+    isError: recentError,
+    refetch: refetchRecent,
+  } = trpc.workout.history.useQuery(
     { limit: 8 },
     { staleTime: queryStaleTime.workoutHistory },
   );
   const { data: weeklyChart } = trpc.progress.weeklyVolume.useQuery(undefined, {
     staleTime: queryStaleTime.weeklyVolume,
   });
-  const { data: routines, isPending: routinesPending } = trpc.routine.list.useQuery(undefined, {
+  const {
+    data: routines,
+    isPending: routinesPending,
+    isError: routinesError,
+    refetch: refetchRoutines,
+  } = trpc.routine.list.useQuery(undefined, {
     staleTime: queryStaleTime.routineList,
   });
 
@@ -36,6 +53,16 @@ export default function DashboardScreen() {
     (activePending && active === undefined) || (recentPending && recent === undefined);
 
   const [startingRoutineId, setStartingRoutineId] = useState<string | null>(null);
+  const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(() => new Set());
+
+  const toggleRoutineExpanded = (id: string) => {
+    setExpandedRoutineIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const discardActive = trpc.workout.discardActive.useMutation();
 
@@ -134,7 +161,12 @@ export default function DashboardScreen() {
         </View>
 
         {/* Primary CTA / continue active workout */}
-        {active ? (
+        {activeError ? (
+          <QueryErrorState
+            message="Couldn't check active workout. Check your connection."
+            onRetry={() => void refetchActive()}
+          />
+        ) : active ? (
           <Pressable style={styles.activeCard} onPress={() => router.push("/workout/active")}>
             <View style={styles.activeIcon}>
               <Ionicons name="barbell" size={20} color={colors.onAccent} />
@@ -159,7 +191,12 @@ export default function DashboardScreen() {
           <>
             {/* Recent Activity */}
             <Text style={styles.sectionTitle}>Recent Activity</Text>
-            {finished.length === 0 ? (
+            {recentError ? (
+              <QueryErrorState
+                message="Couldn't load workouts. Check your connection."
+                onRetry={() => void refetchRecent()}
+              />
+            ) : finished.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Text style={styles.emptyTitle}>No completed workouts yet</Text>
                 <Text style={styles.emptyHint}>
@@ -190,7 +227,12 @@ export default function DashboardScreen() {
               ) : null}
             </View>
 
-            {routinesPending && routines === undefined ? (
+            {routinesError ? (
+              <QueryErrorState
+                message="Couldn't load routines. Check your connection."
+                onRetry={() => void refetchRoutines()}
+              />
+            ) : routinesPending && routines === undefined ? (
               <FeedSkeleton rows={2} />
             ) : (routines ?? []).length === 0 ? (
               <View style={styles.emptyCard}>
@@ -204,13 +246,13 @@ export default function DashboardScreen() {
             ) : (
               <View style={styles.cardStack}>
                 {routines?.slice(0, 4).map((item) => (
-                  <ActivityCard
+                  <RoutineExpandableCard
                     key={item.id}
-                    icon="barbell"
-                    title={item.name}
-                    subtitle={`${item.exercises.length} exercises · tap to start`}
+                    routine={item}
+                    expanded={expandedRoutineIds.has(item.id)}
+                    onToggleExpand={() => toggleRoutineExpanded(item.id)}
                     disabled={startingRoutineId === item.id}
-                    onPress={() => {
+                    onStart={() => {
                       setStartingRoutineId(item.id);
                       startRoutine.mutate({ routineId: item.id });
                     }}

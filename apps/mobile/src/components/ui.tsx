@@ -590,7 +590,8 @@ export function MacroRing({
   color: string;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const pct = Math.min((value / target) * 100, 100);
+  const percentage = target > 0 ? Math.min(1, value / target) : 0;
+  const pct = Math.round(percentage * 100);
   return (
     <View style={styles.macroRing}>
       <View style={[styles.macroRingOuter, { borderColor: color }]}>

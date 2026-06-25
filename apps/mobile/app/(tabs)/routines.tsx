@@ -4,6 +4,8 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState, HevyButton, ListGroup, ListRow, Screen } from "../../src/components/ui";
+import { QueryErrorState } from "../../src/components/query-error-state";
+import { RoutineExpandableRow } from "../../src/components/routine-expandable-row";
 import {
   HevyCategoryTile,
   HevyFilterBar,
@@ -45,11 +47,29 @@ export default function WorkoutTabScreen() {
   const [equipment, setEquipment] = useState<ProgramEquipment | null>(null);
   const [pendingRoutineId, setPendingRoutineId] = useState<string | null>(null);
   const [pendingWorkoutId, setPendingWorkoutId] = useState<string | null>(null);
+  const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(() => new Set());
 
-  const { data: routines } = trpc.routine.list.useQuery(undefined, {
+  const toggleRoutineExpanded = (id: string) => {
+    setExpandedRoutineIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const {
+    data: routines,
+    isError: isRoutinesError,
+    refetch: refetchRoutines,
+  } = trpc.routine.list.useQuery(undefined, {
     staleTime: queryStaleTime.routineList,
   });
-  const { data: recent } = trpc.workout.history.useQuery(
+  const {
+    data: recent,
+    isError: isRecentError,
+    refetch: refetchRecent,
+  } = trpc.workout.history.useQuery(
     { limit: 8 },
     { staleTime: queryStaleTime.workoutHistory },
   );
@@ -210,7 +230,15 @@ export default function WorkoutTabScreen() {
           loading={startEmpty.isPending}
         />
 
-        {finishedRecent.length > 0 ? (
+        {isRecentError ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Repeat Recent</Text>
+            <QueryErrorState
+              message="Couldn't load workouts. Check your connection."
+              onRetry={() => void refetchRecent()}
+            />
+          </View>
+        ) : finishedRecent.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Repeat Recent</Text>
             <ListGroup>
@@ -243,7 +271,12 @@ export default function WorkoutTabScreen() {
             </Pressable>
           </View>
 
-          {(routines ?? []).length === 0 ? (
+          {isRoutinesError ? (
+            <QueryErrorState
+              message="Couldn't load routines. Check your connection."
+              onRetry={() => void refetchRoutines()}
+            />
+          ) : (routines ?? []).length === 0 ? (
             <EmptyState
               icon="barbell-outline"
               title="No routines yet"
@@ -252,20 +285,17 @@ export default function WorkoutTabScreen() {
           ) : (
             <ListGroup>
               {routines!.slice(0, ROUTINE_PREVIEW).map((routine, index, arr) => (
-                <ListRow
+                <RoutineExpandableRow
                   key={routine.id}
-                  title={routine.name}
-                  subtitle={`${routine.exercises.length} exercises`}
-                  icon="barbell-outline"
+                  routine={routine}
+                  expanded={expandedRoutineIds.has(routine.id)}
+                  onToggleExpand={() => toggleRoutineExpanded(routine.id)}
                   last={index === arr.length - 1}
-                  onPress={
-                    pendingRoutineId === routine.id
-                      ? undefined
-                      : () => {
-                          setPendingRoutineId(routine.id);
-                          startRoutine.mutate({ routineId: routine.id });
-                        }
-                  }
+                  disabled={pendingRoutineId === routine.id}
+                  onStart={() => {
+                    setPendingRoutineId(routine.id);
+                    startRoutine.mutate({ routineId: routine.id });
+                  }}
                 />
               ))}
             </ListGroup>

@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@kak-fit/db";
 import { syncPersonalRecords } from "../services/personal-records";
 import { authenticateApiKey, PublicApiError, type ApiAuthContext } from "./auth";
-import { parseRoutineExercisePayload, resolveExercise } from "./helpers";
+import { exerciseAccessWhere, parseRoutineExercisePayload, resolveExercise, suggestExerciseMatches } from "./helpers";
 import { errorResponse, jsonResponse } from "./response";
 import {
   dateOnly,
@@ -679,6 +679,39 @@ const routes: Array<{
         include: exerciseInclude,
       });
       return { exercise_template: serializeExerciseTemplate(created) };
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/v1\/exercise_templates\/suggest$/,
+    paramNames: [],
+    handler: async (ctx, prisma, request) => {
+      const q = new URL(request.url).searchParams.get("q")?.trim();
+      if (!q) throw new PublicApiError(400, "q query parameter is required");
+
+      const matches = await suggestExerciseMatches(prisma, ctx.user.id, q, 5);
+      if (matches.length === 0) {
+        return { suggestions: [] };
+      }
+
+      const exercises = await prisma.exercise.findMany({
+        where: { id: { in: matches.map((match) => match.id) }, ...exerciseAccessWhere(ctx.user.id) },
+        include: exerciseInclude,
+      });
+      const byId = new Map(exercises.map((exercise) => [exercise.id, exercise]));
+
+      return {
+        suggestions: matches
+          .map((match) => {
+            const exercise = byId.get(match.id);
+            if (!exercise) return null;
+            return {
+              match_score: match.matchScore,
+              exercise_template: serializeExerciseTemplate(exercise),
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null),
+      };
     },
   },
   {

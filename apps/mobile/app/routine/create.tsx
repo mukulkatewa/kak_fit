@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, SearchBar } from "../../src/components/ui";
+import { Button, Screen, SearchBar } from "../../src/components/ui";
 import { HevyInfoStrip, HevyModalHeader, HevyUnderlineInput } from "../../src/components/hevy-ui";
 import { ReorderableExerciseList } from "../../src/components/reorderable-exercises";
 import { trpc } from "../../src/lib/trpc";
@@ -35,7 +35,11 @@ export default function CreateRoutineScreen() {
   // superLinks[i] === true means exercise i is supersetted with exercise i-1.
   const [superLinks, setSuperLinks] = useState<boolean[]>([]);
 
-  const { data: editing } = trpc.routine.getById.useQuery(
+  const {
+    data: editing,
+    isLoading: editingLoading,
+    isError: editingError,
+  } = trpc.routine.getById.useQuery(
     { id: editId! },
     { enabled: isEdit },
   );
@@ -70,7 +74,7 @@ export default function CreateRoutineScreen() {
     }
   }, [editing]);
 
-  const { data: exercises, isLoading } = trpc.exercise.list.useQuery(
+  const { data: exercises, isLoading: pickerLoading } = trpc.exercise.list.useQuery(
     { search: search || undefined, limit: 40 },
     { enabled: pickerOpen },
   );
@@ -132,6 +136,7 @@ export default function CreateRoutineScreen() {
   });
 
   const canSave = name.trim().length > 0 && selected.length > 0;
+  const formReady = !isEdit || editing != null;
 
   const save = () => {
     if (!canSave) return;
@@ -189,6 +194,45 @@ export default function CreateRoutineScreen() {
     setSearch("");
   };
 
+  if (isEdit && editingLoading) {
+    return (
+      <Screen>
+        <View style={[styles.headerPad, { paddingTop: insets.top }]}>
+          <HevyModalHeader
+            title="Edit Routine"
+            onCancel={() => router.back()}
+            onSave={save}
+            saveDisabled
+          />
+        </View>
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.accent} size="large" />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (isEdit && editingError) {
+    return (
+      <Screen>
+        <View style={[styles.headerPad, { paddingTop: insets.top }]}>
+          <HevyModalHeader
+            title="Edit Routine"
+            onCancel={() => router.back()}
+            onSave={save}
+            saveDisabled
+          />
+        </View>
+        <View style={styles.centered}>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.textDim} />
+          <Text style={styles.errorTitle}>Routine not found</Text>
+          <Text style={styles.errorText}>This routine may have been deleted or you don&apos;t have access.</Text>
+          <Button label="Go back" onPress={() => router.back()} />
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.headerPad}>
@@ -196,49 +240,53 @@ export default function CreateRoutineScreen() {
           title={isEdit ? "Edit Routine" : "Create Routine"}
           onCancel={() => router.back()}
           onSave={save}
-          saveDisabled={!canSave}
+          saveDisabled={!canSave || !formReady}
           saveLoading={create.isPending || update.isPending}
         />
       </View>
 
-      {showTip ? (
-        <HevyInfoStrip
-          text="You're creating a Routine. Add exercises, then tap Save."
-          onDismiss={() => setShowTip(false)}
-        />
+      {formReady ? (
+        <>
+          {showTip ? (
+            <HevyInfoStrip
+              text="You're creating a Routine. Add exercises, then tap Save."
+              onDismiss={() => setShowTip(false)}
+            />
+          ) : null}
+
+          <View style={styles.body}>
+            <HevyUnderlineInput placeholder="Routine title" value={name} onChangeText={setName} />
+
+            {selected.length > 0 ? (
+              <ReorderableExerciseList
+                items={selected}
+                superLinks={superLinks}
+                onReorder={(items, links) => {
+                  setSelected(items);
+                  setSuperLinks(links);
+                }}
+                onToggleLink={toggleLink}
+                onRemove={removeAt}
+              />
+            ) : (
+              <View style={styles.empty}>
+                <Ionicons name="barbell-outline" size={48} color={colors.textDim} />
+                <Text style={styles.emptyText}>Get started by adding an exercise to your routine.</Text>
+                <Pressable style={styles.addBtn} onPress={() => setPickerOpen(true)}>
+                  <Ionicons name="add" size={20} color="#fff" />
+                  <Text style={styles.addBtnText}>Add exercise</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {selected.length > 0 ? (
+              <Button label="Add exercise" icon="add" variant="secondary" fullWidth onPress={() => setPickerOpen(true)} />
+            ) : null}
+          </View>
+        </>
       ) : null}
 
-      <View style={styles.body}>
-        <HevyUnderlineInput placeholder="Routine title" value={name} onChangeText={setName} />
-
-        {selected.length > 0 ? (
-          <ReorderableExerciseList
-            items={selected}
-            superLinks={superLinks}
-            onReorder={(items, links) => {
-              setSelected(items);
-              setSuperLinks(links);
-            }}
-            onToggleLink={toggleLink}
-            onRemove={removeAt}
-          />
-        ) : (
-          <View style={styles.empty}>
-            <Ionicons name="barbell-outline" size={48} color={colors.textDim} />
-            <Text style={styles.emptyText}>Get started by adding an exercise to your routine.</Text>
-            <Pressable style={styles.addBtn} onPress={() => setPickerOpen(true)}>
-              <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.addBtnText}>Add exercise</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {selected.length > 0 ? (
-          <Button label="Add exercise" icon="add" variant="secondary" fullWidth onPress={() => setPickerOpen(true)} />
-        ) : null}
-      </View>
-
-      {pickerOpen ? (
+      {pickerOpen && formReady ? (
         <View style={[styles.picker, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom }]}>
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>Add exercise</Text>
@@ -247,7 +295,7 @@ export default function CreateRoutineScreen() {
             </Pressable>
           </View>
           <SearchBar value={search} onChangeText={setSearch} placeholder="Search exercises" />
-          {isLoading ? (
+          {pickerLoading ? (
             <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
           ) : (
             <FlatList
@@ -271,6 +319,16 @@ export default function CreateRoutineScreen() {
 const makeStyles = (colors: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   headerPad: { paddingHorizontal: spacing.lg },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
+  },
+  errorTitle: { color: colors.text, fontSize: 18, fontWeight: "700", textAlign: "center" },
+  errorText: { color: colors.textMuted, fontSize: 15, textAlign: "center", lineHeight: 22 },
   body: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.lg },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg, paddingBottom: 80 },
   emptyText: { color: colors.textMuted, fontSize: 15, textAlign: "center", maxWidth: 260, lineHeight: 22 },

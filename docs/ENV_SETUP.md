@@ -71,6 +71,43 @@ Find your LAN IP: `ip addr` or `ifconfig`.
 
 ---
 
+## Physical Device Setup
+
+When running the Expo app on a **real phone or tablet** (Expo Go or a dev build), `localhost` on the device refers to the phone itself — not your computer. If `EXPO_PUBLIC_API_URL` is missing or left at `http://localhost:3000`, **every API call fails** and screens may show empty states (“No routines yet”, etc.) even though you have data.
+
+### Required
+
+Set `EXPO_PUBLIC_API_URL` to a URL your phone can reach:
+
+| Scenario | `EXPO_PUBLIC_API_URL` |
+|----------|------------------------|
+| API on your Mac/PC (same Wi‑Fi) | `http://YOUR_LAN_IP:3000` (e.g. `http://192.168.1.100:3000`) |
+| Deployed API (Vercel, VPS, etc.) | `https://your-app.vercel.app` |
+
+Add to the project root `.env` (and restart Expo after changing):
+
+```env
+EXPO_PUBLIC_API_URL=https://your-vercel-app.vercel.app
+```
+
+For local dev against your machine, use your LAN IP instead:
+
+```env
+EXPO_PUBLIC_API_URL=http://192.168.1.100:3000
+```
+
+### Find your LAN IP
+
+- **macOS:** `ifconfig | grep "inet 192"` (or check System Settings → Network)
+- **Linux:** `ip addr` or `hostname -I`
+- **Windows:** `ipconfig` — look for IPv4 under your Wi‑Fi adapter
+
+Ensure the phone and computer are on the same network, and that your firewall allows inbound connections on port `3000` if you use a LAN URL.
+
+In dev builds, a yellow banner appears at the top if the app cannot reach the configured API URL.
+
+---
+
 ### 4. Server Port
 
 ```env

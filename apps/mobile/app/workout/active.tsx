@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -95,6 +96,11 @@ export default function ActiveWorkoutScreen() {
   const [search, setSearch] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [reorderMode, setReorderMode] = useState(false);
+
+  const closePicker = () => {
+    setPickerOpen(false);
+    setSearch("");
+  };
 
   const exerciseIds = useMemo(
     () => workout?.exercises.map((e) => e.exercise.id) ?? [],
@@ -221,8 +227,7 @@ export default function ActiveWorkoutScreen() {
 
   const addExercise = trpc.workout.addExercise.useMutation({
     onSuccess: (newExercise) => {
-      setPickerOpen(false);
-      setSearch("");
+      closePicker();
       patchActiveWorkout((workout) => addExerciseToWorkout(workout, newExercise));
       utils.workout.previousSets.invalidate();
     },
@@ -334,6 +339,7 @@ export default function ActiveWorkoutScreen() {
   }
 
   return (
+    <>
     <Screen>
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
@@ -413,34 +419,7 @@ export default function ActiveWorkoutScreen() {
           ))
         )}
 
-        {!reorderMode && pickerOpen ? (
-          <Card>
-            <SectionHeader title="Add Exercise" />
-            <SearchBar placeholder="Search exercise" value={search} onChangeText={setSearch} />
-            <FlatList
-              data={exercises ?? []}
-              keyExtractor={(item) => item.id}
-              style={styles.pickerList}
-              scrollEnabled={false}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.pickerItem}
-                  onPress={() =>
-                    addExercise.mutate({
-                      workoutId: workout.id,
-                      exerciseId: item.id,
-                      sets: [{ setNumber: 1, isCompleted: false }],
-                    })
-                  }
-                >
-                  <Text style={styles.pickerText}>{item.name}</Text>
-                  <Ionicons name="add-circle" size={22} color={colors.accent} />
-                </Pressable>
-              )}
-            />
-            <Button label="Close" variant="ghost" fullWidth onPress={() => setPickerOpen(false)} />
-          </Card>
-        ) : !reorderMode ? (
+        {!reorderMode ? (
           <Button label="Add Exercise" icon="add" fullWidth onPress={() => setPickerOpen(true)} variant="secondary" />
         ) : null}
 
@@ -502,6 +481,47 @@ export default function ActiveWorkoutScreen() {
         />
       </View>
     </Screen>
+
+    <Modal
+      visible={pickerOpen}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={closePicker}
+    >
+      <View style={[styles.pickerModal, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom }]}>
+        <View style={styles.pickerHeader}>
+          <Text style={styles.pickerTitle}>Add Exercise</Text>
+          <Pressable onPress={closePicker} hitSlop={8}>
+            <Ionicons name="close" size={24} color={colors.text} />
+          </Pressable>
+        </View>
+        <SearchBar placeholder="Search exercise" value={search} onChangeText={setSearch} />
+        <FlatList
+          data={exercises ?? []}
+          keyExtractor={(item) => item.id}
+          style={styles.pickerList}
+          contentContainerStyle={styles.pickerListContent}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => (
+            <Pressable
+              style={styles.pickerItem}
+              onPress={() =>
+                addExercise.mutate({
+                  workoutId: workout.id,
+                  exerciseId: item.id,
+                  sets: [{ setNumber: 1, isCompleted: false }],
+                })
+              }
+            >
+              <Text style={styles.pickerText}>{item.name}</Text>
+              <Ionicons name="add-circle" size={22} color={colors.accent} />
+            </Pressable>
+          )}
+        />
+        <Button label="Close" variant="ghost" fullWidth onPress={closePicker} />
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -852,7 +872,20 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   deleteActionText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   addSetBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm },
   addSet: { color: colors.accent, fontSize: 15, fontWeight: "600" },
-  pickerList: { maxHeight: 220 },
+  pickerModal: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pickerTitle: { fontSize: 20, fontWeight: "700", color: colors.text },
+  pickerList: { flex: 1 },
+  pickerListContent: { paddingBottom: spacing.md, gap: 6 },
   pickerItem: {
     flexDirection: "row",
     alignItems: "center",

@@ -13,7 +13,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, EmptyState, ListGroup, ListRow } from "../../src/components/ui";
+import { Button, EmptyState, ListGroup } from "../../src/components/ui";
+import { QueryErrorState } from "../../src/components/query-error-state";
+import { RoutineExpandableRow } from "../../src/components/routine-expandable-row";
 import { HevyIconButton, HevyStackHeader } from "../../src/components/hevy-ui";
 import { Screen } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
@@ -30,12 +32,22 @@ export default function MyRoutinesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
-  const { data: routines, isPending } = trpc.routine.list.useQuery();
+  const { data: routines, isPending, isError, refetch } = trpc.routine.list.useQuery();
   const { data: folders } = trpc.routine.folders.useQuery();
 
   const [folderModal, setFolderModal] = useState<{ mode: "create" | "rename"; id?: string } | null>(null);
   const [folderName, setFolderName] = useState("");
   const [startingId, setStartingId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const discardActive = trpc.workout.discardActive.useMutation();
 
@@ -155,23 +167,20 @@ export default function MyRoutinesScreen() {
     }
   };
 
-  const renderRoutine = (item: RoutineItem) => (
+  const renderRoutine = (item: RoutineItem, index: number, total: number) => (
     <View key={item.id} style={styles.routineWrap}>
       <View style={startingId === item.id ? { opacity: 0.5 } : undefined}>
         <ListGroup>
-          <ListRow
-            title={item.name}
-            subtitle={`${item.exercises.length} exercises`}
-            icon="barbell-outline"
-            last
-            onPress={
-              startingId === item.id
-                ? undefined
-                : () => {
-                    setStartingId(item.id);
-                    startRoutine.mutate({ routineId: item.id });
-                  }
-            }
+          <RoutineExpandableRow
+            routine={item}
+            expanded={expandedIds.has(item.id)}
+            onToggleExpand={() => toggleExpanded(item.id)}
+            last={index === total - 1}
+            disabled={startingId === item.id}
+            onStart={() => {
+              setStartingId(item.id);
+              startRoutine.mutate({ routineId: item.id });
+            }}
           />
         </ListGroup>
       </View>
@@ -211,7 +220,12 @@ export default function MyRoutinesScreen() {
           }
         />
 
-        {isPending && routines === undefined ? (
+        {isError ? (
+          <QueryErrorState
+            message="Couldn't load routines. Check your connection."
+            onRetry={() => void refetch()}
+          />
+        ) : isPending && routines === undefined ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} />
         ) : (routines ?? []).length === 0 ? (
           <View style={styles.emptyWrap}>
@@ -242,7 +256,7 @@ export default function MyRoutinesScreen() {
                   {items.length === 0 ? (
                     <Text style={styles.folderEmpty}>Empty — use Move on a routine to add it here.</Text>
                   ) : (
-                    items.map(renderRoutine)
+                    items.map((item, index) => renderRoutine(item, index, items.length))
                   )}
                 </View>
               );
@@ -251,7 +265,7 @@ export default function MyRoutinesScreen() {
             {ungrouped.length > 0 ? (
               <View style={styles.folderSection}>
                 {(folders ?? []).length > 0 ? <Text style={styles.ungroupedLabel}>Ungrouped</Text> : null}
-                {ungrouped.map(renderRoutine)}
+                {ungrouped.map((item, index) => renderRoutine(item, index, ungrouped.length))}
               </View>
             ) : null}
           </View>

@@ -12,6 +12,7 @@ import {
   Screen,
   SectionHeader,
 } from "../../src/components/ui";
+import { QueryErrorState } from "../../src/components/query-error-state";
 import {
   HevyBanner,
   HevyDashboardGrid,
@@ -41,7 +42,12 @@ export default function ProfileScreen() {
     { limit: 8 },
     { staleTime: queryStaleTime.authStats },
   );
-  const { data: workouts, isLoading } = trpc.workout.history.useQuery(
+  const {
+    data: workouts,
+    isLoading,
+    isError: workoutsError,
+    refetch: refetchWorkouts,
+  } = trpc.workout.history.useQuery(
     { limit: 6 },
     { staleTime: queryStaleTime.authStats },
   );
@@ -149,7 +155,12 @@ export default function ProfileScreen() {
         />
 
         <SectionHeader title="Workouts" />
-        {isLoading ? (
+        {workoutsError ? (
+          <QueryErrorState
+            message="Couldn't load workouts. Check your connection."
+            onRetry={() => void refetchWorkouts()}
+          />
+        ) : isLoading ? (
           <ActivityIndicator color={colors.accent} />
         ) : (workouts ?? []).length === 0 ? (
           <View style={styles.noDataCard}>

@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { HevyStackHeader } from "../../../src/components/hevy-ui";
-import { EmptyState } from "../../../src/components/ui";
+import { EmptyState, ThemedDialog } from "../../../src/components/ui";
 import { trpc } from "../../../src/lib/trpc";
 import { parseOptionalNumber } from "../../../src/lib/workout-errors";
 import { useUserPreferences } from "../../../src/lib/use-preferences";
@@ -41,6 +41,9 @@ export default function EditWorkoutScreen() {
     { id: id! },
     { enabled: Boolean(id) },
   );
+  const [deleteSetDialog, setDeleteSetDialog] = useState<{ visible: boolean; setId?: string }>({
+    visible: false,
+  });
 
   const updateSet = trpc.workout.updateFinishedSet.useMutation({
     onSuccess: () => {
@@ -85,6 +88,7 @@ export default function EditWorkoutScreen() {
   };
 
   return (
+    <>
     <ScrollView style={styles.screen} contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
       <HevyStackHeader title="Edit Workout" onBack={() => router.back()} />
       <Text style={styles.title}>{workout.name ?? "Workout"}</Text>
@@ -115,12 +119,7 @@ export default function EditWorkoutScreen() {
               onCycleSetType={() =>
                 updateSet.mutate({ setId: set.id, setType: cycleSetType((set.setType ?? "NORMAL") as SetType) })
               }
-              onDelete={() =>
-                Alert.alert("Delete set?", "", [
-                  { text: "Cancel", style: "cancel" },
-                  { text: "Delete", style: "destructive", onPress: () => deleteSet.mutate({ setId: set.id }) },
-                ])
-              }
+              onDelete={() => setDeleteSetDialog({ visible: true, setId: set.id })}
             />
           ))}
           <Pressable onPress={() => addSet.mutate({ workoutExerciseId: ex.id })} style={styles.addSetBtn}>
@@ -132,6 +131,26 @@ export default function EditWorkoutScreen() {
 
       <View style={{ height: spacing.xxxl }} />
     </ScrollView>
+
+    <ThemedDialog
+      visible={deleteSetDialog.visible}
+      title="Delete set?"
+      message="Remove this set from the workout?"
+      onDismiss={() => setDeleteSetDialog({ visible: false })}
+      buttons={[
+        { label: "Cancel" },
+        {
+          label: "Delete",
+          variant: "destructive",
+          onPress: () => {
+            if (deleteSetDialog.setId) {
+              deleteSet.mutate({ setId: deleteSetDialog.setId });
+            }
+          },
+        },
+      ]}
+    />
+    </>
   );
 }
 

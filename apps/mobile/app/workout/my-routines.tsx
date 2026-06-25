@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, EmptyState, HevyButton, ListGroup } from "../../src/components/ui";
+import { Button, EmptyState, HevyButton, ListGroup, ThemedDialog } from "../../src/components/ui";
 import { SkeletonCards } from "../../src/components/skeleton";
 import { QueryErrorState } from "../../src/components/query-error-state";
 import { ExerciseAvatar } from "../../src/components/exercise-avatar";
@@ -46,6 +46,21 @@ export default function MyRoutinesScreen() {
   const [previewRoutineId, setPreviewRoutineId] = useState<string | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [deleteRoutineDialog, setDeleteRoutineDialog] = useState<{
+    visible: boolean;
+    routineId?: string;
+    routineName?: string;
+  }>({ visible: false });
+  const [deleteFolderDialog, setDeleteFolderDialog] = useState<{
+    visible: boolean;
+    folderId?: string;
+    folderName?: string;
+  }>({ visible: false });
+  const [moveDialog, setMoveDialog] = useState<{ visible: boolean; routine: RoutineItem | null }>({
+    visible: false,
+    routine: null,
+  });
+  const [noFoldersDialogOpen, setNoFoldersDialogOpen] = useState(false);
 
   const previewRoutine = trpc.routine.getById.useQuery(
     { id: previewRoutineId! },
@@ -144,28 +159,15 @@ export default function MyRoutinesScreen() {
   };
 
   const moveRoutine = (routine: RoutineItem) => {
-    const options = [
-      ...(folders ?? []).map((f) => ({
-        text: f.name,
-        onPress: () => setFolder.mutate({ routineId: routine.id, folderId: f.id }),
-      })),
-      ...(routine.folderId
-        ? [{ text: "Remove from folder", onPress: () => setFolder.mutate({ routineId: routine.id, folderId: null }) }]
-        : []),
-      { text: "Cancel", style: "cancel" as const },
-    ];
     if ((folders ?? []).length === 0) {
-      Alert.alert("No folders", "Create a folder first with the folder + button.");
+      setNoFoldersDialogOpen(true);
       return;
     }
-    Alert.alert("Move to folder", routine.name, options);
+    setMoveDialog({ visible: true, routine });
   };
 
   const confirmDeleteFolder = (id: string, name: string) => {
-    Alert.alert("Delete folder?", `"${name}" — routines inside are kept and moved out.`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteFolder.mutate({ id }) },
-    ]);
+    setDeleteFolderDialog({ visible: true, folderId: id, folderName: name });
   };
 
   const handleShare = async (item: RoutineItem) => {
@@ -205,10 +207,7 @@ export default function MyRoutinesScreen() {
           label="Delete"
           danger
           onPress={() =>
-            Alert.alert("Delete routine?", item.name, [
-              { text: "Cancel", style: "cancel" },
-              { text: "Delete", style: "destructive", onPress: () => remove.mutate({ id: item.id }) },
-            ])
+            setDeleteRoutineDialog({ visible: true, routineId: item.id, routineName: item.name })
           }
         />
       </View>
@@ -373,6 +372,110 @@ export default function MyRoutinesScreen() {
           ) : null}
         </View>
       </Modal>
+
+      <Modal
+        visible={moveDialog.visible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setMoveDialog({ visible: false, routine: null })}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setMoveDialog({ visible: false, routine: null })}
+        >
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Move to folder</Text>
+            {moveDialog.routine ? (
+              <Text style={styles.moveRoutineName}>{moveDialog.routine.name}</Text>
+            ) : null}
+            <View style={styles.moveOptions}>
+              {(folders ?? []).map((folder) => (
+                <Pressable
+                  key={folder.id}
+                  style={styles.moveOption}
+                  onPress={() => {
+                    if (!moveDialog.routine) return;
+                    setFolder.mutate({ routineId: moveDialog.routine.id, folderId: folder.id });
+                    setMoveDialog({ visible: false, routine: null });
+                  }}
+                >
+                  <Ionicons name="folder-outline" size={18} color={colors.textMuted} />
+                  <Text style={styles.moveOptionText}>{folder.name}</Text>
+                </Pressable>
+              ))}
+              {moveDialog.routine?.folderId ? (
+                <Pressable
+                  style={styles.moveOption}
+                  onPress={() => {
+                    if (!moveDialog.routine) return;
+                    setFolder.mutate({ routineId: moveDialog.routine.id, folderId: null });
+                    setMoveDialog({ visible: false, routine: null });
+                  }}
+                >
+                  <Ionicons name="folder-open-outline" size={18} color={colors.textMuted} />
+                  <Text style={styles.moveOptionText}>Remove from folder</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            <Pressable
+              style={styles.moveCancel}
+              onPress={() => setMoveDialog({ visible: false, routine: null })}
+            >
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <ThemedDialog
+        visible={deleteRoutineDialog.visible}
+        title="Delete routine?"
+        message={deleteRoutineDialog.routineName}
+        onDismiss={() => setDeleteRoutineDialog({ visible: false })}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: "Delete",
+            variant: "destructive",
+            onPress: () => {
+              if (deleteRoutineDialog.routineId) {
+                remove.mutate({ id: deleteRoutineDialog.routineId });
+              }
+            },
+          },
+        ]}
+      />
+
+      <ThemedDialog
+        visible={deleteFolderDialog.visible}
+        title="Delete folder?"
+        message={
+          deleteFolderDialog.folderName
+            ? `"${deleteFolderDialog.folderName}" — routines inside are kept and moved out.`
+            : undefined
+        }
+        onDismiss={() => setDeleteFolderDialog({ visible: false })}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: "Delete",
+            variant: "destructive",
+            onPress: () => {
+              if (deleteFolderDialog.folderId) {
+                deleteFolder.mutate({ id: deleteFolderDialog.folderId });
+              }
+            },
+          },
+        ]}
+      />
+
+      <ThemedDialog
+        visible={noFoldersDialogOpen}
+        title="No folders"
+        message="Create a folder first with the folder + button."
+        onDismiss={() => setNoFoldersDialogOpen(false)}
+        buttons={[{ label: "OK", variant: "primary" }]}
+      />
     </Screen>
   );
 }
@@ -451,6 +554,19 @@ const makeStyles = (colors: Palette) =>
     },
     modalActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: spacing.lg },
     modalCancel: { color: colors.textMuted, fontSize: 15, fontWeight: "600" },
+    moveRoutineName: { color: colors.textMuted, fontSize: 15 },
+    moveOptions: { gap: spacing.sm },
+    moveOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radius.md,
+      backgroundColor: colors.surfaceHover,
+    },
+    moveOptionText: { color: colors.text, fontSize: 16, fontWeight: "500" },
+    moveCancel: { alignItems: "flex-end", paddingTop: spacing.sm },
     modalSave: { backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 10 },
     modalSaveText: { color: colors.onAccent, fontSize: 15, fontWeight: "700" },
     previewSheet: {

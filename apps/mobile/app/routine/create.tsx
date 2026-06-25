@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, Screen, SearchBar } from "../../src/components/ui";
+import { Button, Screen, SearchBar, ThemedDialog } from "../../src/components/ui";
 import { HevyInfoStrip, HevyModalHeader, HevyUnderlineInput } from "../../src/components/hevy-ui";
 import { trpc } from "../../src/lib/trpc";
 import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
@@ -321,6 +321,7 @@ export default function CreateRoutineScreen() {
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState(false);
   const nameInputRef = useRef<TextInput>(null);
+  const [addExerciseDialogOpen, setAddExerciseDialogOpen] = useState(false);
   const [showTip, setShowTip] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -558,7 +559,7 @@ export default function CreateRoutineScreen() {
               setNameError(true);
               nameInputRef.current?.focus();
             } else if (exercises.length === 0) {
-              Alert.alert("Add an exercise", "Add at least one exercise before saving.");
+              setAddExerciseDialogOpen(true);
             }
           }}
         />
@@ -671,6 +672,21 @@ export default function CreateRoutineScreen() {
           )}
         </View>
       ) : null}
+
+      <ThemedDialog
+        visible={addExerciseDialogOpen}
+        title="Add an exercise"
+        message="Add at least one exercise before saving."
+        onDismiss={() => setAddExerciseDialogOpen(false)}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: "Add exercise",
+            variant: "primary",
+            onPress: () => setPickerOpen(true),
+          },
+        ]}
+      />
     </View>
   );
 }

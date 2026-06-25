@@ -517,7 +517,7 @@ export function ThemedDialog({
   visible: boolean;
   title: string;
   message?: string;
-  buttons: Array<{ label: string; onPress?: () => void; variant?: "primary" | "secondary" }>;
+  buttons: Array<{ label: string; onPress?: () => void; variant?: "primary" | "secondary" | "destructive" }>;
   onDismiss?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
@@ -531,7 +531,11 @@ export function ThemedDialog({
             {buttons.map((btn) => (
               <Pressable
                 key={btn.label}
-                style={[styles.dialogBtn, btn.variant === "primary" && styles.dialogBtnPrimary]}
+                style={[
+                  styles.dialogBtn,
+                  btn.variant === "primary" && styles.dialogBtnPrimary,
+                  btn.variant === "destructive" && styles.dialogBtnDestructive,
+                ]}
                 onPress={() => {
                   btn.onPress?.();
                   onDismiss?.();
@@ -541,6 +545,7 @@ export function ThemedDialog({
                   style={[
                     styles.dialogBtnText,
                     btn.variant === "primary" && styles.dialogBtnTextPrimary,
+                    btn.variant === "destructive" && styles.dialogBtnTextDestructive,
                   ]}
                 >
                   {btn.label}
@@ -937,8 +942,10 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: 10,
     },
     dialogBtnPrimary: { backgroundColor: colors.accent },
+    dialogBtnDestructive: { backgroundColor: colors.dangerMuted },
     dialogBtnText: { fontSize: 15, fontWeight: "600", color: colors.textMuted },
     dialogBtnTextPrimary: { color: colors.onAccent },
+    dialogBtnTextDestructive: { color: colors.danger, fontWeight: "700" },
   });
 
 // Legacy alias

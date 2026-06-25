@@ -11,6 +11,7 @@ import {
   ListRow,
   Screen,
   SearchBar,
+  ThemedDialog,
 } from "../../src/components/ui";
 import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
@@ -47,6 +48,11 @@ export default function NutritionScreen() {
   const [mealType, setMealType] = useState<MealKey>("LUNCH");
   const [logging, setLogging] = useState(false);
   const [loggingKey, setLoggingKey] = useState<string | null>(null);
+  const [deleteMealDialog, setDeleteMealDialog] = useState<{
+    visible: boolean;
+    mealId?: string;
+    label?: string;
+  }>({ visible: false });
   const utils = trpc.useUtils();
 
   const {
@@ -129,10 +135,7 @@ export default function NutritionScreen() {
   };
 
   const confirmDeleteMeal = (mealId: string, label: string) => {
-    Alert.alert("Remove food?", `Remove ${label} from today's log?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: () => deleteMeal.mutate({ id: mealId }) },
-    ]);
+    setDeleteMealDialog({ visible: true, mealId, label });
   };
 
   const openLogger = (key: MealKey) => {
@@ -374,6 +377,29 @@ export default function NutritionScreen() {
           </View>
         ) : null}
       </View>
+
+      <ThemedDialog
+        visible={deleteMealDialog.visible}
+        title="Remove food?"
+        message={
+          deleteMealDialog.label
+            ? `Remove ${deleteMealDialog.label} from today's log?`
+            : undefined
+        }
+        onDismiss={() => setDeleteMealDialog({ visible: false })}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: "Remove",
+            variant: "destructive",
+            onPress: () => {
+              if (deleteMealDialog.mealId) {
+                deleteMeal.mutate({ id: deleteMealDialog.mealId });
+              }
+            },
+          },
+        ]}
+      />
     </Screen>
   );
 }

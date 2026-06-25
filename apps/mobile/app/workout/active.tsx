@@ -33,6 +33,7 @@ import {
   Screen,
   SearchBar,
   SectionHeader,
+  ThemedDialog,
 } from "../../src/components/ui";
 import { formatPreviousSet, pickPreviousForSet, type PreviousExerciseSession } from "../../src/lib/previous-set";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
@@ -108,6 +109,11 @@ export default function ActiveWorkoutScreen() {
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [discardError, setDiscardError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [restTimerOpen, setRestTimerOpen] = useState(false);
+  const [deleteSetDialog, setDeleteSetDialog] = useState<{ visible: boolean; setId: string | null }>({
+    visible: false,
+    setId: null,
+  });
 
   const closePicker = () => {
     setPickerOpen(false);
@@ -334,20 +340,15 @@ export default function ActiveWorkoutScreen() {
   }, [workout?.id]);
 
   const openRestTimerSettings = () => {
-    Alert.alert(
-      "Rest timer",
-      `Default rest between sets: ${formatRestTime(defaultRestSeconds)}`,
-      [
-        ...REST_PRESETS.map((seconds) => ({
-          text: formatRestTime(seconds),
-          onPress: () => {
-            setDefault(seconds);
-            savePrefs.mutate({ defaultRestSeconds: seconds });
-          },
-        })),
-        { text: "Cancel", style: "cancel" },
-      ],
-    );
+    setRestTimerOpen(true);
+  };
+
+  const handleRequestDeleteSet = (setId: string, hasData: boolean) => {
+    if (!hasData) {
+      deleteSet.mutate({ setId });
+      return;
+    }
+    setDeleteSetDialog({ visible: true, setId });
   };
 
   const openDiscardConfirm = () => {
@@ -481,7 +482,7 @@ export default function ActiveWorkoutScreen() {
               previous={previousMap?.[exercise.exercise.id] ?? null}
               onUpdateSet={handleSetUpdate}
               onAddSet={() => addSet.mutate({ workoutExerciseId: exercise.id })}
-              onDeleteSet={(setId) => deleteSet.mutate({ setId })}
+              onRequestDeleteSet={handleRequestDeleteSet}
               onUpdateNotes={(notes) => updateExerciseNotes.mutate({ workoutExerciseId: exercise.id, notes })}
               weightUnit={weightUnit}
             />
@@ -673,6 +674,69 @@ export default function ActiveWorkoutScreen() {
         </Pressable>
       </Pressable>
     </Modal>
+
+    <Modal
+      visible={restTimerOpen}
+      animationType="fade"
+      transparent
+      onRequestClose={() => setRestTimerOpen(false)}
+    >
+      <Pressable style={styles.confirmBackdropBottom} onPress={() => setRestTimerOpen(false)}>
+        <Pressable style={styles.confirmCard} onPress={(event) => event.stopPropagation()}>
+          <Text style={styles.confirmTitle}>Rest timer</Text>
+          <Text style={styles.confirmSubtitle}>
+            Default rest between sets: {formatRestTime(defaultRestSeconds)}
+          </Text>
+          <View style={styles.restPresetList}>
+            {REST_PRESETS.map((seconds) => {
+              const selected = defaultRestSeconds === seconds;
+              return (
+                <Pressable
+                  key={seconds}
+                  style={[styles.restPresetRow, selected && styles.restPresetRowSelected]}
+                  onPress={() => {
+                    setDefault(seconds);
+                    savePrefs.mutate({ defaultRestSeconds: seconds });
+                    setRestTimerOpen(false);
+                  }}
+                >
+                  <Text style={[styles.restPresetText, selected && styles.restPresetTextSelected]}>
+                    {formatRestTime(seconds)}
+                  </Text>
+                  {selected ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+                  ) : (
+                    <View style={styles.restPresetRadio} />
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable style={styles.confirmAction} onPress={() => setRestTimerOpen(false)}>
+            <Text style={styles.confirmActionText}>Cancel</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+
+    <ThemedDialog
+      visible={deleteSetDialog.visible}
+      title="Delete set?"
+      message="Remove this set from the workout?"
+      onDismiss={() => setDeleteSetDialog({ visible: false, setId: null })}
+      buttons={[
+        { label: "Cancel" },
+        {
+          label: "Delete",
+          variant: "destructive",
+          onPress: () => {
+            if (deleteSetDialog.setId) {
+              deleteSet.mutate({ setId: deleteSetDialog.setId });
+            }
+          },
+        },
+      ]}
+    />
     </>
   );
 }
@@ -710,7 +774,7 @@ function ExerciseBlock({
   previous,
   onUpdateSet,
   onAddSet,
-  onDeleteSet,
+  onRequestDeleteSet,
   onUpdateNotes,
   weightUnit,
 }: {
@@ -734,7 +798,7 @@ function ExerciseBlock({
     data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType; rpe?: number | null },
   ) => void;
   onAddSet: () => void;
-  onDeleteSet: (setId: string) => void;
+  onRequestDeleteSet: (setId: string, hasData: boolean) => void;
   onUpdateNotes: (notes: string | null) => void;
   weightUnit: "KG" | "LBS";
 }) {
@@ -801,7 +865,7 @@ function ExerciseBlock({
           weightUnit={weightUnit}
           previousValues={pickPreviousForSet(previous, set.setNumber)}
           onUpdateSet={onUpdateSet}
-          onDeleteSet={onDeleteSet}
+          onRequestDeleteSet={onRequestDeleteSet}
         />
       ))}
       <Pressable onPress={onAddSet} style={styles.addSetBtn}>
@@ -817,7 +881,7 @@ function SetRow({
   weightUnit,
   previousValues,
   onUpdateSet,
-  onDeleteSet,
+  onRequestDeleteSet,
 }: {
   set: {
     id: string;
@@ -834,7 +898,7 @@ function SetRow({
     setId: string,
     data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType; rpe?: number | null },
   ) => void;
-  onDeleteSet: (setId: string) => void;
+  onRequestDeleteSet: (setId: string, hasData: boolean) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
@@ -888,14 +952,7 @@ function SetRow({
 
   const confirmDelete = () => {
     const hasData = set.weight != null || set.reps != null || set.isCompleted;
-    if (!hasData) {
-      onDeleteSet(set.id);
-      return;
-    }
-    Alert.alert("Delete set?", "Remove this set from the workout?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => onDeleteSet(set.id) },
-    ]);
+    onRequestDeleteSet(set.id, hasData);
   };
 
   const renderDeleteAction = () => (
@@ -1199,6 +1256,26 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   confirmActionText: { color: colors.text, fontSize: 16, fontWeight: "600" },
   confirmActionMutedText: { color: colors.textMuted, fontSize: 16, fontWeight: "600" },
   confirmActionDangerText: { color: colors.danger, fontSize: 16, fontWeight: "700" },
+  restPresetList: { gap: spacing.xs, marginBottom: spacing.sm },
+  restPresetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceHover,
+  },
+  restPresetRowSelected: { backgroundColor: colors.accentMuted },
+  restPresetText: { fontSize: 16, fontWeight: "600", color: colors.text },
+  restPresetTextSelected: { color: colors.accent },
+  restPresetRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
   footer: {
     flexDirection: "row",
     alignItems: "center",

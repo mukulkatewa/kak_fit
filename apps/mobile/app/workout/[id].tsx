@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
-import { EmptyState } from "../../src/components/ui";
+import { EmptyState, ThemedDialog } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
@@ -42,6 +42,11 @@ export default function WorkoutDetailScreen() {
 
   const [editing, setEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  const [deleteWorkoutDialogOpen, setDeleteWorkoutDialogOpen] = useState(false);
+  const [deletePhotoDialog, setDeletePhotoDialog] = useState<{
+    visible: boolean;
+    photoId?: string;
+  }>({ visible: false });
 
   const { data: photos } = trpc.progressPhoto.list.useQuery(
     { workoutId: id! },
@@ -136,10 +141,7 @@ export default function WorkoutDetailScreen() {
 
   const confirmDelete = () => {
     if (!id) return;
-    Alert.alert("Delete workout?", "This permanently removes it from your history.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => remove.mutate({ id }) },
-    ]);
+    setDeleteWorkoutDialogOpen(true);
   };
 
   if (isLoading) {
@@ -166,6 +168,7 @@ export default function WorkoutDetailScreen() {
   );
 
   return (
+    <>
     <ScrollView style={styles.screen} contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
       <HevyStackHeader
         title="Workout"
@@ -306,12 +309,7 @@ export default function WorkoutDetailScreen() {
               {photos?.map((p) => (
                 <Pressable
                   key={p.id}
-                  onLongPress={() =>
-                    Alert.alert("Delete photo?", "", [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Delete", style: "destructive", onPress: () => deletePhoto.mutate({ id: p.id }) },
-                    ])
-                  }
+                  onLongPress={() => setDeletePhotoDialog({ visible: true, photoId: p.id })}
                 >
                   <Image source={{ uri: p.url }} style={styles.photoThumb} />
                 </Pressable>
@@ -323,6 +321,42 @@ export default function WorkoutDetailScreen() {
 
       <View style={{ height: spacing.xxxl }} />
     </ScrollView>
+
+    <ThemedDialog
+      visible={deleteWorkoutDialogOpen}
+      title="Delete workout?"
+      message="This permanently removes it from your history."
+      onDismiss={() => setDeleteWorkoutDialogOpen(false)}
+      buttons={[
+        { label: "Cancel" },
+        {
+          label: "Delete",
+          variant: "destructive",
+          onPress: () => {
+            if (id) remove.mutate({ id });
+          },
+        },
+      ]}
+    />
+
+    <ThemedDialog
+      visible={deletePhotoDialog.visible}
+      title="Delete photo?"
+      onDismiss={() => setDeletePhotoDialog({ visible: false })}
+      buttons={[
+        { label: "Cancel" },
+        {
+          label: "Delete",
+          variant: "destructive",
+          onPress: () => {
+            if (deletePhotoDialog.photoId) {
+              deletePhoto.mutate({ id: deletePhotoDialog.photoId });
+            }
+          },
+        },
+      ]}
+    />
+    </>
   );
 }
 

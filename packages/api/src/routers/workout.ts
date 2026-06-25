@@ -26,7 +26,7 @@ const workoutDetailInclude = {
   exercises: {
     orderBy: { order: "asc" as const },
     include: {
-      exercise: { select: { id: true, name: true } },
+      exercise: { select: { id: true, name: true, imageUrl: true } },
       sets: { orderBy: { setNumber: "asc" as const } },
     },
   },
@@ -359,8 +359,8 @@ export const workoutRouter = router({
         data: {
           workoutExerciseId: exercise.id,
           setNumber: (lastSet?.setNumber ?? 0) + 1,
-          weight: lastSet?.weight,
-          reps: lastSet?.reps,
+          weight: lastSet?.weight != null && lastSet.weight > 0 ? lastSet.weight : undefined,
+          reps: lastSet?.reps != null && lastSet.reps > 0 ? lastSet.reps : undefined,
           duration: lastSet?.duration,
         },
       });

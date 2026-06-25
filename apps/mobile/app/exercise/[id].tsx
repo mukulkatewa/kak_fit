@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { BarChart } from "../../src/components/charts";
 import { Button, EmptyState, Header, ListGroup, ListRow, Screen, SectionHeader } from "../../src/components/ui";
+import { ExerciseAvatar } from "../../src/components/exercise-avatar";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { radius, useTheme, useThemedStyles, spacing, type Palette } from "../../src/lib/theme";
 
@@ -60,7 +61,11 @@ export default function ExerciseDetailScreen() {
         <View style={styles.demoWrap}>
           <Image source={{ uri: demoUrl }} style={styles.demoImage} resizeMode="contain" />
         </View>
-      ) : null}
+      ) : (
+        <View style={styles.avatarRow}>
+          <ExerciseAvatar name={exercise.name} imageUrl={exercise.imageUrl} size={80} />
+        </View>
+      )}
 
       {previous ? (
         <View style={styles.prevBox}>
@@ -131,6 +136,7 @@ export default function ExerciseDetailScreen() {
 }
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
+  avatarRow: { alignItems: "center", paddingVertical: spacing.lg },
   demoWrap: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

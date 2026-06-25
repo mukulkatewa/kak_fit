@@ -7,6 +7,7 @@ import {
 } from "../lib/routine-display";
 import { useUserPreferences } from "../lib/use-preferences";
 import { spacing, shadows, useTheme, useThemedStyles, type Palette } from "../lib/theme";
+import { ExerciseAvatar } from "./exercise-avatar";
 
 type RoutineExpandableRowProps = {
   routine: RoutineListItem;
@@ -72,9 +73,16 @@ export function RoutineExpandableRow({
       {expanded ? (
         <View style={styles.expanded}>
           {routine.exercises.map((exercise) => (
-            <Text key={exercise.id} style={styles.expandedLine}>
-              • {formatRoutineExerciseDetail(exercise, weightUnit)}
-            </Text>
+            <View key={exercise.id} style={styles.expandedExRow}>
+              <ExerciseAvatar
+                name={exercise.exercise.name}
+                imageUrl={exercise.exercise.imageUrl ?? null}
+                size={28}
+              />
+              <Text style={styles.expandedLine} numberOfLines={2}>
+                {formatRoutineExerciseDetail(exercise, weightUnit)}
+              </Text>
+            </View>
           ))}
         </View>
       ) : null}
@@ -120,12 +128,13 @@ const makeStyles = (colors: Palette) =>
       paddingHorizontal: spacing.md,
     },
     expanded: {
-      paddingLeft: spacing.md + 32 + spacing.md,
+      paddingLeft: spacing.md,
       paddingRight: spacing.md,
       paddingBottom: spacing.md,
       gap: 6,
     },
-    expandedLine: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    expandedExRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    expandedLine: { flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 18 },
   });
 
 type RoutineExpandableCardProps = {
@@ -190,9 +199,16 @@ export function RoutineExpandableCard({
       {expanded ? (
         <View style={styles.expanded}>
           {routine.exercises.map((exercise) => (
-            <Text key={exercise.id} style={styles.expandedLine}>
-              • {formatRoutineExerciseDetail(exercise, weightUnit)}
-            </Text>
+            <View key={exercise.id} style={styles.expandedExRow}>
+              <ExerciseAvatar
+                name={exercise.exercise.name}
+                imageUrl={exercise.exercise.imageUrl ?? null}
+                size={28}
+              />
+              <Text style={styles.expandedLine} numberOfLines={2}>
+                {formatRoutineExerciseDetail(exercise, weightUnit)}
+              </Text>
+            </View>
           ))}
         </View>
       ) : null}
@@ -238,11 +254,11 @@ const makeCardStyles = (colors: Palette) =>
     expanded: {
       paddingHorizontal: spacing.md,
       paddingBottom: spacing.md,
-      paddingTop: 0,
+      paddingTop: spacing.sm,
       gap: 6,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.separator,
-      marginTop: -4,
     },
-    expandedLine: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    expandedExRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    expandedLine: { flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 18 },
   });

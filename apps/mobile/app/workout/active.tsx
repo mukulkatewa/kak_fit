@@ -15,6 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RectButton, Swipeable } from "react-native-gesture-handler";
+import { ExerciseAvatar } from "../../src/components/exercise-avatar";
 import {
   addSetToWorkout,
   addExerciseToWorkout,
@@ -70,6 +71,22 @@ const setTypeColor = (colors: Palette): Record<SetType, string> => ({
   FAILURE: colors.danger,
 });
 
+const REST_PRESETS = [60, 90, 120, 180, 300] as const;
+
+function formatElapsedDuration(totalSeconds: number) {
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  if (totalSeconds < 3600) {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (seconds === 0) return `${minutes}m`;
+    return `${minutes}m ${seconds}s`;
+  }
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
 function exercisesToSuperLinks(exercises: ActiveWorkout["exercises"]): boolean[] {
   return exercises.map(
     (exercise, index) =>
@@ -83,10 +100,13 @@ function exercisesToSuperLinks(exercises: ActiveWorkout["exercises"]): boolean[]
 export default function ActiveWorkoutScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const { weightUnit } = useUserPreferences();
+  const { weightUnit, defaultRestSeconds } = useUserPreferences();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
+  const savePrefs = trpc.auth.updatePreferences.useMutation({
+    onSuccess: () => utils.auth.me.invalidate(),
+  });
   const { data: workout, isLoading, isFetching, refetch } = trpc.workout.active.useQuery();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -117,7 +137,7 @@ export default function ActiveWorkoutScreen() {
     { enabled: pickerOpen },
   );
 
-  const { secondsLeft, isRunning, start, tick, stop } = useRestTimer();
+  const { secondsLeft, isRunning, start, tick, stop, setDefault } = useRestTimer();
 
   useEffect(() => {
     if (!isRunning) return;
@@ -277,9 +297,14 @@ export default function ActiveWorkoutScreen() {
     },
   });
 
-  const volume = useMemo(() => {
+  const completedVolume = useMemo(() => {
     if (!workout) return 0;
-    return sumWorkoutSetVolume(workout.exercises, weightUnit);
+    return sumWorkoutSetVolume(workout.exercises, weightUnit, { completedOnly: true });
+  }, [workout, weightUnit]);
+
+  const displayVolume = useMemo(() => {
+    if (!workout) return 0;
+    return sumWorkoutSetVolume(workout.exercises, weightUnit, { completedOnly: false });
   }, [workout, weightUnit]);
 
   const completedSetCount = useMemo(() => {
@@ -290,18 +315,16 @@ export default function ActiveWorkoutScreen() {
     );
   }, [workout]);
 
-  const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
-
   useEffect(() => {
     if (!workout) return;
 
-    const startedMs = new Date(workout.startedAt).getTime();
-    setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedMs) / 1000)));
+    const startedAt = workout.startedAt;
+    setElapsedSeconds(Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)));
 
     const id = setInterval(() => {
-      const freshElapsed = Math.floor((Date.now() - startedMs) / 1000);
-      setElapsedSeconds(Math.max(0, freshElapsed));
-    }, 60_000);
+      const fresh = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+      setElapsedSeconds(Math.max(0, fresh));
+    }, 1000);
 
     return () => clearInterval(id);
   }, [workout?.id, workout?.startedAt]);
@@ -311,6 +334,40 @@ export default function ActiveWorkoutScreen() {
     setFinishName(workout.name ?? "Workout");
     setFinishNotes(workout.notes ?? "");
   }, [workout?.id]);
+
+  const openRestTimerSettings = () => {
+    Alert.alert(
+      "Rest timer",
+      `Default rest between sets: ${formatRestTime(defaultRestSeconds)}`,
+      [
+        ...REST_PRESETS.map((seconds) => ({
+          text: formatRestTime(seconds),
+          onPress: () => {
+            setDefault(seconds);
+            savePrefs.mutate({ defaultRestSeconds: seconds });
+          },
+        })),
+        { text: "Cancel", style: "cancel" },
+      ],
+    );
+  };
+
+  const openWorkoutSettings = () => {
+    Alert.alert("Workout settings", undefined, [
+      { text: "Workout Settings", onPress: () => router.push("/settings") },
+      ...(reorderMode
+        ? [{ text: "Done reordering", onPress: () => setReorderMode(false) }]
+        : [{ text: "Reorder exercises", onPress: () => setReorderMode(true) }]),
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const confirmDiscard = () => {
+    Alert.alert("Discard workout?", "This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Discard", style: "destructive", onPress: () => cancel.mutate({ workoutId: workout!.id }) },
+    ]);
+  };
 
   if (isLoading || (isFetching && !workout)) {
     return (
@@ -325,7 +382,7 @@ export default function ActiveWorkoutScreen() {
       <Screen>
         <View style={styles.topBar}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={22} color={colors.accent} />
+            <Ionicons name="chevron-down" size={24} color={colors.accent} />
           </Pressable>
         </View>
         <View style={{ alignItems: "center", marginTop: 64, gap: spacing.lg, paddingHorizontal: spacing.xl }}>
@@ -340,44 +397,63 @@ export default function ActiveWorkoutScreen() {
 
   return (
     <>
-    <Screen>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color={colors.accent} />
+    <Screen padded={false}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.headerSide} hitSlop={8}>
+          <Ionicons name="chevron-down" size={24} color={colors.accent} />
         </Pressable>
-        <View style={styles.topBarRight}>
-          <Pressable
-            onPress={() => setReorderMode((open) => !open)}
-            onLongPress={() => setReorderMode(true)}
-            hitSlop={8}
-            style={styles.reorderBtn}
-          >
-            <Ionicons
-              name={reorderMode ? "checkmark" : "reorder-three-outline"}
-              size={22}
-              color={reorderMode ? colors.accent : colors.textMuted}
-            />
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {workout.name ?? "Log Workout"}
+        </Text>
+        <View style={styles.headerActions}>
+          <Pressable onPress={openRestTimerSettings} hitSlop={8} style={styles.headerIconBtn}>
+            <Ionicons name="timer-outline" size={22} color={colors.text} />
           </Pressable>
-          <Text style={styles.volume}>
-            {Math.round(volume).toLocaleString()} {weightLabel(weightUnit)}
-          </Text>
+          <Button
+            label="Finish"
+            size="sm"
+            variant="primary"
+            onPress={() => setFinishOpen(true)}
+            loading={finish.isPending}
+          />
         </View>
       </View>
 
-      <Text style={styles.workoutTitle}>{workout.name ?? "Workout"}</Text>
-      <Text style={styles.meta}>
-        {workout.exercises.length} exercises{pendingOffline > 0 ? ` · ${pendingOffline} offline edits` : ""}
-      </Text>
+      <View style={styles.statsBar}>
+        <StatsItem label="Duration" value={formatElapsedDuration(elapsedSeconds)} />
+        <View style={styles.statsDivider} />
+        <StatsItem
+          label="Volume"
+          value={`${Math.round(displayVolume).toLocaleString()} ${weightLabel(weightUnit)}`}
+        />
+        <View style={styles.statsDivider} />
+        <StatsItem label="Sets" value={String(completedSetCount)} />
+        <View style={styles.statsDivider} />
+        <Pressable
+          style={styles.statsIconCell}
+          onPress={() => router.push("/(tabs)/progress")}
+          hitSlop={8}
+        >
+          <Ionicons name="body-outline" size={22} color={colors.accent} />
+        </Pressable>
+      </View>
+
+      {pendingOffline > 0 ? (
+        <Text style={styles.offlineMeta}>{pendingOffline} offline edits pending sync</Text>
+      ) : null}
 
       {isRunning ? (
-        <Pressable style={styles.restBar} onPress={stop}>
+        <Pressable style={[styles.restBar, styles.contentPad]} onPress={stop}>
           <Text style={styles.restLabel}>Rest</Text>
           <Text style={styles.restTime}>{formatRestTime(secondsLeft)}</Text>
           <Text style={styles.restHint}>Tap to skip</Text>
         </Pressable>
       ) : null}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, styles.contentPad]}
+      >
         {reorderMode ? (
           <Card>
             <SectionHeader title="Reorder exercises" />
@@ -405,6 +481,7 @@ export default function ActiveWorkoutScreen() {
             <ExerciseBlock
               key={exercise.id}
               name={exercise.exercise.name}
+              imageUrl={exercise.exercise.imageUrl ?? null}
               supersetGroup={exercise.supersetGroup ?? null}
               workoutExerciseId={exercise.id}
               sets={exercise.sets}
@@ -419,17 +496,16 @@ export default function ActiveWorkoutScreen() {
           ))
         )}
 
-        {!reorderMode ? (
-          <Button label="Add Exercise" icon="add" fullWidth onPress={() => setPickerOpen(true)} variant="secondary" />
-        ) : null}
-
         {!reorderMode && finishOpen ? (
           <Card>
             <SectionHeader title="Finish Workout" />
             <View style={styles.summaryGrid}>
               <SummaryItem label="Sets" value={completedSetCount} />
-              <SummaryItem label="Volume" value={`${Math.round(volume).toLocaleString()} ${weightLabel(weightUnit)}`} />
-              <SummaryItem label="Time" value={`${elapsedMinutes} min`} />
+              <SummaryItem
+                label="Volume"
+                value={`${Math.round(completedVolume).toLocaleString()} ${weightLabel(weightUnit)}`}
+              />
+              <SummaryItem label="Time" value={formatElapsedDuration(elapsedSeconds)} />
             </View>
             <TextInput
               style={styles.finishInput}
@@ -463,22 +539,23 @@ export default function ActiveWorkoutScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
-        <HevyButton
-          label="Finish Workout"
-          onPress={() => setFinishOpen(true)}
-          loading={finish.isPending}
-        />
-        <Button
-          label="Discard"
-          variant="ghost"
-          fullWidth
-          onPress={() =>
-            Alert.alert("Discard workout?", "This cannot be undone.", [
-              { text: "Cancel", style: "cancel" },
-              { text: "Discard", style: "destructive", onPress: () => cancel.mutate({ workoutId: workout.id }) },
-            ])
-          }
-        />
+        <Pressable onPress={confirmDiscard} hitSlop={8} style={styles.footerSide}>
+          <Text style={styles.discardText}>Discard Workout</Text>
+        </Pressable>
+        {!reorderMode ? (
+          <Button
+            label="Add Exercise"
+            icon="add"
+            variant="secondary"
+            size="sm"
+            onPress={() => setPickerOpen(true)}
+          />
+        ) : (
+          <View style={styles.footerSide} />
+        )}
+        <Pressable onPress={openWorkoutSettings} hitSlop={8} style={[styles.footerSide, styles.footerSideEnd]}>
+          <Text style={styles.settingsText}>Settings</Text>
+        </Pressable>
       </View>
     </Screen>
 
@@ -526,6 +603,18 @@ export default function ActiveWorkoutScreen() {
 }
 
 
+function StatsItem({ label, value }: { label: string; value: string }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.statsItem}>
+      <Text style={styles.statsValue} numberOfLines={1}>
+        {value}
+      </Text>
+      <Text style={styles.statsLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function SummaryItem({ label, value }: { label: string; value: string | number }) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -538,6 +627,7 @@ function SummaryItem({ label, value }: { label: string; value: string | number }
 
 function ExerciseBlock({
   name,
+  imageUrl,
   workoutExerciseId,
   supersetGroup,
   sets,
@@ -550,6 +640,7 @@ function ExerciseBlock({
   weightUnit,
 }: {
   name: string;
+  imageUrl?: string | null;
   workoutExerciseId: string;
   supersetGroup?: number | null;
   notes?: string | null;
@@ -591,6 +682,7 @@ function ExerciseBlock({
         </View>
       ) : null}
       <View style={styles.exerciseHeader}>
+        <ExerciseAvatar name={name} imageUrl={imageUrl} size={36} />
         <Text style={styles.exerciseName}>{name}</Text>
         <Pressable onPress={() => setNotesOpen((open) => !open)} hitSlop={8} style={styles.iconBtn}>
           <Ionicons name={notesOpen ? "document-text" : "document-text-outline"} size={17} color={colors.accent} />
@@ -618,7 +710,11 @@ function ExerciseBlock({
 
       <View style={styles.setHeader}>
         <Text style={[styles.setCol, styles.setColNarrow]}>SET</Text>
-        <Text style={styles.setCol}>{weightLabel(weightUnit).toUpperCase()}</Text>
+        <Text style={[styles.setCol, styles.setColPrev]}>PREVIOUS</Text>
+        <View style={styles.setColKgHeader}>
+          <Ionicons name="flash-outline" size={11} color={colors.textDim} />
+          <Text style={styles.setColKgHeaderText}>{weightLabel(weightUnit).toUpperCase()}</Text>
+        </View>
         <Text style={styles.setCol}>REPS</Text>
         <Text style={[styles.setCol, styles.setColRpe]}>RPE</Text>
         <Text style={[styles.setCol, styles.setColNarrow]}>✓</Text>
@@ -668,14 +764,14 @@ function SetRow({
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const [weight, setWeight] = useState(
-    set.weight != null ? String(fromKg(set.weight, weightUnit)) : "",
+    set.weight != null && set.weight > 0 ? String(fromKg(set.weight, weightUnit)) : "",
   );
-  const [reps, setReps] = useState(set.reps?.toString() ?? "");
+  const [reps, setReps] = useState(set.reps != null && set.reps > 0 ? String(set.reps) : "");
   const typeLabel = SET_TYPE_LABEL[set.setType] || String(set.setNumber);
 
   useEffect(() => {
-    setWeight(set.weight != null ? String(fromKg(set.weight, weightUnit)) : "");
-    setReps(set.reps?.toString() ?? "");
+    setWeight(set.weight != null && set.weight > 0 ? String(fromKg(set.weight, weightUnit)) : "");
+    setReps(set.reps != null && set.reps > 0 ? String(set.reps) : "");
   }, [set.weight, set.reps, weightUnit]);
 
   const flushDraft = (useGhost = false) => {
@@ -703,14 +799,17 @@ function SetRow({
     onUpdateSet(set.id, flushDraft());
   };
 
-  const weightPlaceholder =
-    weight.trim() === "" && previousValues?.weight != null
-      ? String(fromKg(previousValues.weight, weightUnit))
-      : "—";
-  const repsPlaceholder =
-    reps.trim() === "" && previousValues?.reps != null
-      ? String(previousValues.reps)
-      : "—";
+  const weightPlaceholder = "—";
+  const repsPlaceholder = "—";
+
+  const prevDisplay = (() => {
+    const w = previousValues?.weight != null ? fromKg(previousValues.weight, weightUnit) : null;
+    const r = previousValues?.reps != null ? previousValues.reps : null;
+    if (w != null && r != null) return `${w}×${r}`;
+    if (w != null) return `${w}`;
+    if (r != null) return `×${r}`;
+    return "—";
+  })();
 
   const confirmDelete = () => {
     const hasData = set.weight != null || set.reps != null || set.isCompleted;
@@ -739,6 +838,10 @@ function SetRow({
         >
           <Text style={[styles.setNumber, { color: setTypeColor(colors)[set.setType] }]}>{typeLabel}</Text>
         </Pressable>
+
+        <View style={styles.prevCol}>
+          <Text style={styles.prevColText}>{prevDisplay}</Text>
+        </View>
 
         <TextInput
           style={[styles.setInput, set.isCompleted && styles.setInputDone]}
@@ -781,10 +884,55 @@ function SetRow({
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
   topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  topBarRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  reorderBtn: { padding: 4 },
   backBtn: { padding: 4 },
-  volume: { color: colors.textMuted, fontSize: 15, fontWeight: "600" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  headerSide: { flex: 1, justifyContent: "center" },
+  headerTitle: {
+    flex: 2,
+    textAlign: "center",
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  headerActions: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: spacing.xs,
+  },
+  headerIconBtn: { padding: 2 },
+  statsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: colors.bgElevated,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.separator,
+  },
+  statsItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 1 },
+  statsIconCell: { flex: 1, alignItems: "center", justifyContent: "center", gap: 1 },
+  statsValue: { fontSize: 13, fontWeight: "800", color: colors.text },
+  statsLabel: { fontSize: 10, fontWeight: "600", color: colors.textMuted },
+  statsDivider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: "stretch",
+    backgroundColor: colors.separator,
+  },
+  offlineMeta: {
+    color: colors.textMuted,
+    fontSize: 12,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  contentPad: { paddingHorizontal: spacing.lg },
   workoutTitle: { fontSize: 28, fontWeight: "700", color: colors.text },
   meta: { color: colors.textMuted, fontSize: 15, marginTop: -4 },
   restBar: {
@@ -820,6 +968,11 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   setCol: { flex: 1, color: colors.textDim, fontSize: 11, fontWeight: "600", textAlign: "center" },
   setColNarrow: { flex: 0, width: 28 },
   setColRpe: { flex: 0, width: 36 },
+  setColPrev: { flex: 0, width: 70 },
+  setColKgHeader: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 },
+  setColKgHeaderText: { color: colors.textDim, fontSize: 11, fontWeight: "600" },
+  prevCol: { width: 70, alignItems: "center" as const, justifyContent: "center" as const },
+  prevColText: { color: colors.textMuted, fontSize: 13, textAlign: "center" as const },
   setRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -914,5 +1067,18 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     padding: spacing.md,
   },
   finishNotes: { minHeight: 86, textAlignVertical: "top" },
-  footer: { gap: spacing.sm, paddingTop: spacing.sm },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.separator,
+  },
+  footerSide: { minWidth: 88 },
+  footerSideEnd: { alignItems: "flex-end" },
+  discardText: { color: colors.danger, fontSize: 14, fontWeight: "600" },
+  settingsText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
 });

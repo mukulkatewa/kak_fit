@@ -9,6 +9,7 @@ const setInput = z.object({
   targetWeight: z.number().optional(),
   targetReps: z.number().int().optional(),
   targetDuration: z.number().int().optional(),
+  setType: z.enum(["NORMAL", "WARMUP", "DROP", "FAILURE"]).optional(),
 });
 
 const routineExerciseInput = z.object({
@@ -90,7 +91,7 @@ const routineListInclude = {
       restSeconds: true,
       notes: true,
       supersetGroup: true,
-      exercise: { select: { id: true, name: true } },
+      exercise: { select: { id: true, name: true, imageUrl: true } },
       sets: {
         orderBy: { setNumber: "asc" as const },
         select: {

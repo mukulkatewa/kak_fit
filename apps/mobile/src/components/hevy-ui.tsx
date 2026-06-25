@@ -477,7 +477,7 @@ const makeStyles = (colors: Palette) =>
     programTitle: { fontSize: 16, fontWeight: "600", color: colors.text, lineHeight: 22 },
     programMeta: { fontSize: 14, color: colors.textMuted },
     trainerCard: {
-      backgroundColor: colors.bg,
+      backgroundColor: colors.surface,
       borderRadius: radius.xl,
       padding: spacing.xl,
       gap: spacing.sm,

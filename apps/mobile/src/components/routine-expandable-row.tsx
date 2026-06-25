@@ -175,7 +175,7 @@ export function RoutineExpandableCard({
           ]}
         >
           <View style={styles.icon}>
-            <Ionicons name="barbell" size={20} color={colors.onAccent} />
+            <Ionicons name="barbell" size={20} color={colors.textMuted} />
           </View>
           <View style={styles.body}>
             <Text style={styles.title} numberOfLines={1}>
@@ -230,10 +230,8 @@ export function RoutineExpandableCard({
 const makeCardStyles = (colors: Palette) =>
   StyleSheet.create({
     card: {
-      backgroundColor: colors.bg,
+      backgroundColor: colors.surface,
       borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
       overflow: "hidden",
       ...shadows.card,
     },
@@ -251,7 +249,7 @@ const makeCardStyles = (colors: Palette) =>
       width: 44,
       height: 44,
       borderRadius: 8,
-      backgroundColor: colors.accent,
+      backgroundColor: colors.surfaceHover,
       alignItems: "center",
       justifyContent: "center",
     },

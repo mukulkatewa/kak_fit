@@ -88,14 +88,14 @@ export const lightColors: Palette = {
   fatColor: "#FFB300",
 };
 
-/** Dark mode — Hevy-style: iOS system dark grays with vivid blue accent. */
+/** Dark mode — Hevy-style: pure black bg, iOS system dark grays, vivid blue accent. */
 export const darkColors: Palette = {
-  bg: "#1C1C1E",
-  bgElevated: "#2C2C2E",
-  surface: "#3A3A3C",
-  surfaceHover: "#48484A",
-  surfaceActive: "#545456",
-  border: "#38383A",
+  bg: "#000000",
+  bgElevated: "#1C1C1E",
+  surface: "#1C1C1E",
+  surfaceHover: "#2C2C2E",
+  surfaceActive: "#3A3A3C",
+  border: "#2C2C2E",
   borderSubtle: "#2C2C2E",
   separator: "#38383A",
   text: "#FFFFFF",
@@ -114,10 +114,10 @@ export const darkColors: Palette = {
   goldMuted: "rgba(245, 181, 60, 0.18)",
   danger: "#FF453A",
   dangerMuted: "rgba(255, 69, 58, 0.16)",
-  glass: "rgba(28, 28, 30, 0.96)",
+  glass: "rgba(0, 0, 0, 0.96)",
   primary: "#0A84FF",
   primaryMuted: "rgba(10, 132, 255, 0.18)",
-  surfaceLight: "#2C2C2E",
+  surfaceLight: "#1C1C1E",
   onAccent: "#FFFFFF",
   onAccentMuted: "rgba(255, 255, 255, 0.86)",
   onAccentFaint: "rgba(255, 255, 255, 0.26)",

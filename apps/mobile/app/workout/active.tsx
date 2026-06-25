@@ -444,6 +444,7 @@ export default function ActiveWorkoutScreen() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, styles.contentPad]}
+        keyboardShouldPersistTaps="handled"
       >
         {reorderMode ? (
           <Card>

@@ -517,14 +517,21 @@ export function ThemedDialog({
   visible: boolean;
   title: string;
   message?: string;
-  buttons: Array<{ label: string; onPress?: () => void; variant?: "primary" | "secondary" | "destructive" }>;
+  buttons: Array<{
+    label: string;
+    onPress?: () => void;
+    variant?: "primary" | "secondary" | "destructive";
+    /** When false, dialog stays open after press (e.g. async destructive actions). Default: true except destructive. */
+    dismissOnPress?: boolean;
+  }>;
   onDismiss?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
-      <Pressable style={styles.dialogBackdrop} onPress={onDismiss}>
-        <View style={styles.dialogCard} onStartShouldSetResponder={() => true}>
+      <View style={styles.dialogBackdrop}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onDismiss} accessibilityRole="button" />
+        <View style={styles.dialogCard} accessibilityViewIsModal>
           <Text style={styles.dialogTitle}>{title}</Text>
           {message ? <Text style={styles.dialogMessage}>{message}</Text> : null}
           <View style={styles.dialogActions}>
@@ -538,7 +545,11 @@ export function ThemedDialog({
                 ]}
                 onPress={() => {
                   btn.onPress?.();
-                  onDismiss?.();
+                  const shouldDismiss =
+                    btn.dismissOnPress ?? btn.variant !== "destructive";
+                  if (shouldDismiss) {
+                    onDismiss?.();
+                  }
                 }}
               >
                 <Text
@@ -554,7 +565,7 @@ export function ThemedDialog({
             ))}
           </View>
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -926,6 +937,7 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.md,
       borderWidth: 1,
       borderColor: colors.border,
+      zIndex: 1,
     },
     dialogTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
     dialogMessage: { fontSize: 15, color: colors.textMuted, lineHeight: 22 },

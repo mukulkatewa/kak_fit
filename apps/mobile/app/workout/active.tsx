@@ -289,10 +289,11 @@ export default function ActiveWorkoutScreen() {
     },
   });
 
-  const cancel = trpc.workout.cancel.useMutation({
+  const cancel = trpc.workout.discardActive.useMutation({
     onSuccess: () => {
       setDiscardConfirmOpen(false);
       setDiscardError(null);
+      utils.workout.active.setData(undefined, null);
       utils.workout.active.invalidate();
       router.back();
     },
@@ -358,8 +359,7 @@ export default function ActiveWorkoutScreen() {
   };
 
   const handleDiscardWorkout = () => {
-    if (!workout) return;
-    cancel.mutate({ workoutId: workout.id });
+    cancel.mutate();
   };
 
   if (isLoading || (isFetching && !workout)) {
@@ -391,6 +391,7 @@ export default function ActiveWorkoutScreen() {
   return (
     <>
     <Screen padded={false}>
+      <View style={styles.mainColumn}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerSide} hitSlop={8}>
           <Ionicons name="chevron-down" size={24} color={colors.accent} />
@@ -523,6 +524,7 @@ export default function ActiveWorkoutScreen() {
         <Pressable onPress={() => setSettingsOpen(true)} hitSlop={8} style={[styles.footerSide, styles.footerSideEnd]}>
           <Text style={styles.settingsText}>Settings</Text>
         </Pressable>
+      </View>
       </View>
     </Screen>
 
@@ -1086,6 +1088,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginBottom: spacing.sm,
   },
   contentPad: { paddingHorizontal: spacing.lg },
+  mainColumn: { flex: 1, minHeight: 0 },
   workoutTitle: { fontSize: 28, fontWeight: "700", color: colors.text },
   meta: { color: colors.textMuted, fontSize: 15, marginTop: -4 },
   restBar: {
@@ -1109,7 +1112,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     alignItems: "center",
   },
   restAdjustText: { fontSize: 14, fontWeight: "600", color: colors.accent },
-  scroll: { flex: 1 },
+  scroll: { flex: 1, minHeight: 0 },
   scrollContent: { gap: spacing.md, paddingBottom: spacing.xl },
   exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   exerciseName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: "600" },

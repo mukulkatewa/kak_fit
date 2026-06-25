@@ -2,8 +2,8 @@ import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { Button, Screen } from "../src/components/ui";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Button, Screen, ThemedDialog } from "../src/components/ui";
 import { HevyStackHeader } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
 import { getApiUrl } from "../src/lib/api-client";
@@ -38,19 +38,32 @@ export default function DeveloperApiScreen() {
   const [manualKey, setManualKey] = useState("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [setupLoading, setSetupLoading] = useState(false);
+  const [revokeDialog, setRevokeDialog] = useState<{ visible: boolean; id?: string; name?: string }>({
+    visible: false,
+  });
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const createKey = trpc.developer.createKey.useMutation({
     onSuccess: (data) => {
+      setCreateError(null);
       setRevealedKey(data.apiKey);
       utils.developer.listKeys.invalidate();
     },
-    onError: (e) => Alert.alert("Could not create key", e.message),
+    onError: (e) => setCreateError(e.message),
   });
 
   const revokeKey = trpc.developer.revokeKey.useMutation({
-    onSuccess: () => utils.developer.listKeys.invalidate(),
-    onError: (e) => Alert.alert("Could not revoke key", e.message),
+    onSuccess: () => {
+      setRevokeDialog({ visible: false });
+      setRevokeError(null);
+      utils.developer.listKeys.invalidate();
+    },
+    onError: (e) => {
+      setRevokeError(e.message);
+      setRevokeDialog((prev) => ({ ...prev, visible: true }));
+    },
   });
 
   const baseUrl = getApiUrl();
@@ -93,16 +106,14 @@ export default function DeveloperApiScreen() {
       const message = await buildSetupMessage(setupKey, apiBase);
       await copy(message);
     } catch (e) {
-      Alert.alert(
-        "Could not copy setup message",
-        e instanceof Error ? e.message : "Try again in a moment.",
-      );
+      setRevokeError(e instanceof Error ? e.message : "Try again in a moment.");
     } finally {
       setSetupLoading(false);
     }
   };
 
   return (
+    <>
     <Screen scroll>
       <HevyStackHeader title="Developer API" onBack={() => router.back()} />
 
@@ -143,9 +154,13 @@ export default function DeveloperApiScreen() {
       />
       <Button
         label={createKey.isPending ? "Creating…" : "Generate API key"}
-        onPress={() => createKey.mutate({ name: keyName })}
+        onPress={() => {
+          setCreateError(null);
+          createKey.mutate({ name: keyName });
+        }}
         disabled={createKey.isPending}
       />
+      {createError ? <Text style={styles.errorText}>{createError}</Text> : null}
 
       <Text style={styles.sectionLabel}>Active keys</Text>
       {isLoading ? (
@@ -162,12 +177,11 @@ export default function DeveloperApiScreen() {
                 </Text>
               </View>
               <Pressable
-                onPress={() =>
-                  Alert.alert("Revoke key?", key.name, [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Revoke", style: "destructive", onPress: () => revokeKey.mutate({ id: key.id }) },
-                  ])
-                }
+                onPress={() => {
+                  setRevokeError(null);
+                  setRevokeDialog({ visible: true, id: key.id, name: key.name });
+                }}
+                hitSlop={8}
               >
                 <Ionicons name="trash-outline" size={20} color={colors.danger} />
               </Pressable>
@@ -227,6 +241,35 @@ export default function DeveloperApiScreen() {
         </Pressable>
       </View>
     </Screen>
+
+      <ThemedDialog
+        visible={revokeDialog.visible}
+        title="Revoke API key?"
+        message={
+          revokeError
+            ? revokeError
+            : revokeDialog.name
+              ? `Revoke "${revokeDialog.name}"? Apps using this key will stop working.`
+              : "Apps using this key will stop working."
+        }
+        onDismiss={() => {
+          setRevokeDialog({ visible: false });
+          setRevokeError(null);
+        }}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: revokeKey.isPending ? "Revoking…" : "Revoke",
+            variant: "destructive",
+            onPress: () => {
+              if (revokeDialog.id) {
+                revokeKey.mutate({ id: revokeDialog.id });
+              }
+            },
+          },
+        ]}
+      />
+    </>
   );
 }
 
@@ -289,6 +332,7 @@ const makeStyles = (colors: Palette) =>
     rowTitle: { fontSize: 16, color: colors.text, fontWeight: "600" },
     rowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
     muted: { color: colors.textMuted, fontSize: 14 },
+    errorText: { color: colors.danger, fontSize: 14, marginBottom: spacing.sm },
     manualKeyHint: {
       color: colors.textMuted,
       fontSize: 13,

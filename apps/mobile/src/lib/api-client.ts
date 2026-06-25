@@ -23,6 +23,15 @@ export function getClientOrigin(): string {
   }
 
   const apiUrl = getApiUrl();
+  // Remote HTTPS API — use the API origin (trusted via BETTER_AUTH_URL / EXPO_PUBLIC_API_URL on server).
+  if (apiUrl.startsWith("https://")) {
+    try {
+      return new URL(apiUrl).origin;
+    } catch {
+      // fall through
+    }
+  }
+
   const host = apiUrl.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
   return `exp://${host}:8081`;
 }

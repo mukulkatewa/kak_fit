@@ -524,7 +524,7 @@ export function ThemedDialog({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
       <Pressable style={styles.dialogBackdrop} onPress={onDismiss}>
-        <Pressable style={styles.dialogCard} onPress={(e) => e.stopPropagation()}>
+        <View style={styles.dialogCard} onStartShouldSetResponder={() => true}>
           <Text style={styles.dialogTitle}>{title}</Text>
           {message ? <Text style={styles.dialogMessage}>{message}</Text> : null}
           <View style={styles.dialogActions}>
@@ -553,7 +553,7 @@ export function ThemedDialog({
               </Pressable>
             ))}
           </View>
-        </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );

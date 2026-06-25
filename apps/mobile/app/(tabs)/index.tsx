@@ -7,6 +7,7 @@ import { QueryErrorState } from "../../src/components/query-error-state";
 import { RoutineExpandableCard } from "../../src/components/routine-expandable-row";
 import { LineChart } from "../../src/components/charts";
 import { SkeletonCards } from "../../src/components/skeleton";
+import { useAuth } from "../../src/lib/auth-context";
 import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
@@ -19,10 +20,19 @@ export default function DashboardScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const utils = trpc.useUtils();
+  const { isAuthenticated } = useAuth();
   const { weightUnit } = useUserPreferences();
-  const { data: me } = trpc.auth.me.useQuery(undefined, authMeQueryOptions);
-  const { data: stats, isPending: statsPending } = trpc.auth.stats.useQuery(undefined, {
+  const { data: me } = trpc.auth.me.useQuery(undefined, {
+    ...authMeQueryOptions,
+    enabled: isAuthenticated,
+  });
+  const {
+    data: stats,
+    isPending: statsPending,
+    isError: statsError,
+  } = trpc.auth.stats.useQuery(undefined, {
     staleTime: queryStaleTime.authStats,
+    enabled: isAuthenticated,
   });
   const {
     data: active,
@@ -51,7 +61,13 @@ export default function DashboardScreen() {
     staleTime: queryStaleTime.routineList,
   });
 
-  const statsLoading = statsPending && stats === undefined;
+  const statsLoading = isAuthenticated && statsPending && stats === undefined;
+  const statsValue = (n: number | undefined) => {
+    if (!isAuthenticated) return "–";
+    if (statsLoading) return "–";
+    if (statsError) return "–";
+    return n ?? 0;
+  };
   const weeklyLoading = weeklyPending && weeklyChart === undefined;
   const recentLoading = recentPending && recent === undefined;
   const routinesLoading = routinesPending && routines === undefined;
@@ -124,17 +140,17 @@ export default function DashboardScreen() {
           </Pressable>
           <View style={styles.statsRow}>
             <Stat
-              value={statsLoading ? "–" : (stats?.workoutCount ?? 0)}
+              value={statsValue(stats?.workoutCount)}
               label="Workouts"
               onPress={() => router.push("/(tabs)/progress")}
             />
             <Stat
-              value={statsLoading ? "–" : (stats?.routineCount ?? 0)}
+              value={statsValue(stats?.routineCount)}
               label="Routines"
               onPress={() => router.push("/(tabs)/routines")}
             />
             <Stat
-              value={statsLoading ? "–" : (stats?.prCount ?? 0)}
+              value={statsValue(stats?.prCount)}
               label="PRs"
               onPress={() => router.push({ pathname: "/(tabs)/progress", params: { tab: "prs" } })}
             />

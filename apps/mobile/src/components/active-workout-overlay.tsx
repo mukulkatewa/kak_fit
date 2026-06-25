@@ -2,7 +2,6 @@ import { usePathname, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -10,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ThemedDialog } from "./ui";
 import { useAuth } from "../lib/auth-context";
 import type { ActiveWorkout } from "../lib/active-workout-cache";
 import { formatElapsedDuration } from "../lib/format-duration";
@@ -37,6 +37,8 @@ export function ActiveWorkoutOverlay() {
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [discardError, setDiscardError] = useState<string | null>(null);
 
   const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
     staleTime: queryStaleTime.workoutActive,
@@ -47,7 +49,13 @@ export function ActiveWorkoutOverlay() {
 
   const discardActive = trpc.workout.discardActive.useMutation({
     onSuccess: () => {
+      setDiscardOpen(false);
+      setDiscardError(null);
       utils.workout.active.invalidate();
+    },
+    onError: (e) => {
+      setDiscardError(e.message);
+      setDiscardOpen(true);
     },
   });
 
@@ -81,65 +89,77 @@ export function ActiveWorkoutOverlay() {
 
   const bottom = insets.bottom + TAB_BAR_HEIGHT + 8;
 
-  const confirmDiscard = () => {
-    Alert.alert(
-      "Discard Workout?",
-      "This will permanently delete your current workout.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Discard",
-          style: "destructive",
-          onPress: () => discardActive.mutate(),
-        },
-      ],
-    );
-  };
-
   return (
-    <View
-      style={[
-        styles.pill,
-        {
-          bottom,
-          backgroundColor: colors.surface,
-          borderColor: colors.border,
-        },
-      ]}
-    >
-      <Pressable
-        onPress={() => router.push("/workout/active")}
-        style={[styles.circleBtn, { backgroundColor: colors.bgElevated }]}
-        hitSlop={4}
+    <>
+      <View
+        style={[
+          styles.pill,
+          {
+            bottom,
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          },
+        ]}
       >
-        <Ionicons name="chevron-up" size={22} color={colors.text} />
-      </Pressable>
+        <Pressable
+          onPress={() => router.push("/workout/active")}
+          style={[styles.circleBtn, { backgroundColor: colors.bgElevated }]}
+          hitSlop={4}
+        >
+          <Ionicons name="chevron-up" size={22} color={colors.text} />
+        </Pressable>
 
-      <Pressable onPress={() => router.push("/workout/active")} style={styles.centerBlock}>
-        <View style={styles.titleRow}>
-          <View style={[styles.dot, { backgroundColor: colors.success }]} />
-          <Text style={[styles.line1, { color: colors.text }]} numberOfLines={1}>
-            Workout {formatElapsedDuration(elapsedSeconds)}
+        <Pressable onPress={() => router.push("/workout/active")} style={styles.centerBlock}>
+          <View style={styles.titleRow}>
+            <View style={[styles.dot, { backgroundColor: colors.success }]} />
+            <Text style={[styles.line1, { color: colors.text }]} numberOfLines={1}>
+              Workout {formatElapsedDuration(elapsedSeconds)}
+            </Text>
+          </View>
+          <Text style={[styles.line2, { color: colors.textMuted }]} numberOfLines={1}>
+            {exerciseName}
           </Text>
-        </View>
-        <Text style={[styles.line2, { color: colors.textMuted }]} numberOfLines={1}>
-          {exerciseName}
-        </Text>
-      </Pressable>
+        </Pressable>
 
-      <Pressable
-        onPress={confirmDiscard}
-        disabled={discardActive.isPending}
-        style={[styles.circleBtn, { backgroundColor: colors.bgElevated }]}
-        hitSlop={4}
-      >
-        {discardActive.isPending ? (
-          <ActivityIndicator size="small" color={colors.danger} />
-        ) : (
-          <Ionicons name="trash-outline" size={20} color={colors.danger} />
-        )}
-      </Pressable>
-    </View>
+        <Pressable
+          onPress={() => {
+            setDiscardError(null);
+            setDiscardOpen(true);
+          }}
+          disabled={discardActive.isPending}
+          style={[styles.circleBtn, { backgroundColor: colors.bgElevated }]}
+          hitSlop={4}
+        >
+          {discardActive.isPending ? (
+            <ActivityIndicator size="small" color={colors.danger} />
+          ) : (
+            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+          )}
+        </Pressable>
+      </View>
+
+      <ThemedDialog
+        visible={discardOpen}
+        title="Discard workout?"
+        message={
+          discardError
+            ? `${discardError}\n\nThis will permanently delete your current workout.`
+            : "This will permanently delete your current workout."
+        }
+        onDismiss={() => {
+          setDiscardOpen(false);
+          setDiscardError(null);
+        }}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: discardActive.isPending ? "Discarding…" : "Discard",
+            variant: "destructive",
+            onPress: () => discardActive.mutate(),
+          },
+        ]}
+      />
+    </>
   );
 }
 

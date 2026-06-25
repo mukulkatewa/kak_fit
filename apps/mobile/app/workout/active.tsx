@@ -298,6 +298,7 @@ export default function ActiveWorkoutScreen() {
     },
     onError: (e) => {
       setDiscardError(e.message);
+      setDiscardConfirmOpen(true);
     },
   });
 
@@ -501,7 +502,11 @@ export default function ActiveWorkoutScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
-        <Pressable onPress={openDiscardConfirm} hitSlop={8} style={styles.footerSide}>
+        <Pressable
+          onPress={openDiscardConfirm}
+          hitSlop={8}
+          style={({ pressed }) => [styles.footerSide, pressed && { opacity: 0.6 }]}
+        >
           <Text style={styles.discardText}>Discard Workout</Text>
         </Pressable>
         {!reorderMode ? (
@@ -621,35 +626,6 @@ export default function ActiveWorkoutScreen() {
     </Modal>
 
     <Modal
-      visible={discardConfirmOpen}
-      animationType="fade"
-      transparent
-      onRequestClose={() => setDiscardConfirmOpen(false)}
-    >
-      <Pressable style={styles.confirmBackdropBottom} onPress={() => setDiscardConfirmOpen(false)}>
-        <Pressable style={styles.confirmCard} onPress={(event) => event.stopPropagation()}>
-          <Text style={styles.confirmTitle}>Discard workout?</Text>
-          <Text style={styles.confirmSubtitle}>This cannot be undone.</Text>
-          {discardError ? <Text style={styles.confirmError}>{discardError}</Text> : null}
-          <Pressable
-            style={[styles.confirmAction, styles.confirmActionDanger]}
-            onPress={handleDiscardWorkout}
-            disabled={cancel.isPending}
-          >
-            {cancel.isPending ? (
-              <ActivityIndicator color={colors.danger} size="small" />
-            ) : (
-              <Text style={styles.confirmActionDangerText}>Discard Workout</Text>
-            )}
-          </Pressable>
-          <Pressable style={styles.confirmAction} onPress={() => setDiscardConfirmOpen(false)}>
-            <Text style={styles.confirmActionText}>Cancel</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
-
-    <Modal
       visible={settingsOpen}
       animationType="fade"
       transparent
@@ -741,6 +717,28 @@ export default function ActiveWorkoutScreen() {
         </Pressable>
       </Screen>
     </Modal>
+
+    <ThemedDialog
+      visible={discardConfirmOpen}
+      title="Discard workout?"
+      message={
+        discardError
+          ? `${discardError}\n\nThis cannot be undone.`
+          : "This cannot be undone."
+      }
+      onDismiss={() => {
+        setDiscardConfirmOpen(false);
+        setDiscardError(null);
+      }}
+      buttons={[
+        { label: "Cancel" },
+        {
+          label: cancel.isPending ? "Discarding…" : "Discard Workout",
+          variant: "destructive",
+          onPress: handleDiscardWorkout,
+        },
+      ]}
+    />
 
     <ThemedDialog
       visible={deleteSetDialog.visible}
@@ -1315,6 +1313,9 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     paddingTop: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.separator,
+    backgroundColor: colors.bg,
+    flexShrink: 0,
+    zIndex: 2,
   },
   footerSide: { minWidth: 88 },
   footerSideEnd: { alignItems: "flex-end" },

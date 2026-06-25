@@ -48,12 +48,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     const result = await authLib.signIn(email, password);
     setIsAuthenticated(true);
+    void queryClient.invalidateQueries();
     return result;
   }, []);
 
   const signUp = useCallback(async (name: string, email: string, password: string) => {
     const result = await authLib.signUp(name, email, password);
     setIsAuthenticated(true);
+    void queryClient.invalidateQueries();
     return result;
   }, []);
 

@@ -97,7 +97,15 @@ async function authRequest(path: string, body: Record<string, string>) {
   };
 
   if (!response.ok) {
-    throw new Error(data?.message ?? data?.error ?? "Authentication failed");
+    const code = (data as { code?: string }).code;
+    const detail = data?.message ?? data?.error;
+    if (code === "INVALID_ORIGIN" || code === "MISSING_OR_NULL_ORIGIN") {
+      throw new Error(
+        detail ??
+          "Sign-in blocked by server origin policy. Point EXPO_PUBLIC_API_URL at your live API URL (see docs/ENV_SETUP.md).",
+      );
+    }
+    throw new Error(detail ?? `Authentication failed (${response.status})`);
   }
 
   const tokenRaw = response.headers.get("set-auth-token") ?? data.token;

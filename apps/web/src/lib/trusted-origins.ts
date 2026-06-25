@@ -78,8 +78,10 @@ export function buildTrustedOrigins(): string[] {
 
 export function isLanDevOrigin(origin: string): boolean {
   return (
-    /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:(8081|19006)$/.test(origin) ||
-    /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:(8081|19006)$/.test(origin)
+    /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
+    /^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
+    /^exp:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
+    /^exp:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin)
   );
 }
 

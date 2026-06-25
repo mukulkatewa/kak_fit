@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "react-native";
 import { BarChart } from "../src/components/charts";
-import { Button, Header, Input, ListGroup, ListRow, Screen, SectionHeader } from "../src/components/ui";
+import { Button, Header, Input, ListGroup, ListRow, Screen, SectionHeader, ThemedDialog } from "../src/components/ui";
 import { HevySegmentedControl } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
@@ -34,6 +34,11 @@ export default function MeasurementsScreen() {
   const [waist, setWaist] = useState("");
   const [chest, setChest] = useState("");
   const [arms, setArms] = useState("");
+  const [deleteDialog, setDeleteDialog] = useState<{
+    visible: boolean;
+    id?: string;
+    label?: string;
+  }>({ visible: false });
 
   const create = trpc.bodyMeasurement.create.useMutation({
     onSuccess: () => {
@@ -42,6 +47,15 @@ export default function MeasurementsScreen() {
       utils.bodyMeasurement.list.invalidate();
       setWeight(""); setBodyFat(""); setWaist(""); setChest(""); setArms("");
       Alert.alert("Saved", "Measurement logged.");
+    },
+    onError: (e) => Alert.alert("Error", e.message),
+  });
+
+  const remove = trpc.bodyMeasurement.delete.useMutation({
+    onSuccess: () => {
+      utils.bodyMeasurement.latest.invalidate();
+      utils.bodyMeasurement.chart.invalidate();
+      utils.bodyMeasurement.list.invalidate();
     },
     onError: (e) => Alert.alert("Error", e.message),
   });
@@ -125,6 +139,22 @@ export default function MeasurementsScreen() {
                     month: "short", day: "numeric", year: "numeric",
                   })}
                   subtitle={parts.join(" · ") || "—"}
+                  right={
+                    <Pressable
+                      hitSlop={8}
+                      onPress={() =>
+                        setDeleteDialog({
+                          visible: true,
+                          id: m.id,
+                          label: new Date(m.date).toLocaleDateString(undefined, {
+                            month: "short", day: "numeric", year: "numeric",
+                          }),
+                        })
+                      }
+                    >
+                      <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                    </Pressable>
+                  }
                   last={i === (history?.length ?? 0) - 1}
                 />
               );
@@ -137,6 +167,29 @@ export default function MeasurementsScreen() {
         <Ionicons name="camera-outline" size={18} color={colors.accent} />
         <Text style={styles.photoLinkText}>View Progress Photos →</Text>
       </Pressable>
+
+      <ThemedDialog
+        visible={deleteDialog.visible}
+        title="Delete measurement?"
+        message={
+          deleteDialog.label
+            ? `Remove the entry from ${deleteDialog.label}? This cannot be undone.`
+            : undefined
+        }
+        onDismiss={() => setDeleteDialog({ visible: false })}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: "Delete",
+            variant: "destructive",
+            onPress: () => {
+              if (deleteDialog.id) {
+                remove.mutate({ id: deleteDialog.id });
+              }
+            },
+          },
+        ]}
+      />
     </Screen>
   );
 }

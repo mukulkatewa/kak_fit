@@ -459,4 +459,28 @@ export const nutritionRouter = router({
       await ctx.prisma.mealLog.delete({ where: { id: input.id } });
       return { success: true };
     }),
+
+  updateMeal: protectedProcedure
+    .input(
+      z.object({
+        mealItemId: z.string(),
+        quantity: z.number().positive().max(10000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const item = await ctx.prisma.mealItem.findFirst({
+        where: {
+          id: input.mealItemId,
+          meal: { userId: ctx.user.id },
+        },
+      });
+      if (!item) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Meal item not found" });
+      }
+      return ctx.prisma.mealItem.update({
+        where: { id: input.mealItemId },
+        data: { quantity: input.quantity },
+        include: { food: true },
+      });
+    }),
 });

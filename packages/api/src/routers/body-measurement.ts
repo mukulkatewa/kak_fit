@@ -67,4 +67,17 @@ export const bodyMeasurementRouter = router({
         },
       });
     }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.prisma.bodyMeasurement.findFirst({
+        where: { id: input.id, userId: ctx.user.id },
+      });
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Measurement not found" });
+      }
+      await ctx.prisma.bodyMeasurement.delete({ where: { id: input.id } });
+      return { success: true };
+    }),
 });

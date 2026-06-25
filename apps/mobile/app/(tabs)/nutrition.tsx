@@ -1,12 +1,13 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Button,
   EmptyState,
+  Input,
   ListGroup,
   ListRow,
   Screen,
@@ -52,6 +53,12 @@ export default function NutritionScreen() {
     visible: boolean;
     mealId?: string;
     label?: string;
+  }>({ visible: false });
+  const [editMeal, setEditMeal] = useState<{
+    visible: boolean;
+    mealItemId?: string;
+    foodName?: string;
+    quantity?: string;
   }>({ visible: false });
   const utils = trpc.useUtils();
 
@@ -99,6 +106,15 @@ export default function NutritionScreen() {
     onError: (err) => Alert.alert("Couldn't remove", err.message),
   });
 
+  const updateMeal = trpc.nutrition.updateMeal.useMutation({
+    onSuccess: () => {
+      utils.nutrition.dailySummary.invalidate();
+      utils.nutrition.todayMeals.invalidate();
+      setEditMeal({ visible: false });
+    },
+    onError: (err) => Alert.alert("Couldn't save", err.message),
+  });
+
   const mealTotals = useMemo(() => {
     const totals: Record<string, { cal: number; count: number }> = {};
     for (const meal of meals ?? []) {
@@ -136,6 +152,24 @@ export default function NutritionScreen() {
 
   const confirmDeleteMeal = (mealId: string, label: string) => {
     setDeleteMealDialog({ visible: true, mealId, label });
+  };
+
+  const openEditMeal = (mealItemId: string, foodName: string, quantity: number) => {
+    setEditMeal({
+      visible: true,
+      mealItemId,
+      foodName,
+      quantity: String(Math.round(quantity)),
+    });
+  };
+
+  const saveEditMeal = () => {
+    const qty = Number(editMeal.quantity);
+    if (!editMeal.mealItemId || !Number.isFinite(qty) || qty <= 0) {
+      Alert.alert("Invalid quantity", "Enter a positive number of grams.");
+      return;
+    }
+    updateMeal.mutate({ mealItemId: editMeal.mealItemId, quantity: qty });
   };
 
   const openLogger = (key: MealKey) => {
@@ -301,12 +335,20 @@ export default function NutritionScreen() {
                       subtitle={`${mealLabel} · ${Math.round(item.quantity)}g · ${cal} cal`}
                       icon="restaurant-outline"
                       right={
-                        <Pressable
-                          hitSlop={8}
-                          onPress={() => confirmDeleteMeal(meal.id, item.food.name)}
-                        >
-                          <Ionicons name="trash-outline" size={18} color={colors.textDim} />
-                        </Pressable>
+                        <View style={styles.mealRowActions}>
+                          <Pressable
+                            hitSlop={8}
+                            onPress={() => openEditMeal(item.id, item.food.name, item.quantity)}
+                          >
+                            <Ionicons name="pencil-outline" size={18} color={colors.accent} />
+                          </Pressable>
+                          <Pressable
+                            hitSlop={8}
+                            onPress={() => confirmDeleteMeal(meal.id, item.food.name)}
+                          >
+                            <Ionicons name="trash-outline" size={18} color={colors.textDim} />
+                          </Pressable>
+                        </View>
                       }
                       last={isLast}
                     />
@@ -400,6 +442,36 @@ export default function NutritionScreen() {
           },
         ]}
       />
+
+      <Modal
+        visible={editMeal.visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setEditMeal({ visible: false })}
+      >
+        <View style={[styles.editModal, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom }]}>
+          <View style={styles.editModalHeader}>
+            <Text style={styles.editModalTitle}>Edit quantity</Text>
+            <Pressable hitSlop={8} onPress={() => setEditMeal({ visible: false })}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+          <Text style={styles.editFoodName}>{editMeal.foodName}</Text>
+          <Input
+            placeholder="Quantity (g)"
+            value={editMeal.quantity ?? ""}
+            onChangeText={(quantity) => setEditMeal((prev) => ({ ...prev, quantity }))}
+            keyboardType="decimal-pad"
+            autoFocus
+          />
+          <Button
+            label="Save"
+            fullWidth
+            onPress={saveEditMeal}
+            loading={updateMeal.isPending}
+          />
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -561,6 +633,21 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       justifyContent: "center" as const,
     },
     pressed: { opacity: 0.7 },
+
+    mealRowActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
+    editModal: {
+      flex: 1,
+      backgroundColor: colors.bg,
+      paddingHorizontal: spacing.lg,
+      gap: spacing.lg,
+    },
+    editModalHeader: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      justifyContent: "space-between" as const,
+    },
+    editModalTitle: { fontSize: 20, fontWeight: "800" as const, color: colors.text },
+    editFoodName: { fontSize: 16, fontWeight: "600" as const, color: colors.textMuted },
 
     loggerSection: { gap: spacing.md },
     loggerHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },

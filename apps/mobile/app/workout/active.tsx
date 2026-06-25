@@ -109,7 +109,7 @@ export default function ActiveWorkoutScreen() {
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [discardError, setDiscardError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [restTimerOpen, setRestTimerOpen] = useState(false);
+  const [restSettingsOpen, setRestSettingsOpen] = useState(false);
   const [deleteSetDialog, setDeleteSetDialog] = useState<{ visible: boolean; setId: string | null }>({
     visible: false,
     setId: null,
@@ -340,7 +340,7 @@ export default function ActiveWorkoutScreen() {
   }, [workout?.id]);
 
   const openRestTimerSettings = () => {
-    setRestTimerOpen(true);
+    setRestSettingsOpen(true);
   };
 
   const handleRequestDeleteSet = (setId: string, hasData: boolean) => {
@@ -686,47 +686,60 @@ export default function ActiveWorkoutScreen() {
     </Modal>
 
     <Modal
-      visible={restTimerOpen}
-      animationType="fade"
-      transparent
-      onRequestClose={() => setRestTimerOpen(false)}
+      visible={restSettingsOpen}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setRestSettingsOpen(false)}
     >
-      <Pressable style={styles.confirmBackdropBottom} onPress={() => setRestTimerOpen(false)}>
-        <Pressable style={styles.confirmCard} onPress={(event) => event.stopPropagation()}>
-          <Text style={styles.confirmTitle}>Rest timer</Text>
-          <Text style={styles.confirmSubtitle}>
-            Default rest between sets: {formatRestTime(defaultRestSeconds)}
-          </Text>
-          <View style={styles.restPresetList}>
-            {REST_PRESETS.map((seconds) => {
-              const selected = defaultRestSeconds === seconds;
-              return (
-                <Pressable
-                  key={seconds}
-                  style={[styles.restPresetRow, selected && styles.restPresetRowSelected]}
-                  onPress={() => {
-                    setDefault(seconds);
-                    savePrefs.mutate({ defaultRestSeconds: seconds });
-                    setRestTimerOpen(false);
-                  }}
-                >
-                  <Text style={[styles.restPresetText, selected && styles.restPresetTextSelected]}>
-                    {formatRestTime(seconds)}
-                  </Text>
-                  {selected ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
-                  ) : (
-                    <View style={styles.restPresetRadio} />
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-          <Pressable style={styles.confirmAction} onPress={() => setRestTimerOpen(false)}>
-            <Text style={styles.confirmActionText}>Cancel</Text>
+      <Screen scroll style={{ paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom }}>
+        <View style={styles.pickerHeader}>
+          <Text style={styles.pickerTitle}>Rest Timer</Text>
+          <Pressable onPress={() => setRestSettingsOpen(false)} hitSlop={8}>
+            <Ionicons name="close" size={24} color={colors.text} />
           </Pressable>
+        </View>
+
+        <Text style={styles.restTimerDisplay}>
+          {defaultRestSeconds === 0 ? "OFF" : formatRestTime(defaultRestSeconds)}
+        </Text>
+
+        {REST_PRESETS.map((seconds) => (
+          <Pressable
+            key={seconds}
+            onPress={() => {
+              setDefault(seconds);
+              savePrefs.mutate({ defaultRestSeconds: seconds });
+              setRestSettingsOpen(false);
+            }}
+            style={[
+              styles.restPresetRow,
+              defaultRestSeconds === seconds && { backgroundColor: colors.accentMuted },
+            ]}
+          >
+            <Text style={styles.restPresetLabel}>{formatRestTime(seconds)}</Text>
+            {defaultRestSeconds === seconds ? (
+              <Ionicons name="checkmark" size={20} color={colors.accent} />
+            ) : null}
+          </Pressable>
+        ))}
+
+        <Pressable
+          onPress={() => {
+            setDefault(0);
+            savePrefs.mutate({ defaultRestSeconds: 0 });
+            setRestSettingsOpen(false);
+          }}
+          style={[
+            styles.restPresetRow,
+            defaultRestSeconds === 0 && { backgroundColor: colors.accentMuted },
+          ]}
+        >
+          <Text style={styles.restPresetLabel}>OFF (no rest timer)</Text>
+          {defaultRestSeconds === 0 ? (
+            <Ionicons name="checkmark" size={20} color={colors.accent} />
+          ) : null}
         </Pressable>
-      </Pressable>
+      </Screen>
     </Modal>
 
     <ThemedDialog
@@ -1275,26 +1288,24 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   confirmActionText: { color: colors.text, fontSize: 16, fontWeight: "600" },
   confirmActionMutedText: { color: colors.textMuted, fontSize: 16, fontWeight: "600" },
   confirmActionDangerText: { color: colors.danger, fontSize: 16, fontWeight: "700" },
-  restPresetList: { gap: spacing.xs, marginBottom: spacing.sm },
+  restTimerDisplay: {
+    textAlign: "center",
+    fontSize: 48,
+    fontWeight: "700",
+    color: colors.accent,
+    marginVertical: spacing.lg,
+  },
   restPresetRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
     borderRadius: radius.md,
+    marginBottom: spacing.xs,
     backgroundColor: colors.surfaceHover,
   },
-  restPresetRowSelected: { backgroundColor: colors.accentMuted },
-  restPresetText: { fontSize: 16, fontWeight: "600", color: colors.text },
-  restPresetTextSelected: { color: colors.accent },
-  restPresetRadio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
+  restPresetLabel: { fontSize: 18, fontWeight: "600", color: colors.text },
   footer: {
     flexDirection: "row",
     alignItems: "center",

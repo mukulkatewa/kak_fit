@@ -94,12 +94,14 @@ function RoutineSetRow({
   onChange,
   onRemove,
   onCycleType,
+  isOnlySet,
 }: {
   set: RoutineSet;
   weightUnit: "KG" | "LBS";
   onChange: (patch: Partial<RoutineSet>) => void;
   onRemove: () => void;
   onCycleType: () => void;
+  isOnlySet: boolean;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
@@ -170,7 +172,12 @@ function RoutineSetRow({
         placeholder="—"
         placeholderTextColor={colors.textDim}
       />
-      <Pressable onPress={onRemove} hitSlop={8} style={styles.removeSetBtn}>
+      <Pressable
+        onPress={onRemove}
+        hitSlop={8}
+        disabled={isOnlySet}
+        style={[styles.removeSetBtn, isOnlySet && { opacity: 0.3 }]}
+      >
         <Ionicons name="close" size={16} color={colors.textDim} />
       </Pressable>
     </View>
@@ -253,7 +260,7 @@ function ExerciseCard({
             <Ionicons name="chevron-down" size={19} color={colors.textMuted} />
           </Pressable>
           <Pressable onPress={onRemove} hitSlop={8}>
-            <Ionicons name="close-circle" size={20} color={colors.textDim} />
+            <Ionicons name="close-circle" size={22} color={colors.danger} />
           </Pressable>
         </View>
 
@@ -290,6 +297,7 @@ function ExerciseCard({
             key={si}
             set={set}
             weightUnit={weightUnit}
+            isOnlySet={exercise.sets.length <= 1}
             onChange={(patch) => updateSet(si, patch)}
             onRemove={() => removeSet(si)}
             onCycleType={() => updateSet(si, { setType: cycleSetType(set.setType) })}

@@ -9,6 +9,7 @@ import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-rout
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
 import { DevApiBanner } from "../src/components/dev-api-banner";
@@ -114,22 +115,25 @@ function ThemedApp() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <trpc.Provider client={trpcClient} queryClient={queryClient}>
-            <QueryClientProvider client={queryClient}>
-              <AuthSessionValidator />
-              <ThemedApp />
-            </QueryClientProvider>
-          </trpc.Provider>
-        </AuthProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <trpc.Provider client={trpcClient} queryClient={queryClient}>
+              <QueryClientProvider client={queryClient}>
+                <AuthSessionValidator />
+                <ThemedApp />
+              </QueryClientProvider>
+            </trpc.Provider>
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: { flex: 1 },
   root: { flex: 1 },
   loadingOverlay: { alignItems: "center", justifyContent: "center", zIndex: 100 },
 });

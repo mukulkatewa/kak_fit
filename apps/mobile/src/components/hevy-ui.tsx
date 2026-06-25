@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { forwardRef } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
 import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../lib/theme";
 
@@ -140,12 +141,14 @@ export function HevyModalHeader({
   title,
   onCancel,
   onSave,
+  onSaveDisabledTap,
   saveDisabled,
   saveLoading,
 }: {
   title: string;
   onCancel: () => void;
   onSave: () => void;
+  onSaveDisabledTap?: () => void;
   saveDisabled?: boolean;
   saveLoading?: boolean;
 }) {
@@ -156,7 +159,14 @@ export function HevyModalHeader({
         <Text style={styles.cancelText}>Cancel</Text>
       </Pressable>
       <Text style={styles.modalTitle}>{title}</Text>
-      <Pressable onPress={onSave} disabled={saveDisabled || saveLoading} hitSlop={8}>
+      <Pressable
+        onPress={() => {
+          if (saveLoading) return;
+          if (saveDisabled) onSaveDisabledTap?.();
+          else onSave();
+        }}
+        hitSlop={8}
+      >
         <View style={[styles.saveBtn, (saveDisabled || saveLoading) && styles.saveBtnDisabled]}>
           <Text style={styles.saveText}>{saveLoading ? "…" : "Save"}</Text>
         </View>
@@ -180,27 +190,31 @@ export function HevyInfoStrip({ text, onDismiss }: { text: string; onDismiss?: (
   );
 }
 
-export function HevyUnderlineInput({
-  placeholder,
-  value,
-  onChangeText,
-}: {
-  placeholder: string;
-  value: string;
-  onChangeText: (t: string) => void;
-}) {
+export const HevyUnderlineInput = forwardRef<
+  TextInput,
+  {
+    placeholder: string;
+    value: string;
+    onChangeText: (t: string) => void;
+    error?: boolean;
+  }
+>(function HevyUnderlineInput({ placeholder, value, onChangeText, error }, ref) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   return (
     <TextInput
+      ref={ref}
       placeholder={placeholder}
       placeholderTextColor={colors.textDim}
       value={value}
       onChangeText={onChangeText}
-      style={styles.underlineInput}
+      style={[
+        styles.underlineInput,
+        error && { borderBottomColor: colors.danger, borderBottomWidth: 1 },
+      ]}
     />
   );
-}
+});
 
 /** Centered stack header with optional back — Hevy Explore style */
 export function HevyStackHeader({

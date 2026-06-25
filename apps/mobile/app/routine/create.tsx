@@ -319,6 +319,8 @@ export default function CreateRoutineScreen() {
   const { weightUnit } = useUserPreferences();
 
   const [name, setName] = useState("");
+  const [nameError, setNameError] = useState(false);
+  const nameInputRef = useRef<TextInput>(null);
   const [showTip, setShowTip] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -551,6 +553,14 @@ export default function CreateRoutineScreen() {
           onSave={save}
           saveDisabled={!canSave || !formReady}
           saveLoading={create.isPending || update.isPending}
+          onSaveDisabledTap={() => {
+            if (name.trim().length === 0) {
+              setNameError(true);
+              nameInputRef.current?.focus();
+            } else if (exercises.length === 0) {
+              Alert.alert("Add an exercise", "Add at least one exercise before saving.");
+            }
+          }}
         />
       </View>
 
@@ -571,7 +581,19 @@ export default function CreateRoutineScreen() {
             ]}
             keyboardShouldPersistTaps="handled"
           >
-            <HevyUnderlineInput placeholder="Routine title" value={name} onChangeText={setName} />
+            <HevyUnderlineInput
+              ref={nameInputRef}
+              placeholder="Routine title (required)"
+              value={name}
+              error={nameError}
+              onChangeText={(text) => {
+                setName(text);
+                if (nameError) setNameError(false);
+              }}
+            />
+            {nameError ? (
+              <Text style={styles.nameErrorText}>Routine title is required.</Text>
+            ) : null}
 
             {exercises.length === 0 ? (
               <View style={styles.empty}>
@@ -671,6 +693,7 @@ const makeStyles = (colors: Palette) =>
     errorText: { color: colors.textMuted, fontSize: 15, textAlign: "center", lineHeight: 22 },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.md },
+    nameErrorText: { color: colors.danger, fontSize: 13, fontWeight: "500", marginTop: -spacing.xs },
     empty: {
       flex: 1,
       alignItems: "center",

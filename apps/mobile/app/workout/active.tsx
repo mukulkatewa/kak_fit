@@ -35,7 +35,7 @@ import {
   SectionHeader,
 } from "../../src/components/ui";
 import { formatPreviousSet, pickPreviousForSet, type PreviousExerciseSession } from "../../src/lib/previous-set";
-import { trpc } from "../../src/lib/trpc";
+import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { parseOptionalNumber } from "../../src/lib/workout-errors";
 import { cycleRpe, formatRpe } from "../../src/lib/rpe";
 import { useUserPreferences } from "../../src/lib/use-preferences";
@@ -95,7 +95,7 @@ export default function ActiveWorkoutScreen() {
     onSuccess: () => utils.auth.me.invalidate(),
   });
   const { data: workout, isLoading, isFetching, refetch } = trpc.workout.active.useQuery(undefined, {
-    staleTime: 0,
+    staleTime: queryStaleTime.workoutActive,
   });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -316,7 +316,7 @@ export default function ActiveWorkoutScreen() {
     }, 1000);
 
     return () => clearInterval(id);
-  }, [workout?.id, workout?.startedAt]);
+  }, [workout?.id, workout?.startedAt?.getTime()]);
 
   useEffect(() => {
     if (!workout) return;

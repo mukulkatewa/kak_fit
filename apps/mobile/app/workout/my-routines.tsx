@@ -5,6 +5,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -13,14 +14,18 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, EmptyState, ListGroup } from "../../src/components/ui";
+import { Button, EmptyState, HevyButton, ListGroup } from "../../src/components/ui";
+import { SkeletonCards } from "../../src/components/skeleton";
 import { QueryErrorState } from "../../src/components/query-error-state";
+import { ExerciseAvatar } from "../../src/components/exercise-avatar";
 import { RoutineExpandableRow } from "../../src/components/routine-expandable-row";
 import { HevyIconButton, HevyStackHeader } from "../../src/components/hevy-ui";
 import { Screen } from "../../src/components/ui";
+import { formatRoutineExerciseDetail } from "../../src/lib/routine-display";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
+import { useUserPreferences } from "../../src/lib/use-preferences";
 import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
 import type { RouterOutputs } from "@kak-fit/api/router";
 
@@ -32,13 +37,20 @@ export default function MyRoutinesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
+  const { weightUnit } = useUserPreferences();
   const { data: routines, isPending, isError, refetch } = trpc.routine.list.useQuery();
   const { data: folders } = trpc.routine.folders.useQuery();
 
   const [folderModal, setFolderModal] = useState<{ mode: "create" | "rename"; id?: string } | null>(null);
   const [folderName, setFolderName] = useState("");
+  const [previewRoutineId, setPreviewRoutineId] = useState<string | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+
+  const previewRoutine = trpc.routine.getById.useQuery(
+    { id: previewRoutineId! },
+    { enabled: !!previewRoutineId, staleTime: 60_000 },
+  );
 
   const toggleExpanded = (id: string) => {
     setExpandedIds((prev) => {
@@ -54,6 +66,7 @@ export default function MyRoutinesScreen() {
   const startRoutine = trpc.workout.startFromRoutine.useMutation({
     onSuccess: (workout) => {
       setStartingId(null);
+      setPreviewRoutineId(null);
       navigateToActiveWorkout(utils, router, workout);
     },
     onError: (e, vars) => {
@@ -169,7 +182,7 @@ export default function MyRoutinesScreen() {
 
   const renderRoutine = (item: RoutineItem, index: number, total: number) => (
     <View key={item.id} style={styles.routineWrap}>
-      <View style={startingId === item.id ? { opacity: 0.5 } : undefined}>
+      <View style={startingId === item.id ? { opacity: 0.6 } : undefined}>
         <ListGroup>
           <RoutineExpandableRow
             routine={item}
@@ -177,10 +190,8 @@ export default function MyRoutinesScreen() {
             onToggleExpand={() => toggleExpanded(item.id)}
             last={index === total - 1}
             disabled={startingId === item.id}
-            onStart={() => {
-              setStartingId(item.id);
-              startRoutine.mutate({ routineId: item.id });
-            }}
+            loading={startingId === item.id}
+            onStart={() => setPreviewRoutineId(item.id)}
           />
         </ListGroup>
       </View>
@@ -226,7 +237,7 @@ export default function MyRoutinesScreen() {
             onRetry={() => void refetch()}
           />
         ) : isPending && routines === undefined ? (
-          <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} />
+          <SkeletonCards count={3} height={56} />
         ) : (routines ?? []).length === 0 ? (
           <View style={styles.emptyWrap}>
             <EmptyState
@@ -294,6 +305,73 @@ export default function MyRoutinesScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <Modal
+        visible={previewRoutineId !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setPreviewRoutineId(null)}
+      >
+        <View style={[styles.previewSheet, { paddingBottom: insets.bottom + spacing.md }]}>
+          <View style={styles.previewHeader}>
+            <Text style={styles.previewTitle} numberOfLines={2}>
+              {previewRoutine.data?.name ?? "Routine"}
+            </Text>
+            <Pressable onPress={() => setPreviewRoutineId(null)} hitSlop={8}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+
+          {previewRoutine.isLoading ? (
+            <View style={styles.previewLoading}>
+              <ActivityIndicator color={colors.accent} size="large" />
+            </View>
+          ) : previewRoutine.isError ? (
+            <View style={styles.previewLoading}>
+              <Text style={styles.previewError}>Couldn't load routine details.</Text>
+              <Button label="Close" variant="ghost" onPress={() => setPreviewRoutineId(null)} />
+            </View>
+          ) : previewRoutine.data ? (
+            <>
+              {previewRoutine.data.notes ? (
+                <Text style={styles.previewNotes}>{previewRoutine.data.notes}</Text>
+              ) : null}
+
+              <ScrollView
+                style={styles.previewScroll}
+                contentContainerStyle={styles.previewScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {previewRoutine.data.exercises.map((exercise) => (
+                  <View key={exercise.id} style={styles.previewExerciseRow}>
+                    <ExerciseAvatar
+                      name={exercise.exercise.name}
+                      imageUrl={exercise.exercise.imageUrl ?? null}
+                      size={40}
+                    />
+                    <View style={styles.previewExerciseBody}>
+                      <Text style={styles.previewExerciseName}>{exercise.exercise.name}</Text>
+                      <Text style={styles.previewExerciseDetail}>
+                        {formatRoutineExerciseDetail(exercise, weightUnit)}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <HevyButton
+                label="Start Workout"
+                onPress={() => {
+                  if (!previewRoutineId) return;
+                  setStartingId(previewRoutineId);
+                  startRoutine.mutate({ routineId: previewRoutineId });
+                }}
+                loading={startRoutine.isPending && startingId === previewRoutineId}
+              />
+            </>
+          ) : null}
+        </View>
       </Modal>
     </Screen>
   );
@@ -375,4 +453,27 @@ const makeStyles = (colors: Palette) =>
     modalCancel: { color: colors.textMuted, fontSize: 15, fontWeight: "600" },
     modalSave: { backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 10 },
     modalSaveText: { color: colors.onAccent, fontSize: 15, fontWeight: "700" },
+    previewSheet: {
+      flex: 1,
+      backgroundColor: colors.bg,
+      paddingTop: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      gap: spacing.md,
+    },
+    previewHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: spacing.md,
+    },
+    previewTitle: { flex: 1, fontSize: 26, fontWeight: "800", color: colors.text },
+    previewNotes: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
+    previewLoading: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
+    previewError: { color: colors.textMuted, fontSize: 15, textAlign: "center" },
+    previewScroll: { flex: 1 },
+    previewScrollContent: { gap: spacing.md, paddingBottom: spacing.md },
+    previewExerciseRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+    previewExerciseBody: { flex: 1, gap: 2 },
+    previewExerciseName: { fontSize: 16, fontWeight: "700", color: colors.text },
+    previewExerciseDetail: { fontSize: 13, color: colors.textMuted },
   });

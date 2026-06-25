@@ -11,6 +11,8 @@ export const queryStaleTime = {
   default: 30 * 1000,
   authMe: 5 * 60 * 1000,
   authStats: 5 * 60 * 1000,
+  /** Active workout — fresh enough for live UI without constant refetch. */
+  workoutActive: 5 * 1000,
   weeklyVolume: 5 * 60 * 1000,
   workoutHistory: 60 * 1000,
   routineList: 60 * 1000,
@@ -33,10 +35,9 @@ export const defaultQueryClientOptions = {
   },
 } as const;
 
-/** Session user — refetch on mount when stale (see queryStaleTime.authMe). */
+/** Session user — 5min staleTime; refetches when stale on mount (React Query default). */
 export const authMeQueryOptions = {
   staleTime: queryStaleTime.authMe,
-  refetchOnMount: true,
 } as const;
 
 export function createTRPCClient() {

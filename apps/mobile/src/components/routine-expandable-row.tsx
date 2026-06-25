@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   exerciseSummary,
   formatRoutineExerciseDetail,
@@ -14,6 +14,7 @@ type RoutineExpandableRowProps = {
   onToggleExpand: () => void;
   onStart: () => void;
   disabled?: boolean;
+  loading?: boolean;
   last?: boolean;
 };
 
@@ -23,6 +24,7 @@ export function RoutineExpandableRow({
   onToggleExpand,
   onStart,
   disabled,
+  loading,
   last,
 }: RoutineExpandableRowProps) {
   const { colors } = useTheme();
@@ -54,6 +56,7 @@ export function RoutineExpandableRow({
         </Pressable>
         <Pressable
           hitSlop={8}
+          disabled={loading}
           onPress={(event) => {
             event.stopPropagation();
             onToggleExpand();
@@ -61,11 +64,15 @@ export function RoutineExpandableRow({
           style={styles.chevronBtn}
           accessibilityLabel={expanded ? "Collapse exercises" : "Expand exercises"}
         >
-          <Ionicons
-            name={expanded ? "chevron-down" : "chevron-forward"}
-            size={16}
-            color={colors.textDim}
-          />
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : (
+            <Ionicons
+              name={expanded ? "chevron-down" : "chevron-forward"}
+              size={16}
+              color={colors.textDim}
+            />
+          )}
         </Pressable>
       </View>
       {expanded ? (
@@ -109,7 +116,7 @@ const makeStyles = (colors: Palette) =>
       paddingRight: spacing.sm,
     },
     mainTapPressed: { opacity: 0.7 },
-    disabled: { opacity: 0.5 },
+    disabled: { opacity: 0.6 },
     icon: {
       width: 32,
       height: 32,
@@ -141,6 +148,7 @@ type RoutineExpandableCardProps = {
   onToggleExpand: () => void;
   onStart: () => void;
   disabled?: boolean;
+  loading?: boolean;
 };
 
 export function RoutineExpandableCard({
@@ -149,6 +157,7 @@ export function RoutineExpandableCard({
   onToggleExpand,
   onStart,
   disabled,
+  loading,
 }: RoutineExpandableCardProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeCardStyles);
@@ -179,6 +188,7 @@ export function RoutineExpandableCard({
         </Pressable>
         <Pressable
           hitSlop={8}
+          disabled={loading}
           onPress={(event) => {
             event.stopPropagation();
             onToggleExpand();
@@ -186,11 +196,15 @@ export function RoutineExpandableCard({
           style={styles.chevronBtn}
           accessibilityLabel={expanded ? "Collapse exercises" : "Expand exercises"}
         >
-          <Ionicons
-            name={expanded ? "chevron-down" : "chevron-forward"}
-            size={18}
-            color={colors.textDim}
-          />
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : (
+            <Ionicons
+              name={expanded ? "chevron-down" : "chevron-forward"}
+              size={18}
+              color={colors.textDim}
+            />
+          )}
         </Pressable>
       </View>
       {expanded ? (
@@ -232,7 +246,7 @@ const makeCardStyles = (colors: Palette) =>
       padding: spacing.md,
     },
     pressed: { opacity: 0.7 },
-    disabled: { opacity: 0.5 },
+    disabled: { opacity: 0.6 },
     icon: {
       width: 44,
       height: 44,

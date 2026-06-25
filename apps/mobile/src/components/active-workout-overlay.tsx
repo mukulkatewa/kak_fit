@@ -14,7 +14,7 @@ import { useAuth } from "../lib/auth-context";
 import type { ActiveWorkout } from "../lib/active-workout-cache";
 import { formatElapsedDuration } from "../lib/format-duration";
 import { isMainTabRoot, TAB_BAR_HEIGHT } from "../lib/layout-constants";
-import { trpc } from "../lib/trpc";
+import { trpc, queryStaleTime } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
 
 function getCurrentExerciseName(workout: ActiveWorkout): string {
@@ -39,6 +39,7 @@ export function ActiveWorkoutOverlay() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
+    staleTime: queryStaleTime.workoutActive,
     refetchInterval: 30_000,
     retry: false,
     enabled: isAuthenticated,

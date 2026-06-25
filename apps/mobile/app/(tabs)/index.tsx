@@ -6,7 +6,7 @@ import { Avatar, HevyButton, Screen } from "../../src/components/ui";
 import { QueryErrorState } from "../../src/components/query-error-state";
 import { RoutineExpandableCard } from "../../src/components/routine-expandable-row";
 import { LineChart } from "../../src/components/charts";
-import { FeedSkeleton } from "../../src/components/skeleton";
+import { SkeletonCards } from "../../src/components/skeleton";
 import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
@@ -21,13 +21,15 @@ export default function DashboardScreen() {
   const utils = trpc.useUtils();
   const { weightUnit } = useUserPreferences();
   const { data: me } = trpc.auth.me.useQuery(undefined, authMeQueryOptions);
-  const { data: stats } = trpc.auth.stats.useQuery(undefined, { staleTime: queryStaleTime.authStats });
+  const { data: stats, isPending: statsPending } = trpc.auth.stats.useQuery(undefined, {
+    staleTime: queryStaleTime.authStats,
+  });
   const {
     data: active,
     isPending: activePending,
     isError: activeError,
     refetch: refetchActive,
-  } = trpc.workout.active.useQuery(undefined, { staleTime: 30_000 });
+  } = trpc.workout.active.useQuery(undefined, { staleTime: queryStaleTime.workoutActive });
   const {
     data: recent,
     isPending: recentPending,
@@ -37,7 +39,7 @@ export default function DashboardScreen() {
     { limit: 8 },
     { staleTime: queryStaleTime.workoutHistory },
   );
-  const { data: weeklyChart } = trpc.progress.weeklyVolume.useQuery(undefined, {
+  const { data: weeklyChart, isPending: weeklyPending } = trpc.progress.weeklyVolume.useQuery(undefined, {
     staleTime: queryStaleTime.weeklyVolume,
   });
   const {
@@ -49,8 +51,11 @@ export default function DashboardScreen() {
     staleTime: queryStaleTime.routineList,
   });
 
-  const initialLoading =
-    (activePending && active === undefined) || (recentPending && recent === undefined);
+  const statsLoading = statsPending && stats === undefined;
+  const weeklyLoading = weeklyPending && weeklyChart === undefined;
+  const recentLoading = recentPending && recent === undefined;
+  const routinesLoading = routinesPending && routines === undefined;
+  const activeLoading = activePending && active === undefined;
 
   const [startingRoutineId, setStartingRoutineId] = useState<string | null>(null);
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(() => new Set());
@@ -118,9 +123,21 @@ export default function DashboardScreen() {
             <Avatar name={me?.name} size={48} />
           </Pressable>
           <View style={styles.statsRow}>
-            <Stat value={stats?.workoutCount ?? 0} label="Workouts" />
-            <Stat value={stats?.routineCount ?? 0} label="Routines" />
-            <Stat value={stats?.prCount ?? 0} label="PRs" />
+            <Stat
+              value={statsLoading ? "–" : (stats?.workoutCount ?? 0)}
+              label="Workouts"
+              onPress={() => router.push("/(tabs)/progress")}
+            />
+            <Stat
+              value={statsLoading ? "–" : (stats?.routineCount ?? 0)}
+              label="Routines"
+              onPress={() => router.push("/(tabs)/routines")}
+            />
+            <Stat
+              value={statsLoading ? "–" : (stats?.prCount ?? 0)}
+              label="PRs"
+              onPress={() => router.push({ pathname: "/(tabs)/progress", params: { tab: "prs" } })}
+            />
           </View>
           <Pressable
             hitSlop={8}
@@ -132,16 +149,25 @@ export default function DashboardScreen() {
         </View>
 
         {/* Weekly progress hero card */}
-        <View style={styles.heroCard}>
+        <Pressable
+          style={({ pressed }) => [styles.heroCard, pressed && styles.pressed]}
+          onPress={() => router.push("/(tabs)/progress")}
+        >
           <View style={styles.heroTopRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.heroTitle}>Weekly Progress</Text>
               <View style={styles.heroBigRow}>
-                <Text style={styles.heroBig}>{Math.round(totalVolume).toLocaleString()}</Text>
-                <Text style={styles.heroUnit}>{volumeUnit}</Text>
+                <Text style={styles.heroBig}>
+                  {weeklyLoading ? "–" : Math.round(totalVolume).toLocaleString()}
+                </Text>
+                {!weeklyLoading ? <Text style={styles.heroUnit}>{volumeUnit}</Text> : null}
               </View>
               <Text style={styles.heroSub}>
-                {totalVolume > 0 ? "lifted in the last 7 days" : "No workouts yet this week"}
+                {weeklyLoading
+                  ? "Loading weekly volume…"
+                  : totalVolume > 0
+                    ? "lifted in the last 7 days"
+                    : "No workouts yet this week"}
               </Text>
             </View>
             <View style={styles.heroBadge}>
@@ -149,16 +175,26 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <LineChart data={chartData} height={120} />
+          {weeklyLoading ? (
+            <View style={styles.heroChartSkeleton}>
+              {[0.35, 0.55, 0.4, 0.75, 0.5, 0.3, 0.65].map((h, i) => (
+                <View key={i} style={[styles.heroBarSkeleton, { height: 120 * h }]} />
+              ))}
+            </View>
+          ) : (
+            <LineChart data={chartData} height={120} />
+          )}
 
           <View style={styles.heroLabels}>
-            {chartData.map((d, i) => (
-              <Text key={`${d.label}-${i}`} style={styles.heroDay}>
-                {d.label}
-              </Text>
-            ))}
+            {(weeklyLoading ? ["M", "T", "W", "T", "F", "S", "S"] : chartData.map((d) => d.label)).map(
+              (label, i) => (
+                <Text key={`${label}-${i}`} style={styles.heroDay}>
+                  {label}
+                </Text>
+              ),
+            )}
           </View>
-        </View>
+        </Pressable>
 
         {/* Primary CTA / continue active workout */}
         {activeError ? (
@@ -177,103 +213,116 @@ export default function DashboardScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
           </Pressable>
-        ) : (
+        ) : !activeLoading ? (
           <HevyButton
             label="Start Empty Workout"
             onPress={() => startEmpty.mutate({})}
             loading={startEmpty.isPending}
           />
+        ) : null}
+
+        {/* Recent Activity */}
+        <Text style={styles.sectionTitle}>Recent Activity</Text>
+        {recentError ? (
+          <QueryErrorState
+            message="Couldn't load workouts. Check your connection."
+            onRetry={() => void refetchRecent()}
+          />
+        ) : recentLoading ? (
+          <SkeletonCards count={3} />
+        ) : finished.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No completed workouts yet</Text>
+            <Text style={styles.emptyHint}>
+              Start a workout above, then tap Finish to see it here.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.cardStack}>
+            {finished.slice(0, 3).map((w) => (
+              <ActivityCard
+                key={w.id}
+                icon="fitness"
+                title={w.name ?? "Workout"}
+                subtitle={`${w.exerciseCount} exercises · ${Math.round(tonnageFromKg(w.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
+                onPress={() => router.push(`/workout/${w.id}`)}
+              />
+            ))}
+          </View>
         )}
 
-        {initialLoading ? (
-          <FeedSkeleton rows={3} />
+        {/* My Routines */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>My Routines</Text>
+          {!routinesLoading && (routines?.length ?? 0) > 0 ? (
+            <Pressable hitSlop={8} onPress={() => router.push("/workout/my-routines")}>
+              <Text style={styles.viewAll}>View all</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        {routinesError ? (
+          <QueryErrorState
+            message="Couldn't load routines. Check your connection."
+            onRetry={() => void refetchRoutines()}
+          />
+        ) : routinesLoading ? (
+          <SkeletonCards count={2} />
+        ) : (routines ?? []).length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No routines yet</Text>
+            <HevyButton
+              label="Create Routine"
+              variant="secondary"
+              onPress={() => router.push("/routine/create")}
+            />
+          </View>
         ) : (
-          <>
-            {/* Recent Activity */}
-            <Text style={styles.sectionTitle}>Recent Activity</Text>
-            {recentError ? (
-              <QueryErrorState
-                message="Couldn't load workouts. Check your connection."
-                onRetry={() => void refetchRecent()}
+          <View style={styles.cardStack}>
+            {routines?.slice(0, 4).map((item) => (
+              <RoutineExpandableCard
+                key={item.id}
+                routine={item}
+                expanded={expandedRoutineIds.has(item.id)}
+                onToggleExpand={() => toggleRoutineExpanded(item.id)}
+                disabled={startingRoutineId === item.id}
+                loading={startingRoutineId === item.id}
+                onStart={() => {
+                  setStartingRoutineId(item.id);
+                  startRoutine.mutate({ routineId: item.id });
+                }}
               />
-            ) : finished.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>No completed workouts yet</Text>
-                <Text style={styles.emptyHint}>
-                  Start a workout above, then tap Finish to see it here.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.cardStack}>
-                {finished.slice(0, 3).map((w) => (
-                  <ActivityCard
-                    key={w.id}
-                    icon="fitness"
-                    title={w.name ?? "Workout"}
-                    subtitle={`${w.exerciseCount} exercises · ${Math.round(tonnageFromKg(w.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
-                    onPress={() => router.push(`/workout/${w.id}`)}
-                  />
-                ))}
-              </View>
-            )}
-
-            {/* My Routines */}
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>My Routines</Text>
-              {(routines?.length ?? 0) > 0 ? (
-                <Pressable hitSlop={8} onPress={() => router.push("/workout/my-routines")}>
-                  <Text style={styles.viewAll}>View all</Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            {routinesError ? (
-              <QueryErrorState
-                message="Couldn't load routines. Check your connection."
-                onRetry={() => void refetchRoutines()}
-              />
-            ) : routinesPending && routines === undefined ? (
-              <FeedSkeleton rows={2} />
-            ) : (routines ?? []).length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>No routines yet</Text>
-                <HevyButton
-                  label="Create Routine"
-                  variant="secondary"
-                  onPress={() => router.push("/routine/create")}
-                />
-              </View>
-            ) : (
-              <View style={styles.cardStack}>
-                {routines?.slice(0, 4).map((item) => (
-                  <RoutineExpandableCard
-                    key={item.id}
-                    routine={item}
-                    expanded={expandedRoutineIds.has(item.id)}
-                    onToggleExpand={() => toggleRoutineExpanded(item.id)}
-                    disabled={startingRoutineId === item.id}
-                    onStart={() => {
-                      setStartingRoutineId(item.id);
-                      startRoutine.mutate({ routineId: item.id });
-                    }}
-                  />
-                ))}
-              </View>
-            )}
-          </>
+            ))}
+          </View>
         )}
       </View>
     </Screen>
   );
 }
 
-function Stat({ value, label }: { value: string | number; label: string }) {
+function Stat({
+  value,
+  label,
+  onPress,
+}: {
+  value: string | number;
+  label: string;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   return (
-    <View style={styles.statCol}>
-      <Text style={styles.statValue}>{value}</Text>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.statCol, pressed && styles.pressed]}
+      hitSlop={4}
+    >
+      <View style={styles.statValueRow}>
+        <Text style={styles.statValue}>{value}</Text>
+        <Ionicons name="chevron-forward" size={12} color={colors.textMuted} />
+      </View>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -323,6 +372,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   statHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   statsRow: { flex: 1, flexDirection: "row", justifyContent: "space-around" },
   statCol: { alignItems: "center", gap: 1 },
+  statValueRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   statValue: { fontSize: 18, fontWeight: "800", color: colors.text },
   statLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
   gear: { padding: 2 },
@@ -350,6 +400,19 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   heroLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: -spacing.sm },
   heroDay: { flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: colors.onAccentFaint },
+  heroChartSkeleton: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    height: 120,
+    gap: 6,
+  },
+  heroBarSkeleton: {
+    flex: 1,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    opacity: 0.5,
+  },
 
   activeCard: {
     flexDirection: "row",

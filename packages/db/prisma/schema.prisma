@@ -328,6 +328,7 @@ model WorkoutExercise {
   workoutId     String
   exerciseId    String
   order         Int
+  restSeconds   Int?
   notes         String?
   supersetGroup Int?
 

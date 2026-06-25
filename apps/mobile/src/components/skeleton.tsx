@@ -30,6 +30,24 @@ function ShimmerBox({ style }: { style: ViewStyle }) {
   return <Animated.View style={[styles.box, style, { opacity }]} />;
 }
 
+/** Simple placeholder card — gray rounded rectangle, no animation. */
+export function SkeletonCards({
+  count = 3,
+  height = 72,
+}: {
+  count?: number;
+  height?: number;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.skeletonStack}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={[styles.skeletonCard, { height }]} />
+      ))}
+    </View>
+  );
+}
+
 /** Hevy-style feed row skeleton (avatar + text lines) */
 export function FeedSkeleton({ rows = 3 }: { rows?: number }) {
   const styles = useThemedStyles(makeStyles);
@@ -72,6 +90,12 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
   box: { backgroundColor: colors.surfaceHover, borderRadius: radius.sm },
+  skeletonStack: { gap: spacing.md },
+  skeletonCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    opacity: 0.5,
+  },
   feed: { gap: spacing.xl, paddingVertical: spacing.md },
   feedRow: { flexDirection: "row", gap: spacing.md },
   avatar: { width: 44, height: 44, borderRadius: 22 },

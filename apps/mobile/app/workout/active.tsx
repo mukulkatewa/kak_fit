@@ -874,7 +874,7 @@ function SetRow({
     onUpdateSet(set.id, flushDraft());
   };
 
-  const weightPlaceholder = "—";
+  const weightPlaceholder = "0";
   const repsPlaceholder = "—";
 
   const prevDisplay = (() => {

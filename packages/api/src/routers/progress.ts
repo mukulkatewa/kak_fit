@@ -37,14 +37,19 @@ export const progressRouter = router({
     const now = new Date();
     const weekStart = startOfWeek(now);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const streakSince = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
 
     const [finishedWorkouts, totalWorkouts, weekWorkouts, monthPrs, nutrition] =
       await Promise.all([
-        // Streak only needs the finished dates — not the full set graph.
+        // Streak only needs recent finished dates — not the full set graph.
         ctx.prisma.workout.findMany({
-          where: { userId: ctx.user.id, finishedAt: { not: null } },
+          where: {
+            userId: ctx.user.id,
+            finishedAt: { not: null, gte: streakSince },
+          },
           select: { finishedAt: true },
           orderBy: { finishedAt: "desc" },
+          take: 730,
         }),
         ctx.prisma.workout.count({
           where: { userId: ctx.user.id, finishedAt: { not: null } },

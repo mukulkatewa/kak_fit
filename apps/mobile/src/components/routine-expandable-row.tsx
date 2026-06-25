@@ -5,7 +5,6 @@ import {
   formatRoutineExerciseDetail,
   type RoutineListItem,
 } from "../lib/routine-display";
-import { useUserPreferences } from "../lib/use-preferences";
 import { spacing, shadows, useTheme, useThemedStyles, type Palette } from "../lib/theme";
 import { ExerciseAvatar } from "./exercise-avatar";
 
@@ -28,7 +27,6 @@ export function RoutineExpandableRow({
 }: RoutineExpandableRowProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { weightUnit } = useUserPreferences();
 
   return (
     <View style={!last ? styles.itemBorder : undefined}>
@@ -80,7 +78,7 @@ export function RoutineExpandableRow({
                 size={28}
               />
               <Text style={styles.expandedLine} numberOfLines={2}>
-                {formatRoutineExerciseDetail(exercise, weightUnit)}
+                {formatRoutineExerciseDetail(exercise)}
               </Text>
             </View>
           ))}
@@ -154,7 +152,6 @@ export function RoutineExpandableCard({
 }: RoutineExpandableCardProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeCardStyles);
-  const { weightUnit } = useUserPreferences();
 
   return (
     <View style={styles.card}>
@@ -206,7 +203,7 @@ export function RoutineExpandableCard({
                 size={28}
               />
               <Text style={styles.expandedLine} numberOfLines={2}>
-                {formatRoutineExerciseDetail(exercise, weightUnit)}
+                {formatRoutineExerciseDetail(exercise)}
               </Text>
             </View>
           ))}

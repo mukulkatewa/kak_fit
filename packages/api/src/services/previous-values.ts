@@ -102,12 +102,54 @@ export async function getPreviousSetsBatch(
   userId: string,
   exerciseIds: string[],
 ) {
-  const entries = await Promise.all(
-    exerciseIds.map(async (exerciseId) => {
-      const previous = await fetchPreviousSession(prisma, userId, exerciseId);
-      return [exerciseId, previous] as const;
-    }),
-  );
+  if (exerciseIds.length === 0) return {};
 
-  return Object.fromEntries(entries);
+  const recentWorkouts = await prisma.workout.findMany({
+    where: { userId, finishedAt: { not: null } },
+    orderBy: { finishedAt: "desc" },
+    take: 20,
+    select: { id: true },
+  });
+
+  const result = Object.fromEntries(exerciseIds.map((id) => [id, null])) as Record<
+    string,
+    PreviousExerciseSession | null
+  >;
+
+  if (recentWorkouts.length === 0) return result;
+
+  const workoutExercises = await prisma.workoutExercise.findMany({
+    where: {
+      exerciseId: { in: exerciseIds },
+      workoutId: { in: recentWorkouts.map((w) => w.id) },
+    },
+    include: {
+      sets: {
+        where: { isCompleted: true },
+        orderBy: { setNumber: "asc" },
+      },
+      workout: { select: { name: true, finishedAt: true } },
+    },
+    orderBy: { workout: { finishedAt: "desc" } },
+  });
+
+  const filled = new Set<string>();
+  for (const entry of workoutExercises) {
+    if (filled.has(entry.exerciseId)) continue;
+    if (entry.sets.length === 0) continue;
+
+    result[entry.exerciseId] = {
+      workoutName: entry.workout.name,
+      finishedAt: entry.workout.finishedAt,
+      sets: entry.sets.map((set) => ({
+        setNumber: set.setNumber,
+        weight: set.weight,
+        reps: set.reps,
+        duration: set.duration,
+      })),
+    };
+    filled.add(entry.exerciseId);
+  }
+
+  return result;
 }

@@ -47,6 +47,7 @@ import {
   isNetworkError,
   syncQueuedWorkoutMutations,
 } from "../../src/lib/offline-workouts";
+import { formatElapsedDuration } from "../../src/lib/format-duration";
 import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
 
 const SET_TYPES = ["NORMAL", "WARMUP", "DROP", "FAILURE"] as const;
@@ -73,20 +74,6 @@ const setTypeColor = (colors: Palette): Record<SetType, string> => ({
 
 const REST_PRESETS = [60, 90, 120, 180, 300] as const;
 
-function formatElapsedDuration(totalSeconds: number) {
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  if (totalSeconds < 3600) {
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    if (seconds === 0) return `${minutes}m`;
-    return `${minutes}m ${seconds}s`;
-  }
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  if (minutes === 0) return `${hours}h`;
-  return `${hours}h ${minutes}m`;
-}
-
 function exercisesToSuperLinks(exercises: ActiveWorkout["exercises"]): boolean[] {
   return exercises.map(
     (exercise, index) =>
@@ -107,7 +94,9 @@ export default function ActiveWorkoutScreen() {
   const savePrefs = trpc.auth.updatePreferences.useMutation({
     onSuccess: () => utils.auth.me.invalidate(),
   });
-  const { data: workout, isLoading, isFetching, refetch } = trpc.workout.active.useQuery();
+  const { data: workout, isLoading, isFetching, refetch } = trpc.workout.active.useQuery(undefined, {
+    staleTime: 0,
+  });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const [finishName, setFinishName] = useState("");
@@ -129,7 +118,7 @@ export default function ActiveWorkoutScreen() {
 
   const { data: previousMap } = trpc.workout.previousSets.useQuery(
     { exerciseIds },
-    { enabled: exerciseIds.length > 0 },
+    { enabled: exerciseIds.length > 0, staleTime: 60 * 1000 },
   );
 
   const { data: exercises } = trpc.exercise.list.useQuery(

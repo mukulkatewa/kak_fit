@@ -4,6 +4,10 @@ import { appRouter } from "@kak-fit/api";
 import { prisma } from "@kak-fit/db";
 import { auth } from "@/lib/auth";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
 function extractBearerToken(req: Request): string | null {
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
@@ -61,12 +65,25 @@ const createContext = async (opts: { req: Request }) => {
   return { prisma, user, sessionToken };
 };
 
-const handler = (req: Request) =>
-  fetchRequestHandler({
+const handler = async (req: Request) => {
+  const response = await fetchRequestHandler({
     endpoint: "/api/trpc",
     req,
     router: appRouter,
     createContext,
   });
+
+  if (req.method === "GET" && response.ok) {
+    const headers = new Headers(response.headers);
+    headers.set("Cache-Control", "private, no-cache");
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+
+  return response;
+};
 
 export { handler as GET, handler as POST };

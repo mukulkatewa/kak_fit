@@ -27,7 +27,7 @@ export default function DashboardScreen() {
     isPending: activePending,
     isError: activeError,
     refetch: refetchActive,
-  } = trpc.workout.active.useQuery(undefined, { staleTime: 0 });
+  } = trpc.workout.active.useQuery(undefined, { staleTime: 30_000 });
   const {
     data: recent,
     isPending: recentPending,

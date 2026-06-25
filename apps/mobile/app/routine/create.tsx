@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -393,18 +394,7 @@ export default function CreateRoutineScreen() {
           exercises: input.exercises.map((ex, index) => ({
             id: `optimistic-ex-${index}`,
             order: ex.order,
-            restSeconds: ex.restSeconds ?? null,
-            notes: ex.notes ?? null,
-            supersetGroup: ex.supersetGroup ?? null,
             exercise: { id: ex.exerciseId, name: "Saving…", imageUrl: null },
-            sets: ex.sets.map((set) => ({
-              id: `optimistic-set-${set.setNumber}`,
-              setNumber: set.setNumber,
-              targetWeight: set.targetWeight ?? null,
-              targetReps: set.targetReps ?? null,
-              targetDuration: set.targetDuration ?? null,
-              setType: (set.setType ?? "NORMAL") as "NORMAL" | "WARMUP" | "DROP" | "FAILURE",
-            })),
           })),
         },
         ...(old ?? []),
@@ -427,6 +417,7 @@ export default function CreateRoutineScreen() {
   const formReady = !isEdit || editing != null;
 
   const save = () => {
+    Keyboard.dismiss();
     if (!canSave) return;
     // Build superset groups from consecutive linked exercises.
     const groups: Array<number | null> = new Array(exercises.length).fill(null);

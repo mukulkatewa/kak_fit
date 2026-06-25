@@ -320,6 +320,7 @@ model Workout {
   progressPhotos ProgressPhoto[]
 
   @@index([userId, finishedAt])
+  @@index([userId, startedAt])
 }
 
 model WorkoutExercise {
@@ -335,6 +336,7 @@ model WorkoutExercise {
   sets     WorkoutSet[]
 
   @@unique([workoutId, order])
+  @@index([workoutId])
   @@index([exerciseId])
 }
 
@@ -354,6 +356,7 @@ model WorkoutSet {
   personalRecords PersonalRecord[]
 
   @@index([workoutExerciseId, isCompleted])
+  @@index([isCompleted])
 }
 
 model PersonalRecord {

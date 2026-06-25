@@ -82,7 +82,18 @@ async function resolveTemplateExercises(
   return resolved;
 }
 
-const routineListInclude = {
+const routineListSummaryInclude = {
+  exercises: {
+    orderBy: { order: "asc" as const },
+    select: {
+      id: true,
+      order: true,
+      exercise: { select: { id: true, name: true, imageUrl: true } },
+    },
+  },
+} as const;
+
+const routineListFullInclude = {
   exercises: {
     orderBy: { order: "asc" as const },
     select: {
@@ -109,7 +120,7 @@ const routineListInclude = {
 
 const routineDetailInclude = {
   folder: true,
-  ...routineListInclude,
+  ...routineListFullInclude,
 } as const;
 
 function shareUrl(token: string) {
@@ -157,7 +168,7 @@ export const routineRouter = router({
                   })),
                 },
               },
-              include: routineListInclude,
+              include: routineListFullInclude,
             }),
           );
         }
@@ -174,7 +185,7 @@ export const routineRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.prisma.routine.findMany({
       where: { userId: ctx.user.id },
-      include: routineListInclude,
+      include: routineListSummaryInclude,
       orderBy: { updatedAt: "desc" },
     });
   }),
@@ -231,7 +242,7 @@ export const routineRouter = router({
             })),
           },
         },
-        include: routineListInclude,
+        include: routineListFullInclude,
       });
     }),
 
@@ -274,7 +285,7 @@ export const routineRouter = router({
               })),
             },
           },
-          include: routineListInclude,
+          include: routineListFullInclude,
         });
       });
     }),
@@ -318,7 +329,7 @@ export const routineRouter = router({
             })),
           },
         },
-        include: routineListInclude,
+        include: routineListFullInclude,
       });
     }),
 
@@ -481,7 +492,7 @@ export const routineRouter = router({
             })),
           },
         },
-        include: routineListInclude,
+        include: routineListFullInclude,
       });
     }),
 });

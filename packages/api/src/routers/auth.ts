@@ -14,21 +14,43 @@ const userSelect = {
 
 export const authRouter = router({
   me: protectedProcedure.query(async ({ ctx }) => {
-    const user =
-      (await ctx.prisma.user.findUnique({
-        where: { id: ctx.user.id },
-        select: userSelect,
-      })) ?? ctx.user;
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      image: user.image,
-      bio: user.bio,
-      subscriptionTier: user.subscriptionTier,
-      weightUnit: "weightUnit" in user ? user.weightUnit : "KG",
-      defaultRestSeconds: "defaultRestSeconds" in user ? user.defaultRestSeconds : 90,
-    };
+    const cached = ctx.user;
+    const hasProfileFields =
+      cached.subscriptionTier != null &&
+      cached.weightUnit != null &&
+      cached.defaultRestSeconds != null;
+
+    if (hasProfileFields) {
+      return {
+        id: cached.id,
+        name: cached.name,
+        email: cached.email,
+        image: cached.image,
+        bio: cached.bio,
+        subscriptionTier: cached.subscriptionTier,
+        weightUnit: cached.weightUnit,
+        defaultRestSeconds: cached.defaultRestSeconds,
+      };
+    }
+
+    const user = await ctx.prisma.user.findUnique({
+      where: { id: cached.id },
+      select: userSelect,
+    });
+    if (!user) {
+      return {
+        id: cached.id,
+        name: cached.name,
+        email: cached.email,
+        image: cached.image,
+        bio: cached.bio,
+        subscriptionTier: cached.subscriptionTier,
+        weightUnit: cached.weightUnit,
+        defaultRestSeconds: cached.defaultRestSeconds,
+      };
+    }
+
+    return user;
   }),
 
   updateProfile: protectedProcedure

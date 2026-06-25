@@ -1,121 +1,71 @@
 import { usePathname, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth-context";
-import {
-  patchSetInWorkout,
-  type ActiveWorkout,
-} from "../lib/active-workout-cache";
-import {
-  enqueueWorkoutMutation,
-  isNetworkError,
-} from "../lib/offline-workouts";
-import { formatRestTime, useRestTimer } from "../lib/rest-timer";
+import type { ActiveWorkout } from "../lib/active-workout-cache";
+import { formatElapsedDuration } from "../lib/format-duration";
+import { isMainTabRoot, TAB_BAR_HEIGHT } from "../lib/layout-constants";
 import { trpc } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
-import { isMainTabRoot, TAB_BAR_HEIGHT } from "../lib/layout-constants";
 
-function findSet(workout: ActiveWorkout, setId: string) {
+function getCurrentExerciseName(workout: ActiveWorkout): string {
   for (const exercise of workout.exercises) {
-    const set = exercise.sets.find((candidate) => candidate.id === setId);
-    if (set) return set;
-  }
-  return null;
-}
-
-function getSetProgress(workout: ActiveWorkout) {
-  for (const ex of workout.exercises) {
-    const next = ex.sets.find((set) => !set.isCompleted);
-    if (next) {
-      const setIndex = ex.sets.findIndex((s) => s.id === next.id) + 1;
-      return {
-        exerciseName: ex.exercise.name,
-        setIndex,
-        totalSets: ex.sets.length,
-        currentSetId: next.id,
-        canComplete: true,
-      };
+    if (exercise.sets.some((set) => !set.isCompleted)) {
+      return exercise.exercise.name;
     }
   }
 
-  const lastEx = workout.exercises.at(-1);
-  if (!lastEx || lastEx.sets.length === 0) return null;
-
-  const lastSet = lastEx.sets.at(-1)!;
-  return {
-    exerciseName: lastEx.exercise.name,
-    setIndex: lastEx.sets.length,
-    totalSets: lastEx.sets.length,
-    currentSetId: lastSet.id,
-    canComplete: !lastSet.isCompleted,
-  };
-}
-
-function PulsingDot({ color }: { color: string }) {
-  const opacity = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.3, duration: 750, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 750, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [opacity]);
-
-  return (
-    <Animated.View
-      style={[styles.dot, { backgroundColor: color, opacity }]}
-    />
-  );
+  const lastExercise = workout.exercises.at(-1);
+  if (lastExercise) return lastExercise.exercise.name;
+  return "Active Workout";
 }
 
 export function ActiveWorkoutOverlay() {
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
-
-  const isRunning = useRestTimer((s) => s.isRunning);
-  const secondsLeft = useRestTimer((s) => s.secondsLeft);
-  const tick = useRestTimer((s) => s.tick);
-  const startRest = useRestTimer((s) => s.start);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
-    refetchInterval: (query) => (query.state.data ? 5000 : 30000),
+    refetchInterval: 30_000,
     retry: false,
     enabled: isAuthenticated,
   });
 
-  const updateSet = trpc.workout.updateSet.useMutation({
-    onSuccess: (updatedSet) => {
-      utils.workout.active.setData(undefined, (current) => {
-        if (!current) return current;
-        return patchSetInWorkout(current, updatedSet);
-      });
-    },
-    onError: async (e, variables) => {
-      if (isNetworkError(e)) {
-        await enqueueWorkoutMutation("updateSet", variables);
-        return;
-      }
+  const discardActive = trpc.workout.discardActive.useMutation({
+    onSuccess: () => {
+      utils.workout.active.invalidate();
     },
   });
 
   useEffect(() => {
-    if (!isRunning) return;
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [isRunning, tick]);
+    if (!activeWorkout) return;
 
-  const progress = useMemo(
-    () => (activeWorkout ? getSetProgress(activeWorkout) : null),
+    const startedAt = activeWorkout.startedAt;
+    setElapsedSeconds(Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)));
+
+    const id = setInterval(() => {
+      const fresh = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+      setElapsedSeconds(Math.max(0, fresh));
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [activeWorkout?.id, activeWorkout?.startedAt]);
+
+  const exerciseName = useMemo(
+    () => (activeWorkout ? getCurrentExerciseName(activeWorkout) : ""),
     [activeWorkout],
   );
 
@@ -130,26 +80,19 @@ export function ActiveWorkoutOverlay() {
 
   const bottom = insets.bottom + TAB_BAR_HEIGHT + 8;
 
-  const title = isRunning
-    ? "Rest"
-    : progress?.exerciseName ?? activeWorkout.name ?? "Active Workout";
-
-  const subtitle = isRunning
-    ? formatRestTime(secondsLeft)
-    : progress
-      ? `Set ${progress.setIndex} of ${progress.totalSets}`
-      : `${activeWorkout.exercises.length} exercises`;
-
-  const handleComplete = () => {
-    if (!progress?.canComplete || isRunning || updateSet.isPending) return;
-    const currentSet = findSet(activeWorkout, progress.currentSetId);
-    startRest();
-    updateSet.mutate({
-      setId: progress.currentSetId,
-      isCompleted: true,
-      ...(currentSet?.weight != null ? { weight: currentSet.weight } : {}),
-      ...(currentSet?.reps != null ? { reps: currentSet.reps } : {}),
-    });
+  const confirmDiscard = () => {
+    Alert.alert(
+      "Discard Workout?",
+      "This will permanently delete your current workout.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => discardActive.mutate(),
+        },
+      ],
+    );
   };
 
   return (
@@ -158,63 +101,43 @@ export function ActiveWorkoutOverlay() {
         styles.pill,
         {
           bottom,
-          backgroundColor: isDark ? colors.surface : colors.accent,
-          borderColor: isDark ? colors.accent : "transparent",
-          borderWidth: isDark ? 1 : 0,
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
         },
       ]}
     >
-      <Pressable onPress={() => router.push("/workout/active")} style={styles.mainTap}>
-        <PulsingDot color={isDark ? colors.accent : colors.onAccent} />
-
-        <View style={styles.textArea}>
-          <Text
-            style={[styles.title, { color: isDark ? colors.text : colors.onAccent }]}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
-          <Text
-            style={[
-              styles.sub,
-              { color: isDark ? colors.textMuted : colors.onAccentMuted },
-            ]}
-            numberOfLines={1}
-          >
-            {subtitle}
-          </Text>
-        </View>
-
-        {!progress?.canComplete || isRunning ? (
-          <Ionicons
-            name="chevron-up"
-            size={20}
-            color={isDark ? colors.textMuted : colors.onAccentMuted}
-          />
-        ) : (
-          <View style={styles.checkSpacer} />
-        )}
+      <Pressable
+        onPress={() => router.push("/workout/active")}
+        style={[styles.circleBtn, { backgroundColor: colors.bgElevated }]}
+        hitSlop={4}
+      >
+        <Ionicons name="chevron-up" size={22} color={colors.text} />
       </Pressable>
 
-      {progress?.canComplete && !isRunning ? (
-        <Pressable
-          hitSlop={8}
-          onPress={handleComplete}
-          disabled={updateSet.isPending}
-          style={[
-            styles.checkBtn,
-            {
-              backgroundColor: isDark ? colors.accentMuted : "rgba(255,255,255,0.22)",
-            },
-          ]}
-        >
-          <Ionicons
-            name="checkmark"
-            size={22}
-            color={isDark ? colors.accent : colors.onAccent}
-          />
-        </Pressable>
-      ) : null}
+      <Pressable onPress={() => router.push("/workout/active")} style={styles.centerBlock}>
+        <View style={styles.titleRow}>
+          <View style={[styles.dot, { backgroundColor: colors.success }]} />
+          <Text style={[styles.line1, { color: colors.text }]} numberOfLines={1}>
+            Workout {formatElapsedDuration(elapsedSeconds)}
+          </Text>
+        </View>
+        <Text style={[styles.line2, { color: colors.textMuted }]} numberOfLines={1}>
+          {exerciseName}
+        </Text>
+      </Pressable>
+
+      <Pressable
+        onPress={confirmDiscard}
+        disabled={discardActive.isPending}
+        style={[styles.circleBtn, { backgroundColor: colors.bgElevated }]}
+        hitSlop={4}
+      >
+        {discardActive.isPending ? (
+          <ActivityIndicator size="small" color={colors.danger} />
+        ) : (
+          <Ionicons name="trash-outline" size={20} color={colors.danger} />
+        )}
+      </Pressable>
     </View>
   );
 }
@@ -224,11 +147,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 16,
     right: 16,
-    height: 56,
+    height: 64,
     borderRadius: 28,
+    borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 8,
+    gap: 8,
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -236,27 +161,41 @@ const styles = StyleSheet.create({
     elevation: 8,
     zIndex: 999,
   },
+  circleBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  centerBlock: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    minWidth: 0,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "100%",
+  },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 10,
+    flexShrink: 0,
   },
-  textArea: { flex: 1, marginHorizontal: 4 },
-  mainTap: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingRight: 4,
+  line1: {
+    fontSize: 15,
+    fontWeight: "700",
+    flexShrink: 1,
   },
-  checkSpacer: { width: 20 },
-  title: { fontSize: 14, fontWeight: "600" },
-  sub: { fontSize: 12, marginTop: 1 },
-  checkBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+  line2: {
+    fontSize: 13,
+    textAlign: "center",
+    maxWidth: "100%",
   },
 });

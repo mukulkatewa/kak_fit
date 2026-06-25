@@ -1,5 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd .. && pnpm install",
-  "buildCommand": "cd .. && pnpm db:generate && pnpm export:web && pnpm --filter @kak-fit/web build"
+  "buildCommand": "cd .. && pnpm db:generate && pnpm export:web && pnpm --filter @kak-fit/web build",
+  "functions": {
+    "src/app/api/trpc/[trpc]/route.ts": { "maxDuration": 30 },
+    "src/app/api/v1/[...path]/route.ts": { "maxDuration": 30 }
+  }
 }

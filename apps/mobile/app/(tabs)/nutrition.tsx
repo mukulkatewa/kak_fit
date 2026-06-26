@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +13,7 @@ import {
   Screen,
   SearchBar,
   ThemedDialog,
+  useToast,
 } from "../../src/components/ui";
 import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
@@ -61,6 +62,7 @@ export default function NutritionScreen() {
     quantity?: string;
   }>({ visible: false });
   const utils = trpc.useUtils();
+  const { showToast } = useToast();
 
   const {
     data: summary,
@@ -90,11 +92,11 @@ export default function NutritionScreen() {
       utils.nutrition.dailySummary.invalidate();
       utils.nutrition.todayMeals.invalidate();
       setLoggingKey(null);
-      Alert.alert("Logged", "Food added to your daily macros.");
+      showToast("Food added to your daily macros", "success");
     },
     onError: (err) => {
       setLoggingKey(null);
-      Alert.alert("Error", err.message);
+      showToast(err.message, "error");
     },
   });
 
@@ -103,7 +105,7 @@ export default function NutritionScreen() {
       utils.nutrition.dailySummary.invalidate();
       utils.nutrition.todayMeals.invalidate();
     },
-    onError: (err) => Alert.alert("Couldn't remove", err.message),
+    onError: (err) => showToast(err.message, "error"),
   });
 
   const updateMeal = trpc.nutrition.updateMeal.useMutation({
@@ -111,8 +113,9 @@ export default function NutritionScreen() {
       utils.nutrition.dailySummary.invalidate();
       utils.nutrition.todayMeals.invalidate();
       setEditMeal({ visible: false });
+      showToast("Quantity updated", "success");
     },
-    onError: (err) => Alert.alert("Couldn't save", err.message),
+    onError: (err) => showToast(err.message, "error"),
   });
 
   const mealTotals = useMemo(() => {
@@ -166,7 +169,7 @@ export default function NutritionScreen() {
   const saveEditMeal = () => {
     const qty = Number(editMeal.quantity);
     if (!editMeal.mealItemId || !Number.isFinite(qty) || qty <= 0) {
-      Alert.alert("Invalid quantity", "Enter a positive number of grams.");
+      showToast("Enter a positive number of grams", "error");
       return;
     }
     updateMeal.mutate({ mealItemId: editMeal.mealItemId, quantity: qty });

@@ -1,3 +1,4 @@
+import type { AcceleratedPrisma } from "@kak-fit/db";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
@@ -33,9 +34,10 @@ export const authRouter = router({
       };
     }
 
-    const user = await ctx.prisma.user.findUnique({
+    const user = await (ctx.prisma as unknown as AcceleratedPrisma).user.findUnique({
       where: { id: cached.id },
       select: userSelect,
+      cacheStrategy: { ttl: 300, swr: 60 },
     });
     if (!user) {
       return {

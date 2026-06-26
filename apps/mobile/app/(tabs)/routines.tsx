@@ -1,9 +1,9 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EmptyState, HevyButton, ListGroup, ListRow, Screen } from "../../src/components/ui";
+import { EmptyState, HevyButton, ListGroup, ListRow, Screen, ThemedDialog, useToast } from "../../src/components/ui";
 import { QueryErrorState } from "../../src/components/query-error-state";
 import { RoutineExpandableRow } from "../../src/components/routine-expandable-row";
 import {
@@ -27,7 +27,7 @@ import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type FilterKey = "level" | "goal" | "equipment" | null;
 
@@ -48,6 +48,18 @@ export default function WorkoutTabScreen() {
   const [pendingRoutineId, setPendingRoutineId] = useState<string | null>(null);
   const [pendingWorkoutId, setPendingWorkoutId] = useState<string | null>(null);
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(() => new Set());
+  const [workoutMenu, setWorkoutMenu] = useState<{
+    visible: boolean;
+    workoutId?: string;
+    workoutName?: string;
+  }>({ visible: false });
+  const [deleteWorkoutDialog, setDeleteWorkoutDialog] = useState<{
+    visible: boolean;
+    workoutId?: string;
+    workoutName?: string;
+  }>({ visible: false });
+
+  const { showToast } = useToast();
 
   const toggleRoutineExpanded = (id: string) => {
     setExpandedRoutineIds((prev) => {
@@ -130,6 +142,16 @@ export default function WorkoutTabScreen() {
         },
       );
     },
+  });
+
+  const deleteWorkout = trpc.workout.delete.useMutation({
+    onSuccess: () => {
+      setDeleteWorkoutDialog({ visible: false });
+      setWorkoutMenu({ visible: false });
+      utils.workout.history.invalidate();
+      showToast("Workout deleted", "success");
+    },
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const filteredPrograms = useMemo(() => {
@@ -232,7 +254,7 @@ export default function WorkoutTabScreen() {
 
         {isRecentError ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Repeat Recent</Text>
+            <Text style={styles.sectionTitle}>Recent Workouts</Text>
             <QueryErrorState
               message="Couldn't load workouts. Check your connection."
               onRetry={() => void refetchRecent()}
@@ -240,7 +262,7 @@ export default function WorkoutTabScreen() {
           </View>
         ) : finishedRecent.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Repeat Recent</Text>
+            <Text style={styles.sectionTitle}>Recent Workouts</Text>
             <ListGroup>
               {finishedRecent.map((workout, index) => (
                 <ListRow
@@ -249,13 +271,13 @@ export default function WorkoutTabScreen() {
                   subtitle={`${workout.exerciseCount} exercises · ${Math.round(tonnageFromKg(workout.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
                   icon="time-outline"
                   last={index === finishedRecent.length - 1}
-                  onPress={
-                    pendingWorkoutId === workout.id
-                      ? undefined
-                      : () => {
-                          setPendingWorkoutId(workout.id);
-                          repeatWorkout.mutate({ workoutId: workout.id });
-                        }
+                  onPress={() => router.push(`/workout/${workout.id}`)}
+                  onLongPress={() =>
+                    setWorkoutMenu({
+                      visible: true,
+                      workoutId: workout.id,
+                      workoutName: workout.name ?? "Workout",
+                    })
                   }
                 />
               ))}
@@ -348,6 +370,85 @@ export default function WorkoutTabScreen() {
           </View>
         </View>
       </View>
+
+      <Modal
+        visible={workoutMenu.visible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setWorkoutMenu({ visible: false })}
+      >
+        <Pressable style={styles.menuBackdrop} onPress={() => setWorkoutMenu({ visible: false })}>
+          <View style={[styles.menuCard, { paddingBottom: insets.bottom + spacing.md }]}>
+            <Text style={styles.menuTitle} numberOfLines={1}>
+              {workoutMenu.workoutName ?? "Workout"}
+            </Text>
+            <Pressable
+              style={styles.menuAction}
+              onPress={() => {
+                if (workoutMenu.workoutId) {
+                  setWorkoutMenu({ visible: false });
+                  router.push(`/workout/${workoutMenu.workoutId}`);
+                }
+              }}
+            >
+              <Ionicons name="eye-outline" size={20} color={colors.text} />
+              <Text style={styles.menuActionText}>View Workout</Text>
+            </Pressable>
+            <Pressable
+              style={styles.menuAction}
+              onPress={() => {
+                if (!workoutMenu.workoutId) return;
+                setWorkoutMenu({ visible: false });
+                setPendingWorkoutId(workoutMenu.workoutId);
+                repeatWorkout.mutate({ workoutId: workoutMenu.workoutId });
+              }}
+            >
+              <Ionicons name="repeat-outline" size={20} color={colors.text} />
+              <Text style={styles.menuActionText}>Repeat Workout</Text>
+            </Pressable>
+            <Pressable
+              style={styles.menuAction}
+              onPress={() => {
+                setWorkoutMenu({ visible: false });
+                setDeleteWorkoutDialog({
+                  visible: true,
+                  workoutId: workoutMenu.workoutId,
+                  workoutName: workoutMenu.workoutName,
+                });
+              }}
+            >
+              <Ionicons name="trash-outline" size={20} color={colors.danger} />
+              <Text style={[styles.menuActionText, styles.menuActionDanger]}>Delete Workout</Text>
+            </Pressable>
+            <Pressable style={styles.menuCancel} onPress={() => setWorkoutMenu({ visible: false })}>
+              <Text style={styles.menuCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      <ThemedDialog
+        visible={deleteWorkoutDialog.visible}
+        title="Delete workout?"
+        message={
+          deleteWorkoutDialog.workoutName
+            ? `Remove "${deleteWorkoutDialog.workoutName}" from your history? This cannot be undone.`
+            : "Remove this workout from your history? This cannot be undone."
+        }
+        onDismiss={() => setDeleteWorkoutDialog({ visible: false })}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: deleteWorkout.isPending ? "Deleting…" : "Delete",
+            variant: "destructive",
+            onPress: () => {
+              if (deleteWorkoutDialog.workoutId) {
+                deleteWorkout.mutate({ id: deleteWorkoutDialog.workoutId });
+              }
+            },
+          },
+        ]}
+      />
     </Screen>
   );
 }
@@ -372,4 +473,41 @@ const makeStyles = (colors: Palette) =>
     filterOptionTextActive: { color: "#fff" },
     programList: { gap: spacing.md },
     categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "space-between" },
+    menuBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "flex-end",
+    },
+    menuCard: {
+      backgroundColor: colors.bgElevated,
+      borderTopLeftRadius: radius.lg,
+      borderTopRightRadius: radius.lg,
+      paddingTop: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      gap: spacing.xs,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    menuTitle: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      marginBottom: spacing.sm,
+    },
+    menuAction: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+    },
+    menuActionText: { fontSize: 16, fontWeight: "600", color: colors.text },
+    menuActionDanger: { color: colors.danger },
+    menuCancel: {
+      alignItems: "center",
+      paddingVertical: spacing.md,
+      marginTop: spacing.xs,
+    },
+    menuCancelText: { fontSize: 16, fontWeight: "600", color: colors.textMuted },
   });

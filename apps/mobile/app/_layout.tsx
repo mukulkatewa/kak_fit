@@ -13,6 +13,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
 import { DevApiBanner } from "../src/components/dev-api-banner";
+import { ToastContainer, ToastProvider } from "../src/components/ui";
 import { AuthSessionValidator } from "../src/lib/auth-session-validator";
 import { AuthProvider, useAuth } from "../src/lib/auth-context";
 import { queryClient } from "../src/lib/query-client";
@@ -84,6 +85,7 @@ function ThemedApp() {
     <NavThemeProvider value={navTheme}>
       <StatusBar style={isDark ? "light" : "dark"} />
       <View style={styles.root}>
+        <ToastProvider>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="login" />
@@ -108,6 +110,8 @@ function ThemedApp() {
         <AuthLoadingOverlay />
         <DevApiBanner />
         <ActiveWorkoutOverlay />
+        <ToastContainer />
+        </ToastProvider>
       </View>
     </NavThemeProvider>
   );

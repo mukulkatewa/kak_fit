@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Modal,
   Pressable,
   ScrollView,
@@ -14,6 +16,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { create } from "zustand";
 import {
   radius,
   spacing,
@@ -462,6 +465,7 @@ export function ListRow({
   title,
   subtitle,
   onPress,
+  onLongPress,
   right,
   icon,
   gold,
@@ -470,6 +474,7 @@ export function ListRow({
   title: string;
   subtitle?: string;
   onPress?: PressableProps["onPress"];
+  onLongPress?: PressableProps["onLongPress"];
   right?: React.ReactNode;
   icon?: IconName;
   gold?: boolean;
@@ -480,7 +485,8 @@ export function ListRow({
   return (
     <Pressable
       onPress={onPress}
-      disabled={!onPress}
+      onLongPress={onLongPress}
+      disabled={!onPress && !onLongPress}
       style={({ pressed }) => [
         styles.listRow,
         !last && styles.listRowBorder,
@@ -959,6 +965,123 @@ const makeStyles = (colors: Palette) =>
     dialogBtnTextPrimary: { color: colors.onAccent },
     dialogBtnTextDestructive: { color: colors.danger, fontWeight: "700" },
   });
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+export type ToastType = "success" | "error" | "info";
+
+type ToastStore = {
+  visible: boolean;
+  message: string;
+  type: ToastType;
+  showToast: (message: string, type?: ToastType) => void;
+  hideToast: () => void;
+};
+
+let toastHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+const useToastStore = create<ToastStore>((set) => ({
+  visible: false,
+  message: "",
+  type: "info",
+  showToast: (message, type = "info") => {
+    if (toastHideTimer) clearTimeout(toastHideTimer);
+    set({ visible: true, message, type });
+    toastHideTimer = setTimeout(() => {
+      set({ visible: false });
+      toastHideTimer = null;
+    }, 2500);
+  },
+  hideToast: () => {
+    if (toastHideTimer) clearTimeout(toastHideTimer);
+    toastHideTimer = null;
+    set({ visible: false });
+  },
+}));
+
+type ToastContextValue = {
+  showToast: (message: string, type?: ToastType) => void;
+};
+
+const ToastContext = createContext<ToastContextValue | null>(null);
+
+export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const showToast = useToastStore((s) => s.showToast);
+  const value = useMemo(() => ({ showToast }), [showToast]);
+  return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;
+}
+
+export function useToast() {
+  const ctx = useContext(ToastContext);
+  const showToast = useToastStore((s) => s.showToast);
+  return useMemo(
+    () => ({ showToast: ctx?.showToast ?? showToast }),
+    [ctx, showToast],
+  );
+}
+
+export function ToastContainer() {
+  const { colors, shadows } = useTheme();
+  const visible = useToastStore((s) => s.visible);
+  const message = useToastStore((s) => s.message);
+  const type = useToastStore((s) => s.type);
+  const opacity = useRef(new Animated.Value(0)).current;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      return;
+    }
+    Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(
+      ({ finished }) => {
+        if (finished) setMounted(false);
+      },
+    );
+  }, [visible, opacity]);
+
+  if (!mounted) return null;
+
+  const backgroundColor =
+    type === "success" ? colors.success : type === "error" ? colors.danger : colors.surface;
+  const textColor = type === "info" ? colors.text : "#FFFFFF";
+  const borderWidth = type === "info" ? 1 : 0;
+  const borderColor = type === "info" ? colors.border : "transparent";
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        bottom: 100,
+        left: 16,
+        right: 16,
+        opacity,
+        zIndex: 1000,
+        backgroundColor,
+        borderRadius: radius.lg,
+        borderWidth,
+        borderColor,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
+        ...shadows.card,
+      }}
+    >
+      <Text
+        style={{
+          color: textColor,
+          textAlign: "center",
+          fontSize: 15,
+          fontWeight: "600",
+          lineHeight: 20,
+        }}
+      >
+        {message}
+      </Text>
+    </Animated.View>
+  );
+}
 
 // Legacy alias
 export { ListRow as ListItem };

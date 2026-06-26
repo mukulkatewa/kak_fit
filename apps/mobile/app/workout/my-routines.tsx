@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -14,7 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, EmptyState, HevyButton, ListGroup, ThemedDialog } from "../../src/components/ui";
+import { Button, EmptyState, HevyButton, ListGroup, ThemedDialog, useToast } from "../../src/components/ui";
 import { SkeletonCards } from "../../src/components/skeleton";
 import { QueryErrorState } from "../../src/components/query-error-state";
 import { ExerciseAvatar } from "../../src/components/exercise-avatar";
@@ -37,6 +36,7 @@ export default function MyRoutinesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
+  const { showToast } = useToast();
   const { weightUnit } = useUserPreferences();
   const { data: routines, isPending, isError, refetch } = trpc.routine.list.useQuery();
   const { data: folders } = trpc.routine.folders.useQuery();
@@ -101,34 +101,34 @@ export default function MyRoutinesScreen() {
 
   const duplicate = trpc.routine.duplicate.useMutation({
     onSuccess: () => utils.routine.list.invalidate(),
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
   const shareRoutine = trpc.routine.share.useMutation();
   const remove = trpc.routine.delete.useMutation({
     onSuccess: () => utils.routine.list.invalidate(),
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
   const createFolder = trpc.routine.createFolder.useMutation({
     onSuccess: () => utils.routine.folders.invalidate(),
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
   const renameFolder = trpc.routine.renameFolder.useMutation({
     onSuccess: () => utils.routine.folders.invalidate(),
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
   const deleteFolder = trpc.routine.deleteFolder.useMutation({
     onSuccess: () => {
       utils.routine.folders.invalidate();
       utils.routine.list.invalidate();
     },
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
   const setFolder = trpc.routine.setFolder.useMutation({
     onSuccess: () => {
       utils.routine.list.invalidate();
       utils.routine.folders.invalidate();
     },
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const grouped = useMemo(() => {
@@ -178,7 +178,7 @@ export default function MyRoutinesScreen() {
         url: result.url,
       });
     } catch (e) {
-      Alert.alert("Share failed", e instanceof Error ? e.message : "Try again.");
+      showToast(e instanceof Error ? e.message : "Share failed — try again", "error");
     }
   };
 

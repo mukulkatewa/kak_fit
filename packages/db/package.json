@@ -13,7 +13,8 @@
     "count": "dotenv -o -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/count.ts'"
   },
   "dependencies": {
-    "@prisma/client": "^6.5.0"
+    "@prisma/client": "^6.5.0",
+    "@prisma/extension-accelerate": "^3.0.1"
   },
   "devDependencies": {
     "@types/node": "^20",

@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Avatar, HevyButton, Screen } from "../../src/components/ui";
+import { Avatar, HevyButton, Screen, ThemedDialog } from "../../src/components/ui";
 import { QueryErrorState } from "../../src/components/query-error-state";
 import { RoutineExpandableCard } from "../../src/components/routine-expandable-row";
 import { LineChart } from "../../src/components/charts";
@@ -75,6 +75,11 @@ export default function DashboardScreen() {
 
   const [startingRoutineId, setStartingRoutineId] = useState<string | null>(null);
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(() => new Set());
+  const [deleteWorkoutDialog, setDeleteWorkoutDialog] = useState<{
+    visible: boolean;
+    workoutId?: string;
+    name?: string;
+  }>({ visible: false });
 
   const toggleRoutineExpanded = (id: string) => {
     setExpandedRoutineIds((prev) => {
@@ -120,6 +125,14 @@ export default function DashboardScreen() {
           startRoutine.mutate(vars);
         },
       );
+    },
+  });
+
+  const deleteWorkout = trpc.workout.delete.useMutation({
+    onSuccess: () => {
+      setDeleteWorkoutDialog({ visible: false });
+      utils.workout.history.invalidate();
+      utils.auth.stats.invalidate();
     },
   });
 
@@ -262,6 +275,13 @@ export default function DashboardScreen() {
                 title={w.name ?? "Workout"}
                 subtitle={`${w.exerciseCount} exercises · ${Math.round(tonnageFromKg(w.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
                 onPress={() => router.push(`/workout/${w.id}`)}
+                onLongPress={() =>
+                  setDeleteWorkoutDialog({
+                    visible: true,
+                    workoutId: w.id,
+                    name: w.name ?? "Workout",
+                  })
+                }
               />
             ))}
           </View>
@@ -312,6 +332,29 @@ export default function DashboardScreen() {
           </View>
         )}
       </View>
+
+      <ThemedDialog
+        visible={deleteWorkoutDialog.visible}
+        title="Delete workout?"
+        message={
+          deleteWorkoutDialog.name
+            ? `Remove "${deleteWorkoutDialog.name}" from your history? This cannot be undone.`
+            : "Remove this workout from your history? This cannot be undone."
+        }
+        onDismiss={() => setDeleteWorkoutDialog({ visible: false })}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: deleteWorkout.isPending ? "Deleting…" : "Delete",
+            variant: "destructive",
+            onPress: () => {
+              if (deleteWorkoutDialog.workoutId) {
+                deleteWorkout.mutate({ id: deleteWorkoutDialog.workoutId });
+              }
+            },
+          },
+        ]}
+      />
     </Screen>
   );
 }
@@ -347,12 +390,14 @@ function ActivityCard({
   title,
   subtitle,
   onPress,
+  onLongPress,
   disabled,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle: string;
   onPress: () => void;
+  onLongPress?: () => void;
   disabled?: boolean;
 }) {
   const { colors } = useTheme();
@@ -366,6 +411,7 @@ function ActivityCard({
         disabled && { opacity: 0.5 },
       ]}
       onPress={onPress}
+      onLongPress={onLongPress}
     >
       <View style={styles.activityIcon}>
         <Ionicons name={icon} size={20} color={colors.onAccent} />

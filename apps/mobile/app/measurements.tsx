@@ -2,9 +2,8 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Alert } from "react-native";
 import { BarChart } from "../src/components/charts";
-import { Button, Header, Input, ListGroup, ListRow, Screen, SectionHeader, ThemedDialog } from "../src/components/ui";
+import { Button, Header, Input, ListGroup, ListRow, Screen, SectionHeader, ThemedDialog, useToast } from "../src/components/ui";
 import { HevySegmentedControl } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
@@ -23,6 +22,7 @@ export default function MeasurementsScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const utils = trpc.useUtils();
+  const { showToast } = useToast();
   const [field, setField] = useState<Field>("weight");
   const { data: latest } = trpc.bodyMeasurement.latest.useQuery();
   const { data: history } = trpc.bodyMeasurement.list.useQuery({ limit: 20 });
@@ -46,9 +46,9 @@ export default function MeasurementsScreen() {
       utils.bodyMeasurement.chart.invalidate();
       utils.bodyMeasurement.list.invalidate();
       setWeight(""); setBodyFat(""); setWaist(""); setChest(""); setArms("");
-      Alert.alert("Saved", "Measurement logged.");
+      showToast("Measurement logged", "success");
     },
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const remove = trpc.bodyMeasurement.delete.useMutation({
@@ -57,7 +57,7 @@ export default function MeasurementsScreen() {
       utils.bodyMeasurement.chart.invalidate();
       utils.bodyMeasurement.list.invalidate();
     },
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const save = () => {
@@ -69,7 +69,7 @@ export default function MeasurementsScreen() {
       arms: arms ? Number(arms) : undefined,
     };
     if (!Object.values(payload).some((v) => v !== undefined)) {
-      Alert.alert("Missing data", "Enter at least one measurement.");
+      showToast("Enter at least one measurement", "error");
       return;
     }
     create.mutate(payload);

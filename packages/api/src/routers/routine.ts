@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@kak-fit/db";
+import type { AcceleratedPrisma, PrismaClient } from "@kak-fit/db";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
@@ -183,10 +183,11 @@ export const routineRouter = router({
     }),
 
   list: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.prisma.routine.findMany({
+    return (ctx.prisma as unknown as AcceleratedPrisma).routine.findMany({
       where: { userId: ctx.user.id },
       include: routineListSummaryInclude,
       orderBy: { updatedAt: "desc" },
+      cacheStrategy: { ttl: 60, swr: 30 },
     });
   }),
 

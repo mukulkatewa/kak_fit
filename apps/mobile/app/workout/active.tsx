@@ -438,8 +438,8 @@ export default function ActiveWorkoutScreen() {
 
       {isRunning ? (
         <View style={[styles.restBar, styles.contentPad]}>
-          <Pressable onPress={() => addSeconds(-15)} hitSlop={8} style={styles.restAdjustBtn}>
-            <Text style={styles.restAdjustText}>-15</Text>
+          <Pressable onPress={() => addSeconds(-60)} hitSlop={8} style={styles.restAdjustBtn}>
+            <Text style={styles.restAdjustText}>-15m</Text>
           </Pressable>
           <Pressable onPress={stop} style={styles.restCenter}>
             <View style={styles.restCenterTop}>
@@ -448,8 +448,8 @@ export default function ActiveWorkoutScreen() {
             </View>
             <Text style={styles.restHint}>Tap to skip</Text>
           </Pressable>
-          <Pressable onPress={() => addSeconds(15)} hitSlop={8} style={styles.restAdjustBtn}>
-            <Text style={styles.restAdjustText}>+15</Text>
+          <Pressable onPress={() => addSeconds(60)} hitSlop={8} style={styles.restAdjustBtn}>
+            <Text style={styles.restAdjustText}>+15m</Text>
           </Pressable>
         </View>
       ) : null}

@@ -1,10 +1,10 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
-import { EmptyState, ThemedDialog } from "../../src/components/ui";
+import { EmptyState, ThemedDialog, useToast } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
@@ -34,6 +34,7 @@ export default function WorkoutDetailScreen() {
   const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const utils = trpc.useUtils();
+  const { showToast } = useToast();
   const { weightUnit } = useUserPreferences();
   const { data: workout, isLoading, isError } = trpc.workout.getById.useQuery(
     { id: id! },
@@ -56,24 +57,24 @@ export default function WorkoutDetailScreen() {
 
   const uploadPhoto = trpc.progressPhoto.upload.useMutation({
     onSuccess: () => utils.progressPhoto.list.invalidate({ workoutId: id! }),
-    onError: (e) => Alert.alert("Upload failed", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
   const deletePhoto = trpc.progressPhoto.delete.useMutation({
     onSuccess: () => utils.progressPhoto.list.invalidate({ workoutId: id! }),
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const addPhoto = async () => {
     if (storage?.enabled === false) {
-      Alert.alert(
-        "Storage not configured",
-        "Photo uploads require server storage (Supabase or S3). Ask your admin to set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      showToast(
+        "Photo uploads require server storage (Supabase or S3).",
+        "error",
       );
       return;
     }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Permission needed", "Allow Kak Fit to access your photos.");
+      showToast("Allow Kak Fit to access your photos", "error");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -99,7 +100,7 @@ export default function WorkoutDetailScreen() {
       utils.workout.history.invalidate();
       setEditing(false);
     },
-    onError: (e) => Alert.alert("Couldn't rename", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const remove = trpc.workout.delete.useMutation({
@@ -108,7 +109,7 @@ export default function WorkoutDetailScreen() {
       utils.progress.volumeHistory.invalidate();
       router.back();
     },
-    onError: (e) => Alert.alert("Couldn't delete", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const discardActive = trpc.workout.discardActive.useMutation();
@@ -131,12 +132,9 @@ export default function WorkoutDetailScreen() {
   const createRoutine = trpc.workout.createRoutineFromWorkout.useMutation({
     onSuccess: () => {
       utils.routine.list.invalidate();
-      Alert.alert("Routine saved", "Find it in My Routines.", [
-        { text: "View", onPress: () => router.push("/workout/my-routines") },
-        { text: "OK" },
-      ]);
+      showToast("Routine saved — find it in My Routines", "success");
     },
-    onError: (e) => Alert.alert("Couldn't save routine", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const confirmDelete = () => {

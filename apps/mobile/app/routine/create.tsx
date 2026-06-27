@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Keyboard,
   Pressable,
@@ -14,7 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, Screen, SearchBar, ThemedDialog } from "../../src/components/ui";
+import { Button, Screen, SearchBar, ThemedDialog, useToast } from "../../src/components/ui";
 import { HevyInfoStrip, HevyModalHeader, HevyUnderlineInput } from "../../src/components/hevy-ui";
 import { trpc } from "../../src/lib/trpc";
 import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
@@ -35,6 +34,7 @@ const SET_TYPE_LABEL: Record<RoutineSetType, string> = {
 };
 
 type RoutineSet = {
+  id: string;
   setNumber: number;
   targetWeight?: number; // stored in kg
   targetReps?: number;
@@ -77,8 +77,13 @@ function setTypeColor(colors: Palette): Record<RoutineSetType, string> {
   return { NORMAL: colors.textMuted, WARMUP: colors.gold ?? "#EAB308", DROP: colors.accentBright ?? colors.accent };
 }
 
+function newRoutineSetId() {
+  return `set-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 function makeDefaultSet(setNumber: number, lastSet?: RoutineSet): RoutineSet {
   return {
+    id: newRoutineSetId(),
     setNumber,
     targetWeight: lastSet?.targetWeight,
     targetReps: lastSet?.targetReps,
@@ -251,15 +256,25 @@ function ExerciseCard({
         <View style={styles.cardHeader}>
           <ExerciseAvatar name={exercise.name} imageUrl={exercise.imageUrl} size={36} />
           <Text style={styles.exerciseName} numberOfLines={1}>{exercise.name}</Text>
-          <Pressable onPress={onMoveUp} disabled={isFirst} hitSlop={6}
-            style={isFirst && styles.dimmed}>
+          <Pressable
+            onPress={onMoveUp}
+            disabled={isFirst}
+            pointerEvents={isFirst ? "none" : "auto"}
+            hitSlop={isFirst ? undefined : 6}
+            style={isFirst && styles.dimmed}
+          >
             <Ionicons name="chevron-up" size={19} color={colors.textMuted} />
           </Pressable>
-          <Pressable onPress={onMoveDown} disabled={isLast} hitSlop={6}
-            style={isLast && styles.dimmed}>
+          <Pressable
+            onPress={onMoveDown}
+            disabled={isLast}
+            pointerEvents={isLast ? "none" : "auto"}
+            hitSlop={isLast ? undefined : 6}
+            style={isLast && styles.dimmed}
+          >
             <Ionicons name="chevron-down" size={19} color={colors.textMuted} />
           </Pressable>
-          <Pressable onPress={onRemove} hitSlop={8}>
+          <Pressable onPress={onRemove} hitSlop={12}>
             <Ionicons name="close-circle" size={22} color={colors.danger} />
           </Pressable>
         </View>
@@ -294,7 +309,7 @@ function ExerciseCard({
         {/* Set rows */}
         {exercise.sets.map((set, si) => (
           <RoutineSetRow
-            key={si}
+            key={set.id}
             set={set}
             weightUnit={weightUnit}
             isOnlySet={exercise.sets.length <= 1}
@@ -314,6 +329,20 @@ function ExerciseCard({
   );
 }
 
+const ROUTINE_NAME_SUGGESTIONS = [
+  "Push Day",
+  "Pull Day",
+  "Leg Day",
+  "Upper Body",
+  "Lower Body",
+  "Full Body",
+] as const;
+
+function defaultRoutineName() {
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return `${days[new Date().getDay()]} Workout`;
+}
+
 // ─── Screen ─────────────────────────────────────────────────────────────────────
 
 export default function CreateRoutineScreen() {
@@ -324,12 +353,19 @@ export default function CreateRoutineScreen() {
   const isEdit = Boolean(editId);
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
+  const { showToast } = useToast();
   const { weightUnit } = useUserPreferences();
 
-  const [name, setName] = useState("");
+  const [name, setName] = useState(() => (isEdit ? "" : defaultRoutineName()));
   const [nameError, setNameError] = useState(false);
   const nameInputRef = useRef<TextInput>(null);
+  const hasHydratedFromServer = useRef(false);
   const [addExerciseDialogOpen, setAddExerciseDialogOpen] = useState(false);
+  const [removeExerciseDialog, setRemoveExerciseDialog] = useState<{
+    visible: boolean;
+    index?: number;
+    name?: string;
+  }>({ visible: false });
   const [showTip, setShowTip] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -345,7 +381,12 @@ export default function CreateRoutineScreen() {
   );
 
   useEffect(() => {
-    if (editing) {
+    hasHydratedFromServer.current = false;
+  }, [editId]);
+
+  useEffect(() => {
+    if (editing && !hasHydratedFromServer.current) {
+      hasHydratedFromServer.current = true;
       setName(editing.name);
       setExercises(
         editing.exercises.map((ex, i) => ({
@@ -362,6 +403,7 @@ export default function CreateRoutineScreen() {
           sets:
             ex.sets.length > 0
               ? ex.sets.map((s) => ({
+                  id: s.id,
                   setNumber: s.setNumber,
                   targetWeight: s.targetWeight ?? undefined,
                   targetReps: s.targetReps ?? undefined,
@@ -385,7 +427,7 @@ export default function CreateRoutineScreen() {
       if (editId) utils.routine.getById.invalidate({ id: editId });
       router.back();
     },
-    onError: (e) => Alert.alert("Error", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const create = trpc.routine.create.useMutation({
@@ -416,7 +458,7 @@ export default function CreateRoutineScreen() {
       if (context?.previous) {
         utils.routine.list.setData(undefined, context.previous);
       }
-      Alert.alert("Error", e.message);
+      showToast(e.message, "error");
     },
     onSuccess: () => {
       utils.routine.list.invalidate();
@@ -603,6 +645,35 @@ export default function CreateRoutineScreen() {
             {nameError ? (
               <Text style={styles.nameErrorText}>Routine title is required.</Text>
             ) : null}
+            {!isEdit ? (
+              <View style={styles.nameSuggestions}>
+                <Text style={styles.nameSuggestionsLabel}>Suggestions</Text>
+                <View style={styles.nameSuggestionChips}>
+                  {ROUTINE_NAME_SUGGESTIONS.map((suggestion) => (
+                    <Pressable
+                      key={suggestion}
+                      style={[
+                        styles.nameSuggestionChip,
+                        name === suggestion && styles.nameSuggestionChipActive,
+                      ]}
+                      onPress={() => {
+                        setName(suggestion);
+                        setNameError(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.nameSuggestionChipText,
+                          name === suggestion && styles.nameSuggestionChipTextActive,
+                        ]}
+                      >
+                        {suggestion}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
 
             {exercises.length === 0 ? (
               <View style={styles.empty}>
@@ -627,7 +698,13 @@ export default function CreateRoutineScreen() {
                     weightUnit={weightUnit}
                     onMoveUp={() => moveExercise(i, -1)}
                     onMoveDown={() => moveExercise(i, 1)}
-                    onRemove={() => removeExercise(i)}
+                    onRemove={() =>
+                      setRemoveExerciseDialog({
+                        visible: true,
+                        index: i,
+                        name: ex.name,
+                      })
+                    }
                     onUpdate={(patch) => updateExercise(i, patch)}
                     onToggleLink={() => toggleLink(i)}
                   />
@@ -682,6 +759,30 @@ export default function CreateRoutineScreen() {
       ) : null}
 
       <ThemedDialog
+        visible={removeExerciseDialog.visible}
+        title="Remove exercise?"
+        message={
+          removeExerciseDialog.name
+            ? `Remove "${removeExerciseDialog.name}" from this routine?`
+            : "Remove this exercise from the routine?"
+        }
+        onDismiss={() => setRemoveExerciseDialog({ visible: false })}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: "Remove",
+            variant: "destructive",
+            onPress: () => {
+              if (removeExerciseDialog.index !== undefined) {
+                removeExercise(removeExerciseDialog.index);
+              }
+              setRemoveExerciseDialog({ visible: false });
+            },
+          },
+        ]}
+      />
+
+      <ThemedDialog
         visible={addExerciseDialogOpen}
         title="Add an exercise"
         message="Add at least one exercise before saving."
@@ -718,6 +819,23 @@ const makeStyles = (colors: Palette) =>
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.md },
     nameErrorText: { color: colors.danger, fontSize: 13, fontWeight: "500", marginTop: -spacing.xs },
+    nameSuggestions: { gap: spacing.sm, marginTop: spacing.xs },
+    nameSuggestionsLabel: { color: colors.textDim, fontSize: 12, fontWeight: "600" },
+    nameSuggestionChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    nameSuggestionChip: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.full,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.separator,
+    },
+    nameSuggestionChipActive: {
+      backgroundColor: colors.accentMuted,
+      borderColor: colors.accent,
+    },
+    nameSuggestionChipText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+    nameSuggestionChipTextActive: { color: colors.accent },
     empty: {
       flex: 1,
       alignItems: "center",
@@ -762,7 +880,7 @@ const makeStyles = (colors: Palette) =>
     },
     cardLinked: { borderLeftWidth: 3, borderLeftColor: colors.accent },
     cardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-    exerciseName: { flex: 1, color: colors.accent, fontSize: 15, fontWeight: "700" },
+    exerciseName: { flex: 1, minWidth: 0, color: colors.accent, fontSize: 15, fontWeight: "700" },
     dimmed: { opacity: 0.3 },
     notesInput: {
       color: colors.text,

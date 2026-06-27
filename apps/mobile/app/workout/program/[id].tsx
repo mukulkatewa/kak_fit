@@ -97,19 +97,29 @@ export default function ProgramDetailScreen() {
           beginStart(saved.id);
         } else {
           setStartingTemplateName(null);
-          Alert.alert("Could not save", "No matching exercises found in the library.");
+          setDialog({
+            title: "Could not save",
+            message: "No matching exercises found in the library.",
+            buttons: [{ label: "OK", variant: "primary" }],
+          });
         }
         return;
       }
 
       const missing = result.missingExerciseNames.length;
+      const skipped = result.skipped ?? 0;
+
       if (result.saved > 0) {
         const firstRoutine = result.routines[0];
         const missingNote =
           missing > 0 ? ` ${missing} exercise${missing === 1 ? "" : "s"} were not found.` : "";
+        const skippedNote =
+          skipped > 0
+            ? ` ${skipped} routine${skipped === 1 ? " was" : "s were"} already saved and skipped.`
+            : "";
         setDialog({
           title: "Program saved",
-          message: `${result.saved} routine${result.saved === 1 ? "" : "s"} added to My Routines.${missingNote}`,
+          message: `${result.saved} routine${result.saved === 1 ? "" : "s"} added to My Routines.${skippedNote}${missingNote}`,
           buttons: [
             {
               label: "Start First Routine",
@@ -124,6 +134,19 @@ export default function ProgramDetailScreen() {
               variant: "secondary",
               onPress: () => router.push("/workout/my-routines"),
             },
+          ],
+        });
+      } else if (skipped > 0) {
+        setDialog({
+          title: "Already saved",
+          message: `All ${skipped} routine${skipped === 1 ? "" : "s"} from this program are already in My Routines.`,
+          buttons: [
+            {
+              label: "Go to My Routines",
+              variant: "primary",
+              onPress: () => router.push("/workout/my-routines"),
+            },
+            { label: "OK", variant: "secondary" },
           ],
         });
       } else {
@@ -149,6 +172,11 @@ export default function ProgramDetailScreen() {
 
   const saveAndStartRoutine = (routine: ProgramRoutineTemplate) => {
     if (busy) return;
+    const existing = findSavedRoutine(routine.name);
+    if (existing) {
+      beginStart(existing.id);
+      return;
+    }
     setStartingTemplateName(routine.name);
     importActionRef.current = "start-after";
     importProgram.mutate({

@@ -2,32 +2,63 @@
   "expo": {
     "name": "Kak Fit",
     "slug": "kak-fit",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "scheme": "kakfit",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "app.kakfit.mobile"
     },
     "android": {
+      "package": "app.kakfit.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": false
+          },
+          "ios": {
+            "newArchEnabled": false
+          }
+        }
+      ],
       "expo-router",
       "expo-secure-store",
       [
         "expo-image-picker",
-        { "photosPermission": "Allow Kak Fit to add progress photos from your library." }
+        {
+          "photosPermission": "Allow Kak Fit to add progress photos from your library."
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9ca51544-16e6-4b85-983f-d6c6eefcd31b"
+      }
+    },
+    "owner": "mukul_katewa"
   }
 }

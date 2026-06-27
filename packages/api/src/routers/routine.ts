@@ -142,7 +142,22 @@ export const routineRouter = router({
 
       const created = await ctx.prisma.$transaction(async (tx) => {
         const routines = [];
+        let saved = 0;
+        let skipped = 0;
+
         for (const template of input.routines) {
+          const routineName = `${programName} · ${template.name}`;
+          const existing = await tx.routine.findFirst({
+            where: { userId: ctx.user.id, name: routineName },
+            include: routineListFullInclude,
+          });
+
+          if (existing) {
+            routines.push(existing);
+            skipped += 1;
+            continue;
+          }
+
           const exercises = template.exerciseNames
             .map((name) => resolved.get(name))
             .filter((exercise): exercise is ResolvedExercise => Boolean(exercise));
@@ -153,7 +168,7 @@ export const routineRouter = router({
             await tx.routine.create({
               data: {
                 userId: ctx.user.id,
-                name: `${programName} · ${template.name}`,
+                name: routineName,
                 notes: `Imported from ${input.programTitle}`,
                 exercises: {
                   create: exercises.map((exercise, index) => ({
@@ -171,13 +186,15 @@ export const routineRouter = router({
               include: routineListFullInclude,
             }),
           );
+          saved += 1;
         }
-        return routines;
+        return { routines, saved, skipped };
       });
 
       return {
-        saved: created.length,
-        routines: created,
+        saved: created.saved,
+        skipped: created.skipped,
+        routines: created.routines,
         missingExerciseNames: missing,
       };
     }),
@@ -187,7 +204,6 @@ export const routineRouter = router({
       where: { userId: ctx.user.id },
       include: routineListSummaryInclude,
       orderBy: { updatedAt: "desc" },
-      cacheStrategy: { ttl: 60, swr: 30 },
     });
   }),
 
@@ -217,7 +233,7 @@ export const routineRouter = router({
   create: protectedProcedure
     .input(
       z.object({
-        name: z.string().min(2).max(100),
+        name: z.string().trim().min(1).max(100),
         notes: z.string().optional(),
         folderId: z.string().optional(),
         exercises: z.array(routineExerciseInput).min(1),
@@ -251,7 +267,7 @@ export const routineRouter = router({
     .input(
       z.object({
         id: z.string(),
-        name: z.string().min(2).max(100),
+        name: z.string().trim().min(1).max(100),
         notes: z.string().optional(),
         folderId: z.string().nullable().optional(),
         exercises: z.array(routineExerciseInput).min(1),

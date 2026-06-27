@@ -197,7 +197,7 @@ export default function NutritionScreen() {
         colors={gradientColors}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.headerGradient, { paddingTop: insets.top + spacing.sm }]}
+        style={[styles.headerGradient, { paddingTop: spacing.sm }]}
       >
         <View style={styles.headerInner}>
           <View style={styles.titleRow}>

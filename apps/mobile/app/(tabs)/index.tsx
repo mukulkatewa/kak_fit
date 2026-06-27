@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Avatar, HevyButton, Screen, ThemedDialog } from "../../src/components/ui";
+import { Avatar, HevyButton, Screen, ThemedDialog, useToast } from "../../src/components/ui";
 import { QueryErrorState } from "../../src/components/query-error-state";
 import { RoutineExpandableCard } from "../../src/components/routine-expandable-row";
 import { LineChart } from "../../src/components/charts";
@@ -20,6 +20,7 @@ export default function DashboardScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const utils = trpc.useUtils();
+  const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
   const { weightUnit } = useUserPreferences();
   const { data: me } = trpc.auth.me.useQuery(undefined, {
@@ -80,6 +81,7 @@ export default function DashboardScreen() {
     workoutId?: string;
     name?: string;
   }>({ visible: false });
+  const [startConfirm, setStartConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const toggleRoutineExpanded = (id: string) => {
     setExpandedRoutineIds((prev) => {
@@ -133,7 +135,9 @@ export default function DashboardScreen() {
       setDeleteWorkoutDialog({ visible: false });
       utils.workout.history.invalidate();
       utils.auth.stats.invalidate();
+      utils.progress.weeklyVolume.invalidate();
     },
+    onError: (e) => showToast(e.message, "error"),
   });
 
   // Weekly progress — all workouts in the last 7 calendar days
@@ -323,15 +327,32 @@ export default function DashboardScreen() {
                 onToggleExpand={() => toggleRoutineExpanded(item.id)}
                 disabled={startingRoutineId === item.id}
                 loading={startingRoutineId === item.id}
-                onStart={() => {
-                  setStartingRoutineId(item.id);
-                  startRoutine.mutate({ routineId: item.id });
-                }}
+                onStart={() => setStartConfirm({ id: item.id, name: item.name })}
               />
             ))}
           </View>
         )}
       </View>
+
+      <ThemedDialog
+        visible={startConfirm !== null}
+        title="Start workout?"
+        message={startConfirm ? `Begin "${startConfirm.name}" now?` : undefined}
+        onDismiss={() => setStartConfirm(null)}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: "Start",
+            variant: "primary",
+            onPress: () => {
+              if (!startConfirm) return;
+              setStartingRoutineId(startConfirm.id);
+              startRoutine.mutate({ routineId: startConfirm.id });
+              setStartConfirm(null);
+            },
+          },
+        ]}
+      />
 
       <ThemedDialog
         visible={deleteWorkoutDialog.visible}

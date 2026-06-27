@@ -387,6 +387,29 @@ export const workoutRouter = router({
       return { success: true };
     }),
 
+  deleteExercise: protectedProcedure
+    .input(z.object({ workoutExerciseId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const workoutExercise = await ctx.prisma.workoutExercise.findFirst({
+        where: {
+          id: input.workoutExerciseId,
+          workout: { userId: ctx.user.id, finishedAt: null },
+        },
+        select: { id: true, workoutId: true },
+      });
+
+      if (!workoutExercise) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exercise not found" });
+      }
+
+      await ctx.prisma.workoutExercise.delete({ where: { id: input.workoutExerciseId } });
+
+      return ctx.prisma.workout.findFirstOrThrow({
+        where: { id: workoutExercise.workoutId },
+        include: workoutDetailInclude,
+      });
+    }),
+
   finish: protectedProcedure
     .input(
       z.object({

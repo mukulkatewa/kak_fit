@@ -37,7 +37,7 @@ export const authRouter = router({
     const user = await (ctx.prisma as unknown as AcceleratedPrisma).user.findUnique({
       where: { id: cached.id },
       select: userSelect,
-      cacheStrategy: { ttl: 300, swr: 60 },
+      cacheStrategy: { ttl: 60 },
     });
     if (!user) {
       return {
@@ -77,7 +77,7 @@ export const authRouter = router({
     .input(
       z.object({
         weightUnit: z.enum(["KG", "LBS"]).optional(),
-        defaultRestSeconds: z.number().int().min(15).max(600).optional(),
+        defaultRestSeconds: z.number().int().min(0).max(600).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

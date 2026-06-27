@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -19,6 +18,9 @@ import { ExerciseAvatar } from "../../src/components/exercise-avatar";
 import {
   addSetToWorkout,
   addExerciseToWorkout,
+  applySetPatchToWorkout,
+  createOptimisticAddedSet,
+  createOptimisticExercise,
   patchExerciseNotes,
   patchSetInWorkout,
   removeSetFromWorkout,
@@ -34,6 +36,7 @@ import {
   SearchBar,
   SectionHeader,
   ThemedDialog,
+  useToast,
 } from "../../src/components/ui";
 import { formatPreviousSet, pickPreviousForSet, type PreviousExerciseSession } from "../../src/lib/previous-set";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
@@ -92,8 +95,10 @@ export default function ActiveWorkoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
+  const { showToast } = useToast();
   const savePrefs = trpc.auth.updatePreferences.useMutation({
     onSuccess: () => utils.auth.me.invalidate(),
+    onError: (e) => showToast(e.message, "error"),
   });
   const { data: workout, isLoading, isFetching, refetch } = trpc.workout.active.useQuery(undefined, {
     staleTime: queryStaleTime.workoutActive,
@@ -114,6 +119,11 @@ export default function ActiveWorkoutScreen() {
     visible: false,
     setId: null,
   });
+  const [deleteExerciseDialog, setDeleteExerciseDialog] = useState<{
+    visible: boolean;
+    workoutExerciseId?: string;
+    name?: string;
+  }>({ visible: false });
 
   const closePicker = () => {
     setPickerOpen(false);
@@ -159,7 +169,7 @@ export default function ActiveWorkoutScreen() {
         utils.personalRecord.list.invalidate();
       }
       if (result.syncFailed) {
-        Alert.alert("Sync failed", "Some workout changes couldn't be saved to the server.");
+        showToast("Some workout changes couldn't be saved to the server.", "error");
       }
     }
     syncOffline().catch(() => undefined);
@@ -176,16 +186,28 @@ export default function ActiveWorkoutScreen() {
   };
 
   const updateSet = trpc.workout.updateSet.useMutation({
+    onMutate: async (input) => {
+      await utils.workout.active.cancel();
+      const previous = utils.workout.active.getData();
+      const { setId, ...patch } = input;
+      patchActiveWorkout((workout) => applySetPatchToWorkout(workout, setId, patch));
+      return { previous };
+    },
     onSuccess: (updatedSet) => {
       patchActiveWorkout((workout) => patchSetInWorkout(workout, updatedSet));
     },
-    onError: async (e, variables) => {
+    onError: async (e, variables, context) => {
+      if (context?.previous) {
+        utils.workout.active.setData(undefined, context.previous);
+      }
       if (!isNetworkError(e)) {
-        Alert.alert("Couldn't save set", e.message);
+        showToast(e.message, "error");
         return;
       }
       await enqueueWorkoutMutation("updateSet", variables);
       setPendingOffline(await getQueuedWorkoutMutationCount());
+      const { setId, ...patch } = variables;
+      patchActiveWorkout((workout) => applySetPatchToWorkout(workout, setId, patch));
     },
   });
   const addSet = trpc.workout.addSet.useMutation({
@@ -194,25 +216,40 @@ export default function ActiveWorkoutScreen() {
     },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
-        Alert.alert("Couldn't add set", e.message);
+        showToast(e.message, "error");
         return;
       }
       await enqueueWorkoutMutation("addSet", variables);
       setPendingOffline(await getQueuedWorkoutMutationCount());
+      patchActiveWorkout((workout) => {
+        const optimisticSet = createOptimisticAddedSet(workout, variables.workoutExerciseId);
+        return addSetToWorkout(workout, variables.workoutExerciseId, optimisticSet);
+      });
     },
   });
   const deleteSet = trpc.workout.deleteSet.useMutation({
     onSuccess: (_result, { setId }) => {
       patchActiveWorkout((workout) => removeSetFromWorkout(workout, setId));
+      setDeleteSetDialog({ visible: false, setId: null });
     },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
-        Alert.alert("Couldn't delete set", e.message);
+        showToast(e.message, "error");
         return;
       }
       await enqueueWorkoutMutation("deleteSet", variables);
       setPendingOffline(await getQueuedWorkoutMutationCount());
+      patchActiveWorkout((workout) => removeSetFromWorkout(workout, variables.setId));
+      setDeleteSetDialog({ visible: false, setId: null });
     },
+  });
+  const deleteExercise = trpc.workout.deleteExercise.useMutation({
+    onSuccess: (updatedWorkout) => {
+      patchActiveWorkout(() => updatedWorkout);
+      setDeleteExerciseDialog({ visible: false });
+      utils.workout.previousSets.invalidate();
+    },
+    onError: (e) => showToast(e.message, "error"),
   });
   const updateExerciseNotes = trpc.workout.updateExerciseNotes.useMutation({
     onSuccess: (_updated, { workoutExerciseId, notes }) => {
@@ -220,7 +257,7 @@ export default function ActiveWorkoutScreen() {
     },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
-        Alert.alert("Couldn't save notes", e.message);
+        showToast(e.message, "error");
         return;
       }
       await enqueueWorkoutMutation("updateExerciseNotes", variables);
@@ -232,7 +269,7 @@ export default function ActiveWorkoutScreen() {
     onSuccess: (updatedWorkout) => {
       utils.workout.active.setData(undefined, updatedWorkout);
     },
-    onError: (e) => Alert.alert("Couldn't reorder", e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const handleSetUpdate = (
@@ -251,14 +288,21 @@ export default function ActiveWorkoutScreen() {
     },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
-        Alert.alert("Error", e.message);
+        showToast(e.message, "error");
         return;
       }
       await enqueueWorkoutMutation("addExercise", variables);
       setPendingOffline(await getQueuedWorkoutMutationCount());
-      Alert.alert(
-        "Saved offline",
-        "Exercise will be added when you're back online. Pull to refresh after reconnecting.",
+      closePicker();
+      const meta = exercises?.find((item) => item.id === variables.exerciseId);
+      patchActiveWorkout((workout) =>
+        addExerciseToWorkout(
+          workout,
+          createOptimisticExercise(workout, variables, {
+            name: meta?.name ?? "Exercise",
+            imageUrl: meta?.imageUrl ?? null,
+          }),
+        ),
       );
     },
   });
@@ -277,15 +321,14 @@ export default function ActiveWorkoutScreen() {
     },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
-        Alert.alert("Error", e.message);
+        showToast(e.message, "error");
         return;
       }
       await enqueueWorkoutMutation("finishWorkout", variables);
       utils.workout.active.setData(undefined, null);
       setPendingOffline(await getQueuedWorkoutMutationCount());
-      Alert.alert("Saved offline", "This workout will sync automatically when the API is reachable.", [
-        { text: "Done", onPress: () => router.back() },
-      ]);
+      showToast("Saved offline — will sync when you're back online.", "info");
+      router.back();
     },
   });
 
@@ -439,7 +482,7 @@ export default function ActiveWorkoutScreen() {
       {isRunning ? (
         <View style={[styles.restBar, styles.contentPad]}>
           <Pressable onPress={() => addSeconds(-60)} hitSlop={8} style={styles.restAdjustBtn}>
-            <Text style={styles.restAdjustText}>-15m</Text>
+            <Text style={styles.restAdjustText}>-1m</Text>
           </Pressable>
           <Pressable onPress={stop} style={styles.restCenter}>
             <View style={styles.restCenterTop}>
@@ -449,7 +492,7 @@ export default function ActiveWorkoutScreen() {
             <Text style={styles.restHint}>Tap to skip</Text>
           </Pressable>
           <Pressable onPress={() => addSeconds(60)} hitSlop={8} style={styles.restAdjustBtn}>
-            <Text style={styles.restAdjustText}>+15m</Text>
+            <Text style={styles.restAdjustText}>+1m</Text>
           </Pressable>
         </View>
       ) : null}
@@ -477,7 +520,15 @@ export default function ActiveWorkoutScreen() {
                 });
               }}
               onToggleLink={() => undefined}
-              onRemove={() => undefined}
+              onRemove={(index) => {
+                const exercise = workout.exercises[index];
+                if (!exercise) return;
+                setDeleteExerciseDialog({
+                  visible: true,
+                  workoutExerciseId: exercise.id,
+                  name: exercise.exercise.name,
+                });
+              }}
             />
             <Button label="Done reordering" fullWidth onPress={() => setReorderMode(false)} />
           </Card>
@@ -496,6 +547,13 @@ export default function ActiveWorkoutScreen() {
               onAddSet={() => addSet.mutate({ workoutExerciseId: exercise.id })}
               onRequestDeleteSet={handleRequestDeleteSet}
               onUpdateNotes={(notes) => updateExerciseNotes.mutate({ workoutExerciseId: exercise.id, notes })}
+              onRequestDeleteExercise={() =>
+                setDeleteExerciseDialog({
+                  visible: true,
+                  workoutExerciseId: exercise.id,
+                  name: exercise.exercise.name,
+                })
+              }
               weightUnit={weightUnit}
             />
           ))
@@ -743,6 +801,29 @@ export default function ActiveWorkoutScreen() {
     />
 
     <ThemedDialog
+      visible={deleteExerciseDialog.visible}
+      title="Remove exercise?"
+      message={
+        deleteExerciseDialog.name
+          ? `Remove "${deleteExerciseDialog.name}" from this workout?`
+          : "Remove this exercise from the workout?"
+      }
+      onDismiss={() => setDeleteExerciseDialog({ visible: false })}
+      buttons={[
+        { label: "Cancel" },
+        {
+          label: deleteExercise.isPending ? "Removing…" : "Remove",
+          variant: "destructive",
+          onPress: () => {
+            if (deleteExerciseDialog.workoutExerciseId) {
+              deleteExercise.mutate({ workoutExerciseId: deleteExerciseDialog.workoutExerciseId });
+            }
+          },
+        },
+      ]}
+    />
+
+    <ThemedDialog
       visible={deleteSetDialog.visible}
       title="Delete set?"
       message="Remove this set from the workout?"
@@ -799,6 +880,7 @@ function ExerciseBlock({
   onAddSet,
   onRequestDeleteSet,
   onUpdateNotes,
+  onRequestDeleteExercise,
   weightUnit,
 }: {
   name: string;
@@ -823,6 +905,7 @@ function ExerciseBlock({
   onAddSet: () => void;
   onRequestDeleteSet: (setId: string, hasData: boolean) => void;
   onUpdateNotes: (notes: string | null) => void;
+  onRequestDeleteExercise: () => void;
   weightUnit: "KG" | "LBS";
 }) {
   const styles = useThemedStyles(makeStyles);
@@ -844,10 +927,17 @@ function ExerciseBlock({
         </View>
       ) : null}
       <View style={styles.exerciseHeader}>
-        <ExerciseAvatar name={name} imageUrl={imageUrl} size={36} />
-        <Text style={styles.exerciseName}>{name}</Text>
+        <Pressable onLongPress={onRequestDeleteExercise} style={styles.exerciseHeaderMain}>
+          <ExerciseAvatar name={name} imageUrl={imageUrl} size={36} />
+          <Text style={styles.exerciseName} numberOfLines={1}>
+            {name}
+          </Text>
+        </Pressable>
         <Pressable onPress={() => setNotesOpen((open) => !open)} hitSlop={8} style={styles.iconBtn}>
           <Ionicons name={notesOpen ? "document-text" : "document-text-outline"} size={17} color={colors.accent} />
+        </Pressable>
+        <Pressable onPress={onRequestDeleteExercise} hitSlop={8} style={styles.iconBtn}>
+          <Ionicons name="trash-outline" size={17} color={colors.danger} />
         </Pressable>
       </View>
 
@@ -1115,7 +1205,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   scroll: { flex: 1, minHeight: 0 },
   scrollContent: { gap: spacing.md, paddingBottom: spacing.xl },
   exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
-  exerciseName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: "600" },
+  exerciseHeaderMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  exerciseName: { flex: 1, minWidth: 0, color: colors.text, fontSize: 17, fontWeight: "600" },
   iconBtn: { padding: 2 },
   supersetBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginBottom: 4 },
   supersetBadgeText: { color: colors.accent, fontSize: 12, fontWeight: "700" },

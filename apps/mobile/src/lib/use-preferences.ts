@@ -8,11 +8,11 @@ export function useUserPreferences() {
   const setDefault = useRestTimer((s) => s.setDefault);
 
   useEffect(() => {
-    if (me?.defaultRestSeconds) setDefault(me.defaultRestSeconds);
+    if (me?.defaultRestSeconds != null) setDefault(me.defaultRestSeconds);
   }, [me?.defaultRestSeconds, setDefault]);
 
   return {
     weightUnit: (me?.weightUnit ?? "KG") as WeightUnit,
-    defaultRestSeconds: me?.defaultRestSeconds ?? 90,
+    defaultRestSeconds: me?.defaultRestSeconds != null ? me.defaultRestSeconds : 90,
   };
 }

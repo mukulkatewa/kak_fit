@@ -77,7 +77,7 @@ export function RoutineExpandableRow({
       </View>
       {expanded ? (
         <View style={styles.expanded}>
-          {routine.exercises.map((exercise) => (
+          {(routine.exercises ?? []).map((exercise) => (
             <View key={exercise.id} style={styles.expandedExRow}>
               <ExerciseAvatar
                 name={exercise.exercise.name}
@@ -209,7 +209,7 @@ export function RoutineExpandableCard({
       </View>
       {expanded ? (
         <View style={styles.expanded}>
-          {routine.exercises.map((exercise) => (
+          {(routine.exercises ?? []).map((exercise) => (
             <View key={exercise.id} style={styles.expandedExRow}>
               <ExerciseAvatar
                 name={exercise.exercise.name}

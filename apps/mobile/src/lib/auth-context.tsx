@@ -39,10 +39,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (authLib.hasKnownTokenState()) return;
-    void authLib.tokenHydrationPromise.then((token) => {
-      setIsAuthenticated(Boolean(token));
-      setIsLoading(false);
-    });
+    void authLib.tokenHydrationPromise
+      .then((token) => {
+        setIsAuthenticated(Boolean(token));
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+        setIsLoading(false);
+      });
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {

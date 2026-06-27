@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useMemo, useState, useCallback } from "react";
+import { Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState, HevyButton, ListGroup, ListRow, Screen, ThemedDialog, useToast } from "../../src/components/ui";
@@ -58,6 +58,8 @@ export default function WorkoutTabScreen() {
     workoutId?: string;
     workoutName?: string;
   }>({ visible: false });
+  const [startConfirm, setStartConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { showToast } = useToast();
 
@@ -85,6 +87,20 @@ export default function WorkoutTabScreen() {
     { limit: 8 },
     { staleTime: queryStaleTime.workoutHistory },
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        utils.routine.list.invalidate(),
+        utils.workout.history.invalidate(),
+        refetchRoutines(),
+        refetchRecent(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [utils, refetchRoutines, refetchRecent]);
 
   const discardActive = trpc.workout.discardActive.useMutation();
 
@@ -242,7 +258,18 @@ export default function WorkoutTabScreen() {
   };
 
   return (
-    <Screen scroll padded={false}>
+    <Screen
+      scroll
+      padded={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void onRefresh()}
+          tintColor={colors.accent}
+          colors={[colors.accent]}
+        />
+      }
+    >
       <View style={[styles.pad, { paddingBottom: insets.bottom + spacing.xxl }]}>
         <Text style={styles.pageTitle}>Workout</Text>
 
@@ -314,10 +341,7 @@ export default function WorkoutTabScreen() {
                   onToggleExpand={() => toggleRoutineExpanded(routine.id)}
                   last={index === arr.length - 1}
                   disabled={pendingRoutineId === routine.id}
-                  onStart={() => {
-                    setPendingRoutineId(routine.id);
-                    startRoutine.mutate({ routineId: routine.id });
-                  }}
+                  onStart={() => setStartConfirm({ id: routine.id, name: routine.name })}
                 />
               ))}
             </ListGroup>
@@ -426,6 +450,28 @@ export default function WorkoutTabScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      <ThemedDialog
+        visible={startConfirm !== null}
+        title="Start workout?"
+        message={
+          startConfirm ? `Begin "${startConfirm.name}" now?` : undefined
+        }
+        onDismiss={() => setStartConfirm(null)}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: "Start",
+            variant: "primary",
+            onPress: () => {
+              if (!startConfirm) return;
+              setPendingRoutineId(startConfirm.id);
+              startRoutine.mutate({ routineId: startConfirm.id });
+              setStartConfirm(null);
+            },
+          },
+        ]}
+      />
 
       <ThemedDialog
         visible={deleteWorkoutDialog.visible}

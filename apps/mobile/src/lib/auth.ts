@@ -44,10 +44,15 @@ async function readStoredToken(): Promise<string | null> {
 export const tokenHydrationPromise: Promise<string | null> =
   Platform.OS === "web"
     ? Promise.resolve(getTokenSync())
-    : SecureStore.getItemAsync(TOKEN_KEY).then((token) => {
-        cachedToken = token;
-        return token;
-      });
+    : SecureStore.getItemAsync(TOKEN_KEY)
+        .then((token) => {
+          cachedToken = token;
+          return token;
+        })
+        .catch(() => {
+          cachedToken = null;
+          return null;
+        });
 
 async function writeStoredToken(token: string): Promise<void> {
   if (Platform.OS === "web") {

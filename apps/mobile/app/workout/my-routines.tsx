@@ -105,7 +105,11 @@ export default function MyRoutinesScreen() {
   });
   const shareRoutine = trpc.routine.share.useMutation();
   const remove = trpc.routine.delete.useMutation({
-    onSuccess: () => utils.routine.list.invalidate(),
+    onSuccess: () => {
+      setDeleteRoutineDialog({ visible: false });
+      showToast("Routine deleted", "success");
+      utils.routine.list.invalidate();
+    },
     onError: (e) => showToast(e.message, "error"),
   });
   const createFolder = trpc.routine.createFolder.useMutation({
@@ -118,6 +122,8 @@ export default function MyRoutinesScreen() {
   });
   const deleteFolder = trpc.routine.deleteFolder.useMutation({
     onSuccess: () => {
+      setDeleteFolderDialog({ visible: false });
+      showToast("Folder deleted", "success");
       utils.routine.folders.invalidate();
       utils.routine.list.invalidate();
     },

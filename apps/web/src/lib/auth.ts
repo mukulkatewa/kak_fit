@@ -6,9 +6,31 @@ import { bearer } from "better-auth/plugins";
 import { prisma } from "@kak-fit/db";
 import { buildTrustedOrigins } from "./trusted-origins";
 
-const authBaseUrl =
-  process.env.BETTER_AUTH_URL?.trim() ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+/**
+ * OAuth redirect_uri must be stable across deploys — never use VERCEL_URL (unique per deployment).
+ * Order: BETTER_AUTH_URL → production alias → localhost.
+ */
+export function resolveAuthBaseUrl(): string {
+  const explicit = process.env.BETTER_AUTH_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const productionHost =
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ||
+    process.env.VERCEL_BRANCH_URL?.trim();
+  if (productionHost) {
+    const host = productionHost.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    return `https://${host}`;
+  }
+
+  if (process.env.VERCEL_URL?.trim()) {
+    // Preview deploys only — production should always set BETTER_AUTH_URL explicitly.
+    return `https://${process.env.VERCEL_URL.trim().replace(/\/$/, "")}`;
+  }
+
+  return "http://localhost:3000";
+}
+
+const authBaseUrl = resolveAuthBaseUrl();
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();

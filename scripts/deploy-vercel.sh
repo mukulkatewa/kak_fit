@@ -53,28 +53,38 @@ done
 echo "==> Deploying to production (full monorepo)..."
 DEPLOY_OUTPUT=$(vercel deploy --prod --yes 2>&1)
 echo "$DEPLOY_OUTPUT"
-DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[a-zA-Z0-9-]+-[a-zA-Z0-9-]+\.vercel\.app' | tail -1)
-PROD_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'Production: https://[^ ]+' | sed 's/Production: //' | tail -1)
 
-FINAL_URL="${PROD_URL:-$DEPLOY_URL}"
+# Prefer the stable production alias — NOT the per-deployment URL (breaks Google OAuth redirect_uri).
+ALIASED_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'Aliased: https://[^ ]+' | sed 's/Aliased: //' | tail -1)
+CANONICAL_API="${BETTER_AUTH_URL:-}"
+if [[ -z "$CANONICAL_API" && -n "$ALIASED_URL" ]]; then
+  CANONICAL_API="$ALIASED_URL"
+fi
 
-if [[ -z "$FINAL_URL" ]]; then
-  echo "Deploy finished — check Vercel dashboard for URL."
+if [[ -z "$CANONICAL_API" ]]; then
+  echo "Deploy finished — set BETTER_AUTH_URL in .env to your stable Vercel alias."
   exit 0
 fi
 
+CANONICAL_API="${CANONICAL_API%/}"
 echo ""
-echo "Deployed: $FINAL_URL"
+echo "Deployed. Canonical API: $CANONICAL_API"
 
-if [[ "$FINAL_URL" != "${BETTER_AUTH_URL:-}" ]]; then
-  echo "==> Updating local env to production API URL..."
-  "$ROOT/scripts/set-production-api.sh" "$FINAL_URL"
-  printf '%s' "$FINAL_URL" | vercel env add BETTER_AUTH_URL production --force
-  printf '%s' "$FINAL_URL" | vercel env add EXPO_PUBLIC_API_URL production --force
-  echo "==> Redeploying with updated BETTER_AUTH_URL..."
-  vercel deploy --prod --yes
+# Keep Vercel + local env pinned to the stable alias (never a deployment-specific *.vercel.app slug).
+if [[ "$CANONICAL_API" != "${BETTER_AUTH_URL:-}" ]]; then
+  echo "==> Syncing BETTER_AUTH_URL / EXPO_PUBLIC_API_URL to $CANONICAL_API"
+  "$ROOT/scripts/set-production-api.sh" "$CANONICAL_API"
 fi
 
+printf '%s' "$CANONICAL_API" | vercel env add BETTER_AUTH_URL production --force 2>/dev/null \
+  || printf '%s' "$CANONICAL_API" | vercel env add BETTER_AUTH_URL production
+printf '%s' "$CANONICAL_API" | vercel env add EXPO_PUBLIC_API_URL production --force 2>/dev/null \
+  || printf '%s' "$CANONICAL_API" | vercel env add EXPO_PUBLIC_API_URL production
+
+echo "==> Redeploying so OAuth uses stable redirect URI..."
+vercel deploy --prod --yes >/dev/null
+
 echo ""
-echo "Done. Mobile API: $FINAL_URL"
+echo "Done. API: $CANONICAL_API"
+echo "Google redirect URI must be: ${CANONICAL_API}/api/auth/callback/google"
 echo "Restart Expo or rebuild EAS to pick up apps/mobile/.env"

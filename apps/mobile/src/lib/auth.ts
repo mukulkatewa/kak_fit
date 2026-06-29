@@ -1,8 +1,22 @@
+import * as Linking from "expo-linking";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { apiHeaders, getApiUrl } from "./api-client";
+import { authClient } from "./auth-client";
 
 const TOKEN_KEY = "kak_fit_token";
+
+/** OAuth return path — no parentheses (Better Auth rejects `/(tabs)`-style paths). */
+export const AUTH_CALLBACK_PATH = "/login-callback";
+
+/** Deep link the in-app browser returns to after Google sign-in. */
+export function getAuthCallbackUrl(): string {
+  if (Platform.OS === "web") {
+    return `${getApiUrl()}${AUTH_CALLBACK_PATH}`;
+  }
+  // Let Expo pick exp:// in Expo Go or kakfit:// in dev/production builds.
+  return Linking.createURL(AUTH_CALLBACK_PATH);
+}
 
 /** In-memory cache so native can read the token synchronously after first hydrate. */
 let cachedToken: string | null | undefined =
@@ -87,47 +101,60 @@ export async function clearToken(): Promise<void> {
   await removeStoredToken();
 }
 
-async function authRequest(path: string, body: Record<string, string>) {
-  const response = await fetch(`${getApiUrl()}/api/auth${path}`, {
-    method: "POST",
-    headers: apiHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify(body),
+/** Pull bearer token from Better Auth session (for tRPC after OAuth). */
+async function syncBearerFromSession(): Promise<string> {
+  let capturedToken: string | null = null;
+
+  await authClient.getSession({
+    fetchOptions: {
+      onSuccess: (ctx) => {
+        capturedToken = ctx.response.headers.get("set-auth-token");
+      },
+    },
   });
 
-  const data = (await response.json().catch(() => ({}))) as {
-    message?: string;
-    error?: string;
-    token?: string;
-    user?: AuthUser;
-  };
+  if (!capturedToken) {
+    throw new Error("No session token returned after sign-in");
+  }
 
-  if (!response.ok) {
-    const code = (data as { code?: string }).code;
-    const detail = data?.message ?? data?.error;
+  await setToken(capturedToken);
+  return capturedToken;
+}
+
+export async function signInWithGoogle() {
+  const callbackURL = getAuthCallbackUrl();
+
+  const { error } = await authClient.signIn.social({
+    provider: "google",
+    callbackURL,
+  });
+
+  if (error) {
+    const code = (error as { code?: string }).code;
     if (code === "INVALID_ORIGIN" || code === "MISSING_OR_NULL_ORIGIN") {
       throw new Error(
-        detail ??
+        error.message ??
           "Sign-in blocked by server origin policy. Point EXPO_PUBLIC_API_URL at your live API URL (see docs/ENV_SETUP.md).",
       );
     }
-    throw new Error(detail ?? `Authentication failed (${response.status})`);
+    if (code === "INVALID_CALLBACK_URL") {
+      throw new Error("Sign-in configuration error. Update the app and try again.");
+    }
+    throw new Error(error.message ?? "Google sign-in failed");
   }
 
-  const tokenRaw = response.headers.get("set-auth-token") ?? data.token;
-  if (!tokenRaw) {
-    throw new Error("No session token returned");
+  const session = await authClient.getSession();
+  if (!session.data?.user) {
+    throw new Error("Sign-in was cancelled");
   }
 
-  await setToken(tokenRaw);
-  return { token: tokenRaw, user: data.user as AuthUser };
-}
+  const token = await syncBearerFromSession();
+  const user = session.data.user;
 
-export async function signUp(name: string, email: string, password: string) {
-  return authRequest("/sign-up/email", { name, email, password });
-}
-
-export async function signIn(email: string, password: string) {
-  return authRequest("/sign-in/email", { email, password });
+  return {
+    token,
+    user: { id: user.id, name: user.name, email: user.email },
+  };
 }
 
 export async function signOut() {
@@ -142,5 +169,6 @@ export async function signOut() {
       body: "{}",
     }).catch(() => undefined);
   }
+  await authClient.signOut().catch(() => undefined);
   await clearToken();
 }

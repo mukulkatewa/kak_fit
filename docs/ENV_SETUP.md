@@ -137,7 +137,7 @@ No usage fees. Rate limit: ~1,000 requests/hour (more than enough with local foo
 
 ## Optional — Enable When Ready
 
-### 6. Google OAuth (Sign in with Google)
+### 6. Google OAuth (Sign in with Google) — Required
 
 ```env
 GOOGLE_CLIENT_ID=""
@@ -146,12 +146,16 @@ GOOGLE_CLIENT_SECRET=""
 
 **How to get (free):**
 1. https://console.cloud.google.com → Create project
-2. APIs & Services → Credentials → Create OAuth 2.0 Client ID
-3. Application type: Web application
-4. Authorized redirect URIs: `https://api.kakfit.app/api/auth/callback/google`
-5. Paste Client ID and Client Secret
+2. APIs & Services → **OAuth consent screen** → External → add test users while in Testing
+3. APIs & Services → **Credentials** → Create OAuth 2.0 Client ID → Web application
+4. **Authorized redirect URIs:**
+   - `https://api.kakfit.app/api/auth/callback/google`
+   - `http://localhost:3000/api/auth/callback/google`
+5. Paste Client ID and Client Secret into `.env`
 
-Leave empty to use email-only auth (works fine for launch).
+**Publish for all users:** OAuth consent screen → **Publish app** (see end of this section).
+
+Leave empty only if you are not running auth locally — the API will log a missing-env warning.
 
 ---
 

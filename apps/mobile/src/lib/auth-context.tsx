@@ -5,8 +5,7 @@ import { queryClient } from "./query-client";
 type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
-  signIn: (email: string, password: string) => ReturnType<typeof authLib.signIn>;
-  signUp: (name: string, email: string, password: string) => ReturnType<typeof authLib.signUp>;
+  signInWithGoogle: () => ReturnType<typeof authLib.signInWithGoogle>;
   signOut: () => Promise<void>;
   refresh: () => Promise<boolean>;
 };
@@ -50,15 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const result = await authLib.signIn(email, password);
-    setIsAuthenticated(true);
-    void queryClient.invalidateQueries();
-    return result;
-  }, []);
-
-  const signUp = useCallback(async (name: string, email: string, password: string) => {
-    const result = await authLib.signUp(name, email, password);
+  const signInWithGoogle = useCallback(async () => {
+    const result = await authLib.signInWithGoogle();
     setIsAuthenticated(true);
     void queryClient.invalidateQueries();
     return result;
@@ -71,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, signIn, signUp, signOut, refresh }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, signInWithGoogle, signOut, refresh }}>
       {children}
     </AuthContext.Provider>
   );

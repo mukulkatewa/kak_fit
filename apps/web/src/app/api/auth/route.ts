@@ -4,12 +4,11 @@ export async function GET() {
   return NextResponse.json({
     status: "ok",
     provider: "better-auth",
+    signIn: "google",
     endpoints: {
-      signIn: "POST /api/auth/sign-in/email",
-      signUp: "POST /api/auth/sign-up/email",
+      googleSignIn: "GET /api/auth/sign-in/social?provider=google",
       signOut: "POST /api/auth/sign-out",
       session: "GET /api/auth/get-session",
     },
-    demo: { email: "demo@kakfit.app", password: "password123" },
   });
 }

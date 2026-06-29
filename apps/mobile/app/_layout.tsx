@@ -34,7 +34,7 @@ function AuthRedirect() {
 
     const id = setTimeout(() => {
       const first = segments[0];
-      const inAuth = first === "login";
+      const inAuth = first === "login" || first === "login-callback";
       const onIndex = !first || first === "index";
 
       if (!isAuthenticated && !inAuth) {
@@ -89,6 +89,7 @@ function ThemedApp() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="login" />
+          <Stack.Screen name="login-callback" options={{ animation: "fade" }} />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="workout" />
           <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />

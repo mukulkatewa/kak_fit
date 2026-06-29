@@ -13,7 +13,13 @@ fi
 source "$ENV_FILE"
 
 IP=$(hostname -I | awk '{print $1}')
-if [[ -n "$IP" ]]; then
+CURRENT_API="${EXPO_PUBLIC_API_URL:-}"
+USE_LAN_API=true
+if [[ "$CURRENT_API" == https://* ]]; then
+  USE_LAN_API=false
+fi
+
+if [[ -n "$IP" && "$USE_LAN_API" == true ]]; then
   if grep -q '^EXPO_PUBLIC_API_URL=' "$ENV_FILE"; then
     sed -i "s|^EXPO_PUBLIC_API_URL=.*|EXPO_PUBLIC_API_URL=\"http://${IP}:3000\"|" "$ENV_FILE"
   else
@@ -25,6 +31,8 @@ if [[ -n "$IP" ]]; then
   else
     echo "BETTER_AUTH_URL=\"http://${IP}:3000\"" >> "$ENV_FILE"
   fi
+elif [[ "$USE_LAN_API" == false ]]; then
+  echo "Keeping deployed API URL: $CURRENT_API"
 fi
 
 # Supabase Postgres — Prisma pattern (Dashboard → Connect → ORMs → Prisma)

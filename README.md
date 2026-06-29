@@ -10,7 +10,7 @@ A mobile-first workout tracker — Hevy-style. **Core focus: logging + progress.
 - **Mobile:** React Native + Expo Router + TypeScript (light + dark theme)
 - **Backend:** Next.js + tRPC + TypeScript
 - **Database:** PostgreSQL + Prisma (Supabase)
-- **Auth:** Better Auth (email + bearer tokens for mobile)
+- **Auth:** Better Auth (Google OAuth + bearer tokens for mobile)
 - **Exercise data:** [Wger API](https://wger.readthedocs.io/en/latest/api/api.html) (855 exercises imported)
 - **Nutrition:** USDA FoodData Central (food search + macro tracking)
 
@@ -37,7 +37,7 @@ cp .env apps/web/.env.local
 pnpm db:generate
 pnpm db:push
 pnpm db:import      # Import 855 exercises from Wger
-pnpm db:seed        # Create demo user
+pnpm db:seed        # Optional — checks for legacy demo user
 
 # 5. Run API (terminal 1)
 pnpm --filter @kak-fit/web dev
@@ -47,16 +47,14 @@ pnpm --filter @kak-fit/mobile start
 # Or web preview: pnpm --filter @kak-fit/mobile start --web
 ```
 
-## Demo Login
+## Sign in
 
-| Field | Value |
-|-------|-------|
-| Email | `demo@kakfit.app` |
-| Password | `password123` |
+Use **Continue with Google** on the login screen. Set `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` in `.env` (see [docs/ENV_SETUP.md](./docs/ENV_SETUP.md)).
 
 ## Features (Live)
 
-- Email auth (sign up / sign in), persistent mobile sessions
+- Google sign-in, persistent mobile sessions
 - Exercise library (855 Wger exercises, searchable) + per-exercise detail & charts
 - Routine builder (create, duplicate, delete) + program/category templates
 - Workout logger (empty / from routine, set types, rest timer, previous values, copy set)

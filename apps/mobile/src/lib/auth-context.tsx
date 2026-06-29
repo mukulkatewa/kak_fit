@@ -37,21 +37,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (authLib.hasKnownTokenState()) return;
-    void authLib.tokenHydrationPromise
-      .then((token) => {
-        setIsAuthenticated(Boolean(token));
+    let cancelled = false;
+
+    async function hydrate() {
+      if (authLib.hasKnownTokenState() && authLib.getTokenSync()) {
         setIsLoading(false);
-      })
-      .catch(() => {
-        setIsAuthenticated(false);
+        return;
+      }
+
+      await authLib.tokenHydrationPromise.catch(() => null);
+
+      if (cancelled) return;
+
+      const hasToken = Boolean(authLib.getTokenSync());
+      if (hasToken) {
+        setIsAuthenticated(true);
         setIsLoading(false);
-      });
+        return;
+      }
+
+      // Cookie session from OAuth but no bearer file yet (web redirect / Expo deep link).
+      const recovered = await authLib.ensureBearerFromExistingSession();
+      if (cancelled) return;
+
+      setIsAuthenticated(recovered);
+      setIsLoading(false);
+    }
+
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
     const result = await authLib.signInWithGoogle();
     setIsAuthenticated(true);
+    setIsLoading(false);
     void queryClient.invalidateQueries();
     return result;
   }, []);

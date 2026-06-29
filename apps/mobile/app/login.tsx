@@ -27,13 +27,20 @@ export default function LoginScreen() {
     setLoading(true);
     setError(null);
     try {
+      // Web: full-page redirect to Google — completion happens on /login-callback.
+      if (Platform.OS === "web") {
+        await signInWithGoogle();
+        return;
+      }
       await signInWithGoogle();
       router.replace("/(tabs)");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Google sign-in failed";
       setError(message);
     } finally {
-      setLoading(false);
+      if (Platform.OS !== "web") {
+        setLoading(false);
+      }
     }
   };
 

@@ -8,17 +8,17 @@ function isUnauthorizedError(error: { data?: { code?: string } | null }): boolea
 
 /** Validates the cached session in the background; signs out on 401. */
 export function AuthSessionValidator() {
-  const { isAuthenticated, signOut } = useAuth();
-  const { error } = trpc.auth.me.useQuery(undefined, {
+  const { isAuthenticated, isLoading, signOut } = useAuth();
+  const { error, isFetched } = trpc.auth.me.useQuery(undefined, {
     ...authMeQueryOptions,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !isLoading,
     retry: false,
   });
 
   useEffect(() => {
-    if (!error || !isUnauthorizedError(error)) return;
+    if (!isFetched || !error || !isUnauthorizedError(error)) return;
     void signOut();
-  }, [error, signOut]);
+  }, [error, isFetched, signOut]);
 
   return null;
 }

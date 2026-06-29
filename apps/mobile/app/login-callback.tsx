@@ -1,28 +1,53 @@
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import * as authLib from "../src/lib/auth";
 import { useAuth } from "../src/lib/auth-context";
-import { useThemedStyles, type Palette } from "../src/lib/theme";
+import { useThemedStyles, spacing, type Palette } from "../src/lib/theme";
 
-/** OAuth deep-link landing — forwards to the main app after the browser closes. */
+/** OAuth return route — web redirect + Expo Go deep link land here. */
 export default function LoginCallbackScreen() {
   const router = useRouter();
-  const { isAuthenticated, refresh } = useAuth();
+  const { refresh } = useAuth();
   const styles = useThemedStyles(makeStyles);
+  const callbackUrl = Linking.useURL();
 
   useEffect(() => {
-    void refresh().then((hasSession) => {
-      if (hasSession || isAuthenticated) {
+    let cancelled = false;
+
+    async function finish() {
+      try {
+        const url =
+          callbackUrl ??
+          (typeof window !== "undefined" ? window.location.href : null);
+
+        const result = await authLib.completeAuthSession(url);
+        if (cancelled) return;
+
+        if (!result) {
+          router.replace("/login");
+          return;
+        }
+
+        await refresh();
         router.replace("/(tabs)");
-      } else {
+      } catch {
+        if (cancelled) return;
         router.replace("/login");
       }
-    });
-  }, [isAuthenticated, refresh, router]);
+    }
+
+    void finish();
+    return () => {
+      cancelled = true;
+    };
+  }, [callbackUrl, refresh, router]);
 
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" />
+      <Text style={styles.label}>Finishing sign-in…</Text>
     </View>
   );
 }
@@ -34,5 +59,10 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: colors.bg,
+      gap: spacing.md,
+    },
+    label: {
+      color: colors.textMuted,
+      fontSize: 15,
     },
   });

@@ -2,7 +2,7 @@ import * as Linking from "expo-linking";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { apiHeaders, getApiUrl } from "./api-client";
-import { authClient } from "./auth-client";
+import { authClient, AUTH_COOKIE_KEY, persistOAuthCookieFromUrl } from "./auth-client";
 
 const TOKEN_KEY = "kak_fit_token";
 
@@ -12,9 +12,11 @@ export const AUTH_CALLBACK_PATH = "/login-callback";
 /** Deep link the in-app browser returns to after Google sign-in. */
 export function getAuthCallbackUrl(): string {
   if (Platform.OS === "web") {
+    if (typeof window !== "undefined") {
+      return `${window.location.origin}${AUTH_CALLBACK_PATH}`;
+    }
     return `${getApiUrl()}${AUTH_CALLBACK_PATH}`;
   }
-  // Let Expo pick exp:// in Expo Go or kakfit:// in dev/production builds.
   return Linking.createURL(AUTH_CALLBACK_PATH);
 }
 
@@ -101,24 +103,77 @@ export async function clearToken(): Promise<void> {
   await removeStoredToken();
 }
 
-/** Pull bearer token from Better Auth session (for tRPC after OAuth). */
-async function syncBearerFromSession(): Promise<string> {
-  let capturedToken: string | null = null;
+type SessionPayload = {
+  session?: { token?: string };
+  user?: { id: string; name: string; email: string };
+};
 
-  await authClient.getSession({
+/** Read session token from Better Auth cookie jar (Expo native). */
+async function readTokenFromAuthCookies(): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+  try {
+    const raw = await SecureStore.getItemAsync(AUTH_COOKIE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, { value?: string }>;
+    for (const [name, entry] of Object.entries(parsed)) {
+      if (name.includes("session_token") && entry?.value) {
+        return entry.value;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * After OAuth, Better Auth stores a cookie session. tRPC needs a bearer token —
+ * pull it from get-session (body/header) or the stored auth cookie jar.
+ */
+export async function completeAuthSession(callbackUrl?: string | null): Promise<{
+  token: string;
+  user: AuthUser;
+} | null> {
+  await persistOAuthCookieFromUrl(callbackUrl);
+
+  let headerToken: string | null = null;
+  const session = await authClient.getSession({
     fetchOptions: {
+      credentials: "include",
       onSuccess: (ctx) => {
-        capturedToken = ctx.response.headers.get("set-auth-token");
+        headerToken = ctx.response.headers.get("set-auth-token");
       },
     },
   });
 
-  if (!capturedToken) {
-    throw new Error("No session token returned after sign-in");
+  const data = session.data as SessionPayload | null;
+  if (!data?.user?.id) return null;
+
+  const cookieToken = await readTokenFromAuthCookies();
+  const bodyToken = data.session?.token ?? null;
+  const token = headerToken ?? bodyToken ?? cookieToken;
+
+  if (!token) {
+    throw new Error("Signed in but no API token was returned. Try again.");
   }
 
-  await setToken(capturedToken);
-  return capturedToken;
+  await setToken(token);
+
+  return {
+    token,
+    user: {
+      id: data.user.id,
+      name: data.user.name,
+      email: data.user.email,
+    },
+  };
+}
+
+/** On cold start: hydrate bearer token if Better Auth session exists but token file is empty. */
+export async function ensureBearerFromExistingSession(): Promise<boolean> {
+  if (getTokenSync()) return true;
+  const completed = await completeAuthSession();
+  return Boolean(completed?.token);
 }
 
 export async function signInWithGoogle() {
@@ -143,18 +198,12 @@ export async function signInWithGoogle() {
     throw new Error(error.message ?? "Google sign-in failed");
   }
 
-  const session = await authClient.getSession();
-  if (!session.data?.user) {
+  const result = await completeAuthSession();
+  if (!result) {
     throw new Error("Sign-in was cancelled");
   }
 
-  const token = await syncBearerFromSession();
-  const user = session.data.user;
-
-  return {
-    token,
-    user: { id: user.id, name: user.name, email: user.email },
-  };
+  return result;
 }
 
 export async function signOut() {

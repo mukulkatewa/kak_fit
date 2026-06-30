@@ -3,6 +3,11 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "@kak-fit/api";
 import { prisma } from "@kak-fit/db";
 import { auth } from "@/lib/auth";
+import {
+  deleteCachedSessionUser,
+  getCachedSessionUser,
+  setCachedSessionUser,
+} from "@/lib/session-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,14 +20,6 @@ function extractBearerToken(req: Request): string | null {
   // DB stores token id; Better Auth bearer may send id.signature
   return raw.includes(".") ? raw.split(".")[0] : raw;
 }
-
-type CachedUser = NonNullable<Awaited<ReturnType<typeof resolveBearerUser>>>;
-
-// Short-lived in-memory cache so repeated requests on the same token skip the
-// auth DB round-trip. The DB lives in a remote region, so each saved round-trip
-// is ~1s. TTL is intentionally short to keep sign-out reasonably responsive.
-const SESSION_CACHE_TTL_MS = 30_000;
-const sessionCache = new Map<string, { user: CachedUser; expires: number }>();
 
 async function resolveBearerUser(token: string) {
   const dbSession = await prisma.session.findUnique({
@@ -43,15 +40,13 @@ const createContext = async (opts: { req: Request }) => {
   // (the previous code did getSession + a redundant user.findUnique, i.e.
   // 2-3 round-trips to a distant DB on every request).
   if (sessionToken) {
-    const cached = sessionCache.get(sessionToken);
-    if (cached && cached.expires > Date.now()) {
-      user = cached.user;
-    } else {
+    user = getCachedSessionUser(sessionToken);
+    if (!user) {
       user = await resolveBearerUser(sessionToken);
       if (user) {
-        sessionCache.set(sessionToken, { user, expires: Date.now() + SESSION_CACHE_TTL_MS });
+        setCachedSessionUser(sessionToken, user);
       } else {
-        sessionCache.delete(sessionToken);
+        deleteCachedSessionUser(sessionToken);
       }
     }
   } else {

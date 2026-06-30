@@ -1,9 +1,35 @@
 import { QueryClient } from "@tanstack/react-query";
-import { defaultQueryClientOptions } from "./trpc";
+import { TRPCClientError } from "@trpc/client";
+import { defaultQueryClientOptions, queryDedupStaleTime } from "./trpc";
+
+const mutationRetryDelay = (attemptIndex: number) =>
+  Math.min(1000 * 2 ** attemptIndex, 30_000);
+
+const mutationShouldRetry = (failureCount: number, error: unknown) => {
+  if (error instanceof TRPCClientError) {
+    const httpStatus = error.data?.httpStatus;
+    if (httpStatus && httpStatus >= 400 && httpStatus < 500) {
+      return false;
+    }
+  }
+  return failureCount < 3;
+};
 
 export function createQueryClient() {
   return new QueryClient({
-    defaultOptions: defaultQueryClientOptions,
+    defaultOptions: {
+      ...defaultQueryClientOptions,
+      queries: {
+        ...defaultQueryClientOptions.queries,
+        // Short window for unstated queries; per-screen options override with longer values.
+        staleTime: Math.max(queryDedupStaleTime, defaultQueryClientOptions.queries.staleTime),
+        structuralSharing: true,
+      },
+      mutations: {
+        retry: mutationShouldRetry,
+        retryDelay: mutationRetryDelay,
+      },
+    },
   });
 }
 

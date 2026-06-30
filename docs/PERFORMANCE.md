@@ -54,3 +54,4 @@ On Node runtimes, `packages/db` registers `SIGTERM`, `SIGINT`, and `beforeExit` 
 - Composite indexes on high-traffic tables (`userId`, `finishedAt`, etc.) — see `packages/db/prisma/schema.prisma`
 - tRPC session cache uses LRU eviction to avoid unbounded memory growth on the web API
 - Personal records use O(n) single-pass recalculation and O(1) incremental updates on set edits (`packages/api/src/services/personal-records.ts`)
+- Mobile tRPC client batches up to 10 calls per request (`httpBatchLink`), dedupes in-flight GETs, and prefetches common data after sign-in (`apps/mobile/src/lib/trpc.ts`)

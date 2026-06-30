@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar, HevyButton, Screen, ThemedDialog, useToast } from "../../src/components/ui";
@@ -21,6 +21,12 @@ export default function DashboardScreen() {
   const styles = useThemedStyles(makeStyles);
   const utils = trpc.useUtils();
   const { showToast } = useToast();
+
+  useEffect(() => {
+    void utils.workout.history.prefetch({ limit: 20 });
+    void utils.exercise.list.prefetch({ limit: 50 });
+  }, [utils]);
+
   const { isAuthenticated } = useAuth();
   const { weightUnit } = useUserPreferences();
   const { data: me } = trpc.auth.me.useQuery(undefined, {

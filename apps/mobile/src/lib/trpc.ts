@@ -1,12 +1,14 @@
-import { httpBatchLink } from "@trpc/client";
+import { httpBatchLink, loggerLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import type { AppRouter } from "@kak-fit/api/router";
 import superjson from "superjson";
-import { apiHeaders, getApiUrl } from "./api-client";
-import { getToken, getTokenSync, refreshToken } from "./auth";
-import { notifySessionExpired } from "./auth-session-events";
+import { getApiUrl } from "./api-client";
+import { authHeaders, trpcFetch } from "./trpc-fetch";
 
 export const trpc = createTRPCReact<AppRouter>();
+
+/** Minimum stale window — React Query also dedupes in-flight identical queries. */
+export const queryDedupStaleTime = 1000;
 
 export const queryStaleTime = {
   default: 30 * 1000,
@@ -33,6 +35,7 @@ export const defaultQueryClientOptions = {
     staleTime: queryStaleTime.default,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
+    structuralSharing: true,
   },
 } as const;
 
@@ -41,50 +44,24 @@ export const authMeQueryOptions = {
   staleTime: queryStaleTime.authMe,
 } as const;
 
-async function authHeaders() {
-  const token = getTokenSync() ?? (await getToken());
-  const isRealToken = token && !token.startsWith("cookie_session_");
-  return apiHeaders(isRealToken ? { Authorization: `Bearer ${token}` } : {});
-}
-
-async function fetchWithAuthRetry(url: RequestInfo | URL, options?: RequestInit): Promise<Response> {
-  const response = await fetch(url, { ...options, credentials: "include" });
-
-  if (response.status !== 401) {
-    return response;
-  }
-
-  const refreshed = await refreshToken();
-  if (!refreshed) {
-    notifySessionExpired();
-    return response;
-  }
-
-  const headers = new Headers(options?.headers);
-  const token = getTokenSync() ?? (await getToken());
-  const isRealToken = token && !token.startsWith("cookie_session_");
-  if (isRealToken) {
-    headers.set("Authorization", `Bearer ${token}`);
-  } else {
-    headers.delete("Authorization");
-  }
-
-  const auth = await authHeaders();
-  for (const [key, value] of Object.entries(auth)) {
-    headers.set(key, value);
-  }
-
-  return fetch(url, { ...options, headers, credentials: "include" });
-}
+/** Batch up to 10 procedure calls per HTTP request; split when URL exceeds browser limits. */
+const TRPC_BATCH_MAX_ITEMS = 10;
+const TRPC_BATCH_MAX_URL_LENGTH = 2083;
 
 export function createTRPCClient() {
   return trpc.createClient({
     links: [
+      loggerLink({
+        enabled: (opts) =>
+          __DEV__ || (opts.direction === "down" && opts.result instanceof Error),
+      }),
       httpBatchLink({
         url: `${getApiUrl()}/api/trpc`,
         transformer: superjson,
+        maxURLLength: TRPC_BATCH_MAX_URL_LENGTH,
+        maxItems: TRPC_BATCH_MAX_ITEMS,
         headers: authHeaders,
-        fetch: fetchWithAuthRetry,
+        fetch: trpcFetch,
       }),
     ],
   });

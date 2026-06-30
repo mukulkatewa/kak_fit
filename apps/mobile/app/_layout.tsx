@@ -13,6 +13,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
 import { StartupErrorBoundary } from "../src/components/startup-error-boundary";
 import { DevApiBanner } from "../src/components/dev-api-banner";
+import { TrpcPrefetchBootstrap } from "../src/components/trpc-prefetch-bootstrap";
 import { TokenRefreshBadge } from "../src/components/token-refresh-badge";
 import { ToastContainer, ToastProvider } from "../src/components/ui";
 import { AuthSessionValidator } from "../src/lib/auth-session-validator";
@@ -130,6 +131,7 @@ export default function RootLayout() {
               <trpc.Provider client={trpcClient} queryClient={queryClient}>
                 <QueryClientProvider client={queryClient}>
                   <AuthSessionValidator />
+                  <TrpcPrefetchBootstrap />
                   <ThemedApp />
                 </QueryClientProvider>
               </trpc.Provider>

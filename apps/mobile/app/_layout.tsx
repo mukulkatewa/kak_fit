@@ -13,6 +13,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
 import { StartupErrorBoundary } from "../src/components/startup-error-boundary";
 import { DevApiBanner } from "../src/components/dev-api-banner";
+import { TokenRefreshBadge } from "../src/components/token-refresh-badge";
 import { ToastContainer, ToastProvider } from "../src/components/ui";
 import { AuthSessionValidator } from "../src/lib/auth-session-validator";
 import { AuthProvider, useAuth } from "../src/lib/auth-context";
@@ -110,6 +111,7 @@ function ThemedApp() {
         <AuthRedirect />
         <AuthLoadingOverlay />
         <DevApiBanner />
+        <TokenRefreshBadge />
         <ActiveWorkoutOverlay />
         <ToastContainer />
         </ToastProvider>

@@ -1,14 +1,20 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
+import { showAppToast } from "../components/ui";
 import * as authLib from "./auth";
+import { setSessionExpiredHandler } from "./auth-session-events";
 import { queryClient } from "./query-client";
+
+const TOKEN_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
+  isRefreshing: boolean;
   signInWithGoogle: () => ReturnType<typeof authLib.signInWithGoogle>;
   signOut: () => Promise<void>;
   refresh: () => Promise<boolean>;
+  refreshSession: () => Promise<authLib.RefreshTokenResult>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -28,6 +34,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => getInitialAuthState().isAuthenticated,
   );
   const [isLoading, setIsLoading] = useState(() => getInitialAuthState().isLoading);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const signOut = useCallback(async () => {
+    await authLib.signOut();
+    queryClient.clear();
+    setIsAuthenticated(false);
+  }, []);
 
   const refresh = useCallback(async () => {
     const token = await authLib.getToken();
@@ -36,6 +49,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
     return hasToken;
   }, []);
+
+  const refreshSession = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const result = await authLib.refreshTokenIfNeeded();
+      if (result === "refreshed") {
+        setIsAuthenticated(true);
+        showAppToast("Session renewed", "info");
+      } else if (result === "failed") {
+        const expiry = await authLib.getTokenExpiry();
+        if (authLib.isAccessTokenExpired(expiry)) {
+          showAppToast("Session expired, please log in", "error");
+          await signOut();
+        }
+      }
+      return result;
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [signOut]);
+
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      showAppToast("Session expired, please log in", "error");
+      void signOut();
+    });
+    return () => setSessionExpiredHandler(null);
+  }, [signOut]);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,7 +98,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Cookie session from OAuth but no bearer file yet (web redirect / Expo deep link).
       const recovered = await authLib.ensureBearerFromExistingSession();
       if (cancelled) return;
 
@@ -71,10 +111,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+
+    void refreshSession();
+
+    const id = setInterval(() => {
+      void refreshSession();
+    }, TOKEN_REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(id);
+  }, [isAuthenticated, isLoading, refreshSession]);
+
   const signInWithGoogle = useCallback(async () => {
     const result = await authLib.signInWithGoogle();
-    // On web, signInWithGoogle returns a never-resolving promise because
-    // the page redirects to Google. This code only runs on native.
     if (Platform.OS !== "web") {
       setIsAuthenticated(true);
       setIsLoading(false);
@@ -83,14 +133,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, []);
 
-  const signOut = useCallback(async () => {
-    await authLib.signOut();
-    queryClient.clear();
-    setIsAuthenticated(false);
-  }, []);
-
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, signInWithGoogle, signOut, refresh }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        isLoading,
+        isRefreshing,
+        signInWithGoogle,
+        signOut,
+        refresh,
+        refreshSession,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

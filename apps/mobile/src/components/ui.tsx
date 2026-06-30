@@ -1020,6 +1020,11 @@ export function useToast() {
   );
 }
 
+/** Imperative toast for modules outside React (e.g. auth refresh). */
+export function showAppToast(message: string, type: ToastType = "info") {
+  useToastStore.getState().showToast(message, type);
+}
+
 export function ToastContainer() {
   const { colors, shadows } = useTheme();
   const visible = useToastStore((s) => s.visible);

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { buildTrustedOrigins, isAllowedOrigin } from "./lib/trusted-origins";
 
+// Prisma graceful shutdown is registered in @kak-fit/db (Node runtime only).
+// Edge middleware cannot use process.on — see docs/PERFORMANCE.md.
+
 const ALLOWED_ORIGINS = new Set(buildTrustedOrigins());
 
 function corsHeaders(origin: string | null): Record<string, string> {

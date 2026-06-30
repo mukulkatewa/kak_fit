@@ -49,6 +49,11 @@ packages/db/prisma/*.db-journal
 apps/web/public/
 !apps/web/public/.gitkeep
 
-apps/mobile/.claude/
+# Hevy import tooling (ephemeral — not part of the app)
+packages/db/scripts/hevy/hevy-api-samples/
+packages/db/scripts/hevy/.hevy-sync-state.json
+.env.vercel.production
+.env.vercel.*
+hevy-import-report.html
 apps/mobile/AGENTS.md
 apps/mobile/CLAUDE.md

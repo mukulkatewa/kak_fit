@@ -196,7 +196,11 @@ SUPABASE_SERVICE_ROLE_KEY="eyJhbGci..."
 |----------|-----------------|
 | `SUPABASE_DB_PASSWORD` | Dashboard → Project Settings → **Database** → Database password |
 | `SUPABASE_POOLER_HOST` | Dashboard → **Connect** → **ORMs** → **Prisma** (host in connection string) |
-| `DATABASE_URL` / `DIRECT_URL` | Auto-built by `sync:ip` — both use the session pooler `:5432` (faster for a long-lived server) |
+| `DATABASE_URL` / `DIRECT_URL` | Auto-built by `sync:ip` — `DIRECT_URL` always uses the session pooler. If `DATABASE_URL` is Prisma Accelerate (`prisma://` or `accelerate.prisma-data.net`), `sync:ip` updates **only** `DIRECT_URL`. |
+
+> **`prisma db push` / migrations** use `DIRECT_URL`. Do **not** point `DIRECT_URL` at
+> `db.<ref>.supabase.co` — that direct host often fails with `P1001 Can't reach database server`.
+> Use the pooler host from Dashboard → Connect → Prisma (e.g. `aws-0-ap-south-1.pooler.supabase.com:5432`).
 
 > **Latency tip:** request speed is dominated by the database region. If the API
 > feels slow, host the Supabase project in the region closest to you (e.g.

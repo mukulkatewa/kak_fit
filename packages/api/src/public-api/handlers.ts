@@ -38,6 +38,7 @@ const routineInclude = {
 const exerciseInclude = {
   category: true,
   muscles: { include: { muscle: true } },
+  equipment: { include: { equipment: true } },
 } as const;
 
 type Handler = (

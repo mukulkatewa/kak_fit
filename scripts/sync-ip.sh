@@ -39,13 +39,49 @@ fi
 SUPABASE_REF="${SUPABASE_PROJECT_REF:-}"
 POOLER_HOST="${SUPABASE_POOLER_HOST:-}"
 if [[ -n "${SUPABASE_DB_PASSWORD:-}" && -n "$SUPABASE_REF" && -n "$POOLER_HOST" ]]; then
-  # Use the SESSION pooler (:5432) for the runtime connection. This app runs as a
-  # long-lived Node server (not serverless), so a persistent connection that
-  # reuses prepared statements is 3-5x faster than the transaction pooler (:6543).
-  DB_URL="postgresql://postgres.${SUPABASE_REF}:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?schema=public&sslmode=require&connection_limit=5"
+  # Session pooler (:5432) for direct/migration connections and long-lived servers.
   DIRECT_URL_VAL="postgresql://postgres.${SUPABASE_REF}:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?schema=public&sslmode=require"
 
-  python3 - "$ENV_FILE" "$DB_URL" "$DIRECT_URL_VAL" <<'PY'
+  ACCELERATE_URL="${PRISMA_ACCELERATE_URL:-}"
+  CURRENT_DB=$(grep -E '^DATABASE_URL=' "$ENV_FILE" | head -1 || true)
+  USE_ACCELERATE=false
+  if [[ -n "$ACCELERATE_URL" ]]; then
+    USE_ACCELERATE=true
+  elif [[ "$CURRENT_DB" == *"prisma://"* || "$CURRENT_DB" == *"prisma+postgres://"* || "$CURRENT_DB" == *"accelerate.prisma-data.net"* ]]; then
+    USE_ACCELERATE=true
+  fi
+
+  if [[ "$USE_ACCELERATE" == true ]]; then
+    python3 - "$ENV_FILE" "$DIRECT_URL_VAL" "$ACCELERATE_URL" <<'PY'
+import pathlib, re, sys
+path, direct_url, accelerate_url = sys.argv[1], sys.argv[2], sys.argv[3]
+lines = pathlib.Path(path).read_text().splitlines()
+out = []
+updates = {"DIRECT_URL": direct_url}
+if accelerate_url:
+    updates["DATABASE_URL"] = accelerate_url
+seen = set()
+for line in lines:
+    m = re.match(r"^([A-Z_][A-Z0-9_]*)=", line)
+    if m and m.group(1) in updates:
+        key = m.group(1)
+        out.append(f'{key}="{updates[key]}"')
+        seen.add(key)
+    else:
+        out.append(line)
+for key, val in updates.items():
+    if key not in seen:
+        out.append(f'{key}="{val}"')
+pathlib.Path(path).write_text("\n".join(out) + "\n")
+PY
+    if [[ -n "$ACCELERATE_URL" ]]; then
+      echo "Set DATABASE_URL from PRISMA_ACCELERATE_URL + updated DIRECT_URL"
+    else
+      echo "Updated DIRECT_URL only (keeping Prisma Accelerate DATABASE_URL)"
+    fi
+  else
+    DB_URL="postgresql://postgres.${SUPABASE_REF}:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?schema=public&sslmode=require&connection_limit=5"
+    python3 - "$ENV_FILE" "$DB_URL" "$DIRECT_URL_VAL" <<'PY'
 import pathlib, re, sys
 path, db_url, direct_url = sys.argv[1], sys.argv[2], sys.argv[3]
 updates = {"DATABASE_URL": db_url, "DIRECT_URL": direct_url}
@@ -64,7 +100,8 @@ for key, val in updates.items():
         out.append(f'{key}="{val}"')
 pathlib.Path(path).write_text("\n".join(out) + "\n")
 PY
-  echo "Using Supabase pooler → ${POOLER_HOST}"
+    echo "Using Supabase pooler → ${POOLER_HOST}"
+  fi
 fi
 
 cp "$ENV_FILE" "$ROOT/apps/web/.env.local"

@@ -1,24 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { normalizeExerciseName } from "../lib/exercise-name";
+import {
+  exerciseDetailInclude,
+  globalExerciseWhere,
+  listCatalogExercises,
+} from "../services/exercise-catalog";
 import { getPreviousExercisePerformance } from "../services/previous-values";
 import { protectedProcedure, router } from "../trpc";
-
-const exerciseListInclude = {
-  category: { select: { id: true, name: true } },
-  muscles: {
-    where: { isPrimary: true },
-    take: 1,
-    include: { muscle: { select: { id: true, name: true } } },
-  },
-} as const;
-
-const exerciseDetailInclude = {
-  category: { select: { id: true, name: true } },
-  muscles: {
-    include: { muscle: { select: { id: true, name: true } } },
-    orderBy: { isPrimary: "desc" as const },
-  },
-} as const;
 
 export const exerciseRouter = router({
   list: protectedProcedure
@@ -35,31 +24,15 @@ export const exerciseRouter = router({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      const search = input?.search?.trim();
-      const where = {
-        OR: [
-          { isCustom: false },
-          { isCustom: true, userId: ctx.user.id },
-        ],
-        ...(search
-          ? { name: { contains: search, mode: "insensitive" as const } }
-          : {}),
-        ...(input?.customOnly ? { isCustom: true, userId: ctx.user.id } : {}),
-        ...(input?.categoryId ? { categoryId: input.categoryId } : {}),
-        ...(input?.muscleId
-          ? { muscles: { some: { muscleId: input.muscleId } } }
-          : {}),
-      };
-
-      const exercises = await ctx.prisma.exercise.findMany({
-        where,
-        include: exerciseListInclude,
-        orderBy: { name: "asc" },
-        take: input?.limit ?? 20,
-        ...(input?.cursor ? { skip: 1, cursor: { id: input.cursor } } : {}),
+      return listCatalogExercises(ctx.prisma, {
+        userId: ctx.user.id,
+        search: input?.search?.trim() || undefined,
+        muscleId: input?.muscleId,
+        categoryId: input?.categoryId,
+        customOnly: input?.customOnly,
+        cursor: input?.cursor,
+        limit: input?.limit ?? 20,
       });
-
-      return exercises;
     }),
 
   /**
@@ -74,35 +47,48 @@ export const exerciseRouter = router({
 
       const candidates = await ctx.prisma.exercise.findMany({
         where: {
-          OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
+          ...globalExerciseWhere(ctx.user.id),
           name: {
             in: normalized,
             mode: "insensitive",
           },
         },
-        select: { id: true, name: true },
+        select: { id: true, name: true, hevyId: true, wgerId: true, imageUrl: true, instructions: true },
       });
 
-      // Fall back to a contains match for names that had no exact hit.
       const exactByLower = new Map(candidates.map((c) => [c.name.toLowerCase(), c]));
+      const normIndex = new Map<string, typeof candidates>();
+      for (const c of candidates) {
+        const key = normalizeExerciseName(c.name);
+        const list = normIndex.get(key) ?? [];
+        list.push(c);
+        normIndex.set(key, list);
+      }
+
       const unresolved = normalized.filter((n) => !exactByLower.has(n.toLowerCase()));
 
-      let fuzzy: { id: string; name: string }[] = [];
+      let fuzzy: typeof candidates = [];
       if (unresolved.length > 0) {
         fuzzy = await ctx.prisma.exercise.findMany({
           where: {
-            OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
-            AND: { OR: unresolved.map((n) => ({ name: { contains: n, mode: "insensitive" as const } })) },
+            ...globalExerciseWhere(ctx.user.id),
+            AND: {
+              OR: unresolved.map((n) => ({
+                name: { contains: n, mode: "insensitive" as const },
+              })),
+            },
           },
-          select: { id: true, name: true },
+          select: { id: true, name: true, hevyId: true, wgerId: true, imageUrl: true, instructions: true },
         });
       }
 
       const resolved: Array<{ name: string; exerciseId: string; matchedName: string }> = [];
       for (const name of normalized) {
         const exact = exactByLower.get(name.toLowerCase());
+        const normMatches = normIndex.get(normalizeExerciseName(name));
         const match =
           exact ??
+          normMatches?.[0] ??
           fuzzy.find((f) => f.name.toLowerCase().includes(name.toLowerCase())) ??
           fuzzy.find((f) => name.toLowerCase().includes(f.name.toLowerCase()));
         if (match) {
@@ -119,7 +105,7 @@ export const exerciseRouter = router({
       const exercise = await ctx.prisma.exercise.findFirst({
         where: {
           id: input.id,
-          OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
+          ...globalExerciseWhere(ctx.user.id),
         },
         include: exerciseDetailInclude,
       });
@@ -136,7 +122,18 @@ export const exerciseRouter = router({
   }),
 
   categories: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.prisma.category.findMany({ orderBy: { name: "asc" } });
+    return ctx.prisma.category.findMany({
+      where: { NOT: { name: { startsWith: "Hevy:" } } },
+      orderBy: { name: "asc" },
+    });
+  }),
+
+  /** Hevy logging types (weight_reps, duration, etc.) for exercises imported from Hevy-only rows. */
+  hevyTypes: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.prisma.category.findMany({
+      where: { name: { startsWith: "Hevy:" } },
+      orderBy: { name: "asc" },
+    });
   }),
 
   createCustom: protectedProcedure
@@ -165,7 +162,7 @@ export const exerciseRouter = router({
             ],
           },
         },
-        include: exerciseListInclude,
+        include: exerciseDetailInclude,
       });
     }),
 

@@ -164,16 +164,27 @@ export function serializeExerciseTemplate(exercise: {
   instructions: string | null;
   imageUrl: string | null;
   isCustom: boolean;
+  hevyId?: string | null;
+  wgerId?: number | null;
   category: { name: string } | null;
   muscles: Array<{ muscle: { name: string }; isPrimary: boolean }>;
+  equipment?: Array<{ equipment: { name: string } }>;
 }) {
+  const hevyType = exercise.category?.name?.startsWith("Hevy:")
+    ? exercise.category.name.replace(/^Hevy:\s*/, "")
+    : null;
+
   return {
     id: exercise.id,
     title: exercise.name,
     instructions: exercise.instructions,
     image_url: exercise.imageUrl,
     is_custom: exercise.isCustom,
-    category: exercise.category?.name ?? null,
+    hevy_id: exercise.hevyId ?? null,
+    wger_id: exercise.wgerId ?? null,
+    category: exercise.category?.name?.startsWith("Hevy:") ? null : exercise.category?.name ?? null,
+    exercise_type: hevyType,
+    equipment: exercise.equipment?.map((e) => e.equipment.name) ?? [],
     primary_muscles: exercise.muscles.filter((m) => m.isPrimary).map((m) => m.muscle.name),
     secondary_muscles: exercise.muscles.filter((m) => !m.isPrimary).map((m) => m.muscle.name),
   };

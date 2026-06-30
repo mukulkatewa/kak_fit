@@ -207,6 +207,8 @@ model Exercise {
   imageUrl     String?
   videoUrl     String?
   wgerId       Int?     @unique
+  hevyId       String?  @unique
+  hevyUpdatedAt DateTime?
   isCustom     Boolean  @default(false)
   userId       String?
   categoryId   String?

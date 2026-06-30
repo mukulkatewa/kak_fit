@@ -53,3 +53,4 @@ On Node runtimes, `packages/db` registers `SIGTERM`, `SIGINT`, and `beforeExit` 
 - Workout history uses lightweight selects + Prisma Accelerate cache (`ttl: 60`, `swr: 300`)
 - Composite indexes on high-traffic tables (`userId`, `finishedAt`, etc.) — see `packages/db/prisma/schema.prisma`
 - tRPC session cache uses LRU eviction to avoid unbounded memory growth on the web API
+- Personal records use O(n) single-pass recalculation and O(1) incremental updates on set edits (`packages/api/src/services/personal-records.ts`)

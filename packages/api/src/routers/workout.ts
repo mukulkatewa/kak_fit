@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getPreviousSetsBatch } from "../services/previous-values";
-import { recalculatePersonalRecordsForExercise, syncPersonalRecords } from "../services/personal-records";
+import { recalculatePersonalRecordsForExercise, needsFullPersonalRecordRecalc, syncPersonalRecords, updatePersonalRecordsIncremental } from "../services/personal-records";
 import {
   getWorkoutWithDetails,
   queryWorkoutHistoryPage,
@@ -684,11 +684,20 @@ export const workoutRouter = router({
         },
       });
 
-      await recalculatePersonalRecordsForExercise(
-        ctx.prisma,
-        ctx.user.id,
-        set.workoutExercise.exerciseId,
-      );
+      if (needsFullPersonalRecordRecalc(set, updated)) {
+        await recalculatePersonalRecordsForExercise(
+          ctx.prisma,
+          ctx.user.id,
+          set.workoutExercise.exerciseId,
+        );
+      } else if (updated.isCompleted) {
+        await updatePersonalRecordsIncremental(
+          ctx.prisma,
+          ctx.user.id,
+          set.workoutExercise.exerciseId,
+          updated,
+        );
+      }
 
       return updated;
     }),

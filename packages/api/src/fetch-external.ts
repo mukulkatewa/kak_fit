@@ -10,13 +10,13 @@ type ExternalResponse = {
 
 /**
  * Node's default fetch races IPv6/IPv4 with short timeouts — fails on IPv4-only
- * networks when external APIs (USDA, Wger) resolve to both. Force IPv4 + 30s.
+ * networks when external APIs (USDA, Wger) resolve to both. Force IPv4 + 10s.
  */
 export async function fetchExternal(
   url: string,
   options: { timeoutMs?: number; headers?: Record<string, string> } = {},
 ): Promise<ExternalResponse> {
-  const timeoutMs = options.timeoutMs ?? 30_000;
+  const timeoutMs = options.timeoutMs ?? 10_000;
   const parsed = new URL(url);
   const lib = parsed.protocol === "https:" ? https : http;
 

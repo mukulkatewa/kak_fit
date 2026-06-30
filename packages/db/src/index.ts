@@ -2,8 +2,9 @@ import { PrismaClient as PrismaClientBase } from "@prisma/client";
 import { withAccelerate } from "@prisma/extension-accelerate";
 
 const SLOW_QUERY_THRESHOLD_MS = 1000;
-const DEFAULT_POOL_SIZE = "10";
+const DEFAULT_POOL_SIZE = "5";
 const DEFAULT_POOL_TIMEOUT = "20";
+const DEFAULT_CONNECT_TIMEOUT = "10";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: ReturnType<typeof createAcceleratedPrisma> | undefined;
@@ -37,6 +38,9 @@ export function resolveDatabaseUrl(): string {
   }
   if (!url.searchParams.has("pool_timeout")) {
     url.searchParams.set("pool_timeout", poolTimeout);
+  }
+  if (!url.searchParams.has("connect_timeout")) {
+    url.searchParams.set("connect_timeout", DEFAULT_CONNECT_TIMEOUT);
   }
 
   return url.toString();
@@ -72,7 +76,7 @@ const connectionMonitoringExtension = {
 };
 
 function createAcceleratedPrisma() {
-  return new PrismaClientBase({
+  const client = new PrismaClientBase({
     log:
       process.env.NODE_ENV === "development"
         ? ["query", "error", "warn"]
@@ -82,9 +86,13 @@ function createAcceleratedPrisma() {
         url: resolveDatabaseUrl(),
       },
     },
-  })
-    .$extends(withAccelerate())
-    .$extends(connectionMonitoringExtension);
+  }).$extends(withAccelerate());
+
+  if (process.env.NODE_ENV === "development") {
+    return client.$extends(connectionMonitoringExtension);
+  }
+
+  return client;
 }
 
 function registerGracefulShutdown(client: PrismaClientBase) {

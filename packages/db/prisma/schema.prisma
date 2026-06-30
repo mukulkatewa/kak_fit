@@ -133,6 +133,9 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
 }
 
 model Account {
@@ -219,6 +222,7 @@ model Exercise {
   personalRecords  PersonalRecord[]
 
   @@index([isCustom, userId])
+  @@index([categoryId, isCustom, userId])
   @@index([name])
 }
 
@@ -271,6 +275,7 @@ model Routine {
   exercises RoutineExercise[]
 
   @@index([userId, updatedAt])
+  @@index([userId, folderId, updatedAt])
 }
 
 model RoutineExercise {
@@ -339,6 +344,7 @@ model WorkoutExercise {
   @@unique([workoutId, order])
   @@index([workoutId])
   @@index([exerciseId])
+  @@index([exerciseId, workoutId])
 }
 
 model WorkoutSet {
@@ -357,6 +363,7 @@ model WorkoutSet {
   personalRecords PersonalRecord[]
 
   @@index([workoutExerciseId, isCompleted])
+  @@index([workoutExerciseId, setNumber, isCompleted])
   @@index([isCompleted])
 }
 
@@ -374,6 +381,8 @@ model PersonalRecord {
   workoutSet WorkoutSet? @relation(fields: [workoutSetId], references: [id], onDelete: SetNull)
 
   @@index([userId, exerciseId, type])
+  @@index([exerciseId, type, value])
+  @@index([userId, achievedAt])
 }
 
 model BodyMeasurement {
@@ -467,6 +476,7 @@ model MealLog {
   items MealItem[]
 
   @@index([userId, date])
+  @@index([userId, mealType, date])
 }
 
 model MealItem {

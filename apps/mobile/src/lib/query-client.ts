@@ -24,6 +24,7 @@ export function createQueryClient() {
         // Short window for unstated queries; per-screen options override with longer values.
         staleTime: Math.max(queryDedupStaleTime, defaultQueryClientOptions.queries.staleTime),
         structuralSharing: true,
+        queryKeyHashFn: (queryKey) => JSON.stringify(queryKey),
       },
       mutations: {
         retry: mutationShouldRetry,

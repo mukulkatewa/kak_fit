@@ -25,6 +25,10 @@ import {
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
+import {
+  flattenFinishedWorkouts,
+  useWorkoutHistoryInfinite,
+} from "../../src/lib/workout-history-query";
 import { tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
@@ -80,13 +84,10 @@ export default function WorkoutTabScreen() {
     staleTime: queryStaleTime.routineList,
   });
   const {
-    data: recent,
+    data: historyPages,
     isError: isRecentError,
     refetch: refetchRecent,
-  } = trpc.workout.history.useQuery(
-    { limit: 8 },
-    { staleTime: queryStaleTime.workoutHistory },
-  );
+  } = useWorkoutHistoryInfinite(8);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -181,7 +182,7 @@ export default function WorkoutTabScreen() {
 
   const previewPrograms = filteredPrograms.slice(0, PREVIEW_COUNT);
   const hasFilters = level !== null || goal !== null || equipment !== null;
-  const finishedRecent = (recent?.items ?? []).filter((workout) => workout.finishedAt).slice(0, 3);
+  const finishedRecent = flattenFinishedWorkouts(historyPages?.pages).slice(0, 3);
 
   const clearFilters = () => {
     setLevel(null);
@@ -289,7 +290,12 @@ export default function WorkoutTabScreen() {
           </View>
         ) : finishedRecent.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Workouts</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Recent Workouts</Text>
+              <Pressable hitSlop={8} onPress={() => router.push("/workout/history")}>
+                <Text style={styles.manageLink}>View all</Text>
+              </Pressable>
+            </View>
             <ListGroup>
               {finishedRecent.map((workout, index) => (
                 <ListRow

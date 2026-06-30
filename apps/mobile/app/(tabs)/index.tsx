@@ -4,10 +4,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar, HevyButton, Screen, ThemedDialog, useToast } from "../../src/components/ui";
 import { QueryErrorState } from "../../src/components/query-error-state";
+import { QueryErrorBoundary } from "../../src/components/query-error-boundary";
 import { RoutineExpandableCard } from "../../src/components/routine-expandable-row";
 import { LineChart } from "../../src/components/charts";
 import { SkeletonCards } from "../../src/components/skeleton";
 import { useAuth } from "../../src/lib/auth-context";
+import {
+  flattenFinishedWorkouts,
+  useWorkoutHistoryInfinite,
+  workoutHistoryInfiniteOptions,
+  WORKOUT_HISTORY_PAGE_SIZE,
+} from "../../src/lib/workout-history-query";
 import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
@@ -15,7 +22,7 @@ import { tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
 import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
-export default function DashboardScreen() {
+function DashboardScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -23,7 +30,10 @@ export default function DashboardScreen() {
   const { showToast } = useToast();
 
   useEffect(() => {
-    void utils.workout.history.prefetch({ limit: 20 });
+    void utils.workout.history.prefetchInfinite(
+      { limit: WORKOUT_HISTORY_PAGE_SIZE },
+      workoutHistoryInfiniteOptions,
+    );
     void utils.exercise.list.prefetch({ limit: 50 });
   }, [utils]);
 
@@ -48,14 +58,12 @@ export default function DashboardScreen() {
     refetch: refetchActive,
   } = trpc.workout.active.useQuery(undefined, { staleTime: queryStaleTime.workoutActive });
   const {
-    data: recent,
+    data: historyPages,
     isPending: recentPending,
     isError: recentError,
     refetch: refetchRecent,
-  } = trpc.workout.history.useQuery(
-    { limit: 8 },
-    { staleTime: queryStaleTime.workoutHistory },
-  );
+  } = useWorkoutHistoryInfinite();
+  const finished = flattenFinishedWorkouts(historyPages?.pages);
   const { data: weeklyChart, isPending: weeklyPending } = trpc.progress.weeklyVolume.useQuery(undefined, {
     staleTime: queryStaleTime.weeklyVolume,
   });
@@ -76,7 +84,7 @@ export default function DashboardScreen() {
     return n ?? 0;
   };
   const weeklyLoading = weeklyPending && weeklyChart === undefined;
-  const recentLoading = recentPending && recent === undefined;
+  const recentLoading = recentPending && historyPages === undefined;
   const routinesLoading = routinesPending && routines === undefined;
   const activeLoading = activePending && active === undefined;
 
@@ -147,7 +155,6 @@ export default function DashboardScreen() {
   });
 
   // Weekly progress — all workouts in the last 7 calendar days
-  const finished = (recent?.items ?? []).filter((w) => w.finishedAt);
   const chartData = weeklyChart ?? [];
   const totalVolumeKg = chartData.reduce((sum, d) => sum + d.value, 0);
   const totalVolume = tonnageFromKg(totalVolumeKg, weightUnit);
@@ -261,7 +268,14 @@ export default function DashboardScreen() {
         ) : null}
 
         {/* Recent Activity */}
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Recent Activity</Text>
+          {finished.length > 0 ? (
+            <Pressable hitSlop={8} onPress={() => router.push("/workout/history")}>
+              <Text style={styles.viewAll}>View all</Text>
+            </Pressable>
+          ) : null}
+        </View>
         {recentError ? (
           <QueryErrorState
             message="Couldn't load workouts. Check your connection."
@@ -383,6 +397,22 @@ export default function DashboardScreen() {
         ]}
       />
     </Screen>
+  );
+}
+
+export default function DashboardScreenWithErrorBoundary() {
+  const utils = trpc.useUtils();
+
+  return (
+    <QueryErrorBoundary
+      onRetry={() => {
+        void utils.workout.history.invalidate();
+        void utils.workout.active.invalidate();
+        void utils.auth.stats.invalidate();
+      }}
+    >
+      <DashboardScreen />
+    </QueryErrorBoundary>
   );
 }
 

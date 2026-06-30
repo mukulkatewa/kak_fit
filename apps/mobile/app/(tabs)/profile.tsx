@@ -14,6 +14,10 @@ import {
 } from "../../src/components/ui";
 import { QueryErrorState } from "../../src/components/query-error-state";
 import {
+  flattenFinishedWorkouts,
+  useWorkoutHistoryInfinite,
+} from "../../src/lib/workout-history-query";
+import {
   HevyBanner,
   HevyDashboardGrid,
   HevyIconButton,
@@ -43,14 +47,15 @@ export default function ProfileScreen() {
     { staleTime: queryStaleTime.authStats },
   );
   const {
-    data: workouts,
+    data: historyPages,
     isLoading,
     isError: workoutsError,
     refetch: refetchWorkouts,
-  } = trpc.workout.history.useQuery(
-    { limit: 6 },
-    { staleTime: queryStaleTime.authStats },
-  );
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useWorkoutHistoryInfinite();
+  const workouts = flattenFinishedWorkouts(historyPages?.pages);
   const utils = trpc.useUtils();
 
   useEffect(() => {
@@ -162,23 +167,40 @@ export default function ProfileScreen() {
           />
         ) : isLoading ? (
           <ActivityIndicator color={colors.accent} />
-        ) : (workouts?.items ?? []).length === 0 ? (
+        ) : workouts.length === 0 ? (
           <View style={styles.noDataCard}>
             <Ionicons name="barbell-outline" size={36} color={colors.textDim} />
             <Text style={styles.noDataText}>No workouts</Text>
           </View>
         ) : (
-          <ListGroup>
-            {workouts?.items.map((item, index) => (
-              <ListRow
-                key={item.id}
-                title={item.name ?? "Workout"}
-                subtitle={`${Math.round(tonnageFromKg(item.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)} · ${item.finishedAt ? new Date(item.finishedAt).toLocaleDateString() : ""}`}
-                onPress={() => router.push(`/workout/${item.id}`)}
-                last={index === (workouts?.items.length ?? 0) - 1}
+          <>
+            <ListGroup>
+              {workouts.map((item, index) => (
+                <ListRow
+                  key={item.id}
+                  title={item.name ?? "Workout"}
+                  subtitle={`${Math.round(tonnageFromKg(item.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)} · ${item.finishedAt ? new Date(item.finishedAt).toLocaleDateString() : ""}`}
+                  onPress={() => router.push(`/workout/${item.id}`)}
+                  last={index === workouts.length - 1 && !hasNextPage}
+                />
+              ))}
+            </ListGroup>
+            {hasNextPage ? (
+              <Button
+                label={isFetchingNextPage ? "Loading…" : "Load more workouts"}
+                variant="secondary"
+                fullWidth
+                disabled={isFetchingNextPage}
+                onPress={() => void fetchNextPage()}
               />
-            ))}
-          </ListGroup>
+            ) : null}
+            <Button
+              label="View full history"
+              variant="ghost"
+              fullWidth
+              onPress={() => router.push("/workout/history")}
+            />
+          </>
         )}
 
         <Button label="Sign Out" variant="ghost" fullWidth onPress={handleSignOut} />

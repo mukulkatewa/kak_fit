@@ -33,6 +33,7 @@
     "expo-build-properties": "~1.0.10",
     "expo-clipboard": "^8.0.8",
     "expo-constants": "~18.0.13",
+    "expo-image": "~3.0.11",
     "expo-image-picker": "~17.0.11",
     "expo-linear-gradient": "^15.0.8",
     "expo-linking": "~8.0.12",
@@ -58,7 +59,7 @@
     "@types/react": "~19.1.17",
     "babel-preset-expo": "~54.0.11",
     "eas-cli": "^20.4.0",
-    "typescript": "~5.9.3",
-    "tsx": "^4.19.3"
+    "tsx": "^4.19.3",
+    "typescript": "~5.9.3"
   }
 }

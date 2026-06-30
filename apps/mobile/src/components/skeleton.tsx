@@ -30,6 +30,28 @@ function ShimmerBox({ style }: { style: ViewStyle }) {
   return <Animated.View style={[styles.box, style, { opacity }]} />;
 }
 
+/** Generic shimmer placeholder for avatars, thumbnails, etc. */
+export function Skeleton({
+  width,
+  height,
+  style,
+}: {
+  width: number;
+  height: number;
+  style?: ViewStyle;
+}) {
+  return (
+    <ShimmerBox
+      style={{
+        width,
+        height,
+        borderRadius: radius.sm,
+        ...(StyleSheet.flatten(style) ?? {}),
+      }}
+    />
+  );
+}
+
 /** Simple placeholder card — gray rounded rectangle, no animation. */
 export function SkeletonCards({
   count = 3,

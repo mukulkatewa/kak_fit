@@ -7,13 +7,14 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, ListGroup, ListRow, Screen, ThemedDialog } from "../src/components/ui";
+import { Button, ListGroup, ListRow, Screen, ThemedDialog, useToast } from "../src/components/ui";
 import { HevyStackHeader } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
 import { getApiUrl } from "../src/lib/api-client";
@@ -27,22 +28,22 @@ type ApiKeyRow = {
   createdAt: Date;
 };
 
-type LlmToolsResponse = {
-  claude_system_prompt: string;
-};
+function buildSetupInstructions(apiKey: string | null, apiBase: string): string {
+  const keyValue = apiKey ?? "YOUR_API_KEY";
+  const keyLine = apiKey
+    ? `API Key: ${apiKey}`
+    : "API Key: (use the key you saved when you created this key)";
 
-async function buildSetupMessage(apiKey: string, apiBase: string): Promise<string> {
-  const res = await fetch(`${apiBase}/llm-tools`);
-  if (!res.ok) {
-    throw new Error(`Could not load setup prompt (${res.status})`);
-  }
-  const data = (await res.json()) as LlmToolsResponse;
-  return `${data.claude_system_prompt}
+  return `Kak Fit API Setup
 
-Your Kak Fit API credentials:
-- API key: ${apiKey}
-- Base URL: ${apiBase}
-- Auth header: api-key: ${apiKey}`;
+${keyLine}
+Base URL: ${apiBase}
+
+Example:
+curl -H "api-key: ${keyValue}" \\
+  "${apiBase}/workouts"
+
+Documentation: ${apiBase}/docs`;
 }
 
 function formatKeyDate(date: Date | null | undefined, fallback = "Never") {
@@ -59,6 +60,7 @@ export default function DeveloperApiScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { showToast } = useToast();
   const utils = trpc.useUtils();
   const { data: keys, isLoading } = trpc.developer.listKeys.useQuery();
 
@@ -67,10 +69,9 @@ export default function DeveloperApiScreen() {
   const [selectedKey, setSelectedKey] = useState<ApiKeyRow | null>(null);
   /** Full secrets only available immediately after creation (never stored server-side). */
   const [fullKeyById, setFullKeyById] = useState<Record<string, string>>({});
-  const [pastedFullKey, setPastedFullKey] = useState("");
   const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
-  const [setupLoading, setSetupLoading] = useState(false);
-  const [setupError, setSetupError] = useState<string | null>(null);
+  const [showCopiedBanner, setShowCopiedBanner] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [revokeDialog, setRevokeDialog] = useState<{ visible: boolean; id?: string; name?: string }>({
     visible: false,
   });
@@ -81,21 +82,19 @@ export default function DeveloperApiScreen() {
   const baseUrl = getApiUrl();
   const apiBase = `${baseUrl}/api/v1`;
   const docsUrl = `${apiBase}/docs`;
-  const openApiUrl = `${apiBase}/openapi.json`;
-  const llmToolsUrl = `${apiBase}/llm-tools`;
 
-  const openKeyDetail = (key: ApiKeyRow) => {
+  const openKeyDetail = (key: ApiKeyRow, options?: { showCopiedBanner?: boolean }) => {
     setSelectedKey(key);
-    setPastedFullKey("");
-    setSetupError(null);
+    setShowCopiedBanner(options?.showCopiedBanner ?? false);
+    setDetailsExpanded(false);
     setDetailOpen(true);
   };
 
   const closeKeyDetail = () => {
     setDetailOpen(false);
     setSelectedKey(null);
-    setPastedFullKey("");
-    setSetupError(null);
+    setShowCopiedBanner(false);
+    setDetailsExpanded(false);
   };
 
   const copy = async (value: string, label: string) => {
@@ -106,9 +105,12 @@ export default function DeveloperApiScreen() {
   };
 
   const createKey = trpc.developer.createKey.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setCreateError(null);
       setFullKeyById((prev) => ({ ...prev, [data.id]: data.apiKey }));
+      await Clipboard.setStringAsync(data.apiKey);
+      showToast("API key copied to clipboard!", "success");
+
       const row: ApiKeyRow = {
         id: data.id,
         name: data.name,
@@ -117,7 +119,7 @@ export default function DeveloperApiScreen() {
         createdAt: data.createdAt,
       };
       utils.developer.listKeys.invalidate();
-      openKeyDetail(row);
+      openKeyDetail(row, { showCopiedBanner: true });
     },
     onError: (e) => setCreateError(e.message),
   });
@@ -142,25 +144,13 @@ export default function DeveloperApiScreen() {
     },
   });
 
-  const resolvedFullKey =
-    selectedKey && fullKeyById[selectedKey.id]
-      ? fullKeyById[selectedKey.id]
-      : pastedFullKey.startsWith("kak_")
-        ? pastedFullKey.trim()
-        : null;
+  const fullKey = selectedKey ? fullKeyById[selectedKey.id] : null;
+  const isNewKey = Boolean(fullKey);
 
-  const copySetupMessage = async () => {
-    if (!resolvedFullKey) return;
-    setSetupLoading(true);
-    setSetupError(null);
-    try {
-      const message = await buildSetupMessage(resolvedFullKey, apiBase);
-      await copy(message, "setup");
-    } catch (e) {
-      setSetupError(e instanceof Error ? e.message : "Could not copy setup message.");
-    } finally {
-      setSetupLoading(false);
-    }
+  const copySetupInstructions = async () => {
+    const message = buildSetupInstructions(fullKey, apiBase);
+    await copy(message, "setup");
+    showToast("Setup instructions copied!", "success");
   };
 
   useEffect(() => {
@@ -175,8 +165,7 @@ export default function DeveloperApiScreen() {
         <HevyStackHeader title="Developer API" onBack={() => router.back()} />
 
         <Text style={styles.lead}>
-          Connect Claude, ChatGPT, or Gemini to your workouts. Generate a key, tap it to view details,
-          and copy the setup message for your AI assistant.
+          Generate an API key to connect Claude, ChatGPT, or other tools to your workouts.
         </Text>
 
         <View style={styles.card}>
@@ -188,16 +177,6 @@ export default function DeveloperApiScreen() {
             onCopy={copy}
             textStyle={styles.mono}
           />
-          <View style={styles.linkRow}>
-            <Pressable onPress={() => void Linking.openURL(docsUrl)} style={styles.linkBtn}>
-              <Ionicons name="book-outline" size={18} color={colors.accent} />
-              <Text style={styles.linkBtnText}>Open API docs</Text>
-            </Pressable>
-            <Pressable onPress={() => copy(openApiUrl, "openapi")} style={styles.linkBtn}>
-              <Ionicons name="code-outline" size={18} color={colors.accent} />
-              <Text style={styles.linkBtnText}>Copy OpenAPI URL</Text>
-            </Pressable>
-          </View>
         </View>
 
         <Text style={styles.sectionLabel}>Create API key</Text>
@@ -255,10 +234,9 @@ export default function DeveloperApiScreen() {
           </View>
         )}
 
-        <Text style={styles.footerHint}>
-          Full secrets are shown once when you create a key. Tap any key to view details, copy setup
-          instructions, or revoke access.
-        </Text>
+        <Pressable onPress={() => void Linking.openURL(docsUrl)} style={styles.viewDocsLink}>
+          <Text style={styles.viewDocsText}>View Docs</Text>
+        </Pressable>
       </Screen>
 
       <Modal
@@ -278,102 +256,87 @@ export default function DeveloperApiScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.secretBox}>
-              {fullKeyById[selectedKey.id] ? (
-                <>
-                  <Text style={styles.secretLabel}>Your new API key — copy now</Text>
-                  <Text selectable style={styles.secretFull}>
-                    {fullKeyById[selectedKey.id]}
-                  </Text>
-                  <Text style={styles.secretWarn}>This is the only time the full key is shown.</Text>
-                  <Button
-                    label={copiedLabel === "full-key" ? "Copied!" : "Copy full key"}
-                    onPress={() => void copy(fullKeyById[selectedKey.id]!, "full-key")}
-                    fullWidth
-                  />
-                </>
-              ) : (
-                <>
-                  <Text style={styles.secretLabel}>API key</Text>
-                  <Text style={styles.secretMasked}>{selectedKey.keyPrefix}••••••••••••</Text>
-                  <Text style={styles.secretWarn}>
-                    The full secret was only shown at creation. Paste it below to copy the AI setup message.
-                  </Text>
-                </>
-              )}
-            </View>
+            <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollContent}>
+              {showCopiedBanner && isNewKey ? (
+                <View style={styles.copiedBanner}>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
+                  <Text style={styles.copiedBannerText}>Copied to clipboard</Text>
+                </View>
+              ) : null}
 
-            <View style={styles.metaGrid}>
-              <MetaItem label="Created" value={formatKeyDate(selectedKey.createdAt)} />
-              <MetaItem label="Last used" value={formatKeyDate(selectedKey.lastUsedAt, "Never")} />
-              <MetaItem label="Prefix" value={`${selectedKey.keyPrefix}…`} />
-            </View>
+              <View style={styles.secretBox}>
+                {isNewKey ? (
+                  <>
+                    <Text selectable style={styles.secretFull}>
+                      {fullKey}
+                    </Text>
+                    <Text style={styles.secretHint}>This is shown only once</Text>
+                    <Pressable
+                      style={({ pressed }) => [styles.primaryAction, pressed && styles.primaryActionPressed]}
+                      onPress={() => void copy(fullKey!, "full-key")}
+                    >
+                      <Ionicons name="copy-outline" size={20} color="#fff" />
+                      <Text style={styles.primaryActionText}>
+                        {copiedLabel === "full-key" ? "Copied!" : "Copy API Key"}
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.secretMasked}>{selectedKey.keyPrefix}••••••••</Text>
+                    <Text style={styles.secretHint}>Key hidden — full secret was only shown at creation</Text>
+                  </>
+                )}
+              </View>
 
-            {!fullKeyById[selectedKey.id] ? (
-              <>
-                <Text style={styles.fieldLabel}>Paste full key (optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={pastedFullKey}
-                  onChangeText={setPastedFullKey}
-                  placeholder="kak_…"
-                  placeholderTextColor={colors.textDim}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  secureTextEntry
+              <View style={styles.quickActions}>
+                <Button
+                  label={copiedLabel === "setup" ? "Copied!" : "Copy Setup Instructions"}
+                  onPress={() => void copySetupInstructions()}
+                  variant="secondary"
+                  fullWidth
                 />
-              </>
-            ) : null}
+                <Button
+                  label="View API Docs"
+                  onPress={() => void Linking.openURL(docsUrl)}
+                  variant="secondary"
+                  fullWidth
+                />
+              </View>
 
-            <Button
-              label={setupLoading ? "Loading…" : copiedLabel === "setup" ? "Setup message copied!" : "Copy AI setup message"}
-              onPress={() => void copySetupMessage()}
-              disabled={!resolvedFullKey || setupLoading}
-              fullWidth
-            />
-            {setupError ? <Text style={styles.errorText}>{setupError}</Text> : null}
-
-            <View style={styles.sheetActions}>
               <Pressable
-                style={styles.sheetActionRow}
-                onPress={() => void copy(`${selectedKey.keyPrefix}…`, "prefix")}
+                style={styles.detailsToggle}
+                onPress={() => setDetailsExpanded((v) => !v)}
               >
-                <Ionicons name="copy-outline" size={20} color={colors.text} />
-                <Text style={styles.sheetActionText}>
-                  {copiedLabel === "prefix" ? "Prefix copied" : "Copy key prefix"}
-                </Text>
+                <Text style={styles.detailsToggleText}>Details</Text>
+                <Ionicons
+                  name={detailsExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={colors.textMuted}
+                />
               </Pressable>
-              <Pressable style={styles.sheetActionRow} onPress={() => void copy(apiBase, "base")}>
-                <Ionicons name="link-outline" size={20} color={colors.text} />
-                <Text style={styles.sheetActionText}>
-                  {copiedLabel === "base" ? "Base URL copied" : "Copy base URL"}
-                </Text>
-              </Pressable>
-              <Pressable style={styles.sheetActionRow} onPress={() => void Linking.openURL(docsUrl)}>
-                <Ionicons name="book-outline" size={20} color={colors.text} />
-                <Text style={styles.sheetActionText}>View API documentation</Text>
-              </Pressable>
-              <Pressable
-                style={styles.sheetActionRow}
-                onPress={() => void copy(llmToolsUrl, "llm-tools")}
-              >
-                <Ionicons name="hardware-chip-outline" size={20} color={colors.text} />
-                <Text style={styles.sheetActionText}>Copy LLM tools URL</Text>
-              </Pressable>
-            </View>
+              {detailsExpanded ? (
+                <View style={styles.metaGrid}>
+                  <MetaItem label="Created" value={formatKeyDate(selectedKey.createdAt)} />
+                  <MetaItem label="Last used" value={formatKeyDate(selectedKey.lastUsedAt, "Never")} />
+                  <MetaItem label="Prefix" value={`${selectedKey.keyPrefix}…`} />
+                </View>
+              ) : null}
 
-            <Pressable
-              style={styles.revokeBtn}
-              onPress={() => {
-                setRevokeError(null);
-                setRevokeDialog({ visible: true, id: selectedKey.id, name: selectedKey.name });
-              }}
-            >
-              <Ionicons name="trash-outline" size={18} color={colors.danger} />
-              <Text style={styles.revokeText}>Revoke this key</Text>
-            </Pressable>
+              <Pressable
+                style={styles.revokeBtn}
+                onPress={() => {
+                  setRevokeError(null);
+                  setRevokeDialog({ visible: true, id: selectedKey.id, name: selectedKey.name });
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                <Text style={styles.revokeText}>Revoke This Key</Text>
+              </Pressable>
+            </ScrollView>
           </View>
-        ) : null}
+        )
+        : null}
       </Modal>
 
       <ThemedDialog
@@ -469,9 +432,6 @@ const makeStyles = (colors: Palette) =>
     },
     copiedBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
     copiedText: { fontSize: 12, fontWeight: "600", color: colors.accent },
-    linkRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginTop: spacing.sm },
-    linkBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-    linkBtnText: { fontSize: 14, fontWeight: "600", color: colors.accent },
     sectionLabel: {
       fontSize: 13,
       color: colors.textMuted,
@@ -509,52 +469,78 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: 3,
     },
     newBadgeText: { fontSize: 11, fontWeight: "700", color: colors.accent },
-    footerHint: {
-      color: colors.textDim,
-      fontSize: 13,
-      lineHeight: 18,
-      marginTop: spacing.lg,
+    viewDocsLink: {
+      alignSelf: "center",
+      paddingVertical: spacing.lg,
       marginBottom: spacing.xxl,
     },
+    viewDocsText: { fontSize: 14, fontWeight: "600", color: colors.accent },
     sheet: {
       flex: 1,
       backgroundColor: colors.bg,
       paddingHorizontal: spacing.lg,
-      gap: spacing.md,
     },
+    sheetScroll: { flex: 1 },
+    sheetScrollContent: { gap: spacing.md, paddingBottom: spacing.lg },
     sheetHeader: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: spacing.xs,
+      marginBottom: spacing.md,
     },
     sheetTitle: { fontSize: 22, fontWeight: "800", color: colors.text, flex: 1, marginRight: spacing.md },
+    copiedBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.accentMuted,
+      borderRadius: radius.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
+    copiedBannerText: { fontSize: 14, fontWeight: "600", color: colors.accent },
     secretBox: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
       padding: spacing.lg,
-      gap: spacing.sm,
+      gap: spacing.md,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    secretLabel: { fontSize: 12, fontWeight: "600", color: colors.textMuted, textTransform: "uppercase" },
     secretFull: {
       fontFamily: "monospace",
-      fontSize: 14,
+      fontSize: 17,
       color: colors.text,
-      lineHeight: 22,
-      backgroundColor: colors.bgElevated,
-      padding: spacing.md,
-      borderRadius: radius.md,
+      lineHeight: 26,
     },
     secretMasked: {
       fontFamily: "monospace",
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: "600",
       color: colors.text,
       letterSpacing: 1,
     },
-    secretWarn: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    secretHint: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    primaryAction: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.accent,
+      borderRadius: radius.md,
+      minHeight: 56,
+      paddingHorizontal: spacing.lg,
+    },
+    primaryActionPressed: { opacity: 0.85 },
+    primaryActionText: { fontSize: 17, fontWeight: "700", color: "#fff" },
+    quickActions: { gap: spacing.sm },
+    detailsToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: spacing.sm,
+    },
+    detailsToggleText: { fontSize: 14, fontWeight: "600", color: colors.textMuted },
     metaGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -566,29 +552,13 @@ const makeStyles = (colors: Palette) =>
     metaItem: { minWidth: "28%", flexGrow: 1 },
     metaLabel: { fontSize: 11, fontWeight: "600", color: colors.textDim, textTransform: "uppercase" },
     metaValue: { fontSize: 15, fontWeight: "600", color: colors.text, marginTop: 2 },
-    fieldLabel: { fontSize: 13, fontWeight: "600", color: colors.textMuted, marginBottom: -spacing.xs },
-    sheetActions: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      overflow: "hidden",
-    },
-    sheetActionRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.md,
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.lg,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.separator,
-    },
-    sheetActionText: { fontSize: 15, fontWeight: "600", color: colors.text },
     revokeBtn: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
       gap: spacing.sm,
-      paddingVertical: spacing.md,
-      marginTop: "auto",
+      paddingVertical: spacing.lg,
+      marginTop: spacing.md,
     },
     revokeText: { fontSize: 15, fontWeight: "700", color: colors.danger },
   });

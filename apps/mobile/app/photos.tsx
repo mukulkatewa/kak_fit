@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { HevyStackHeader } from "../src/components/hevy-ui";
@@ -104,7 +105,14 @@ export default function PhotosScreen() {
         <View style={styles.grid}>
           {photos?.map((p) => (
             <Pressable key={p.id} onLongPress={() => confirmDelete(p.id)} style={styles.card}>
-              <Image source={{ uri: p.url }} style={styles.img} />
+              <Image
+                source={{ uri: p.url }}
+                style={styles.img}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={150}
+                recyclingKey={p.id}
+              />
               <Text style={styles.date}>
                 {new Date(p.takenAt).toLocaleDateString(undefined, {
                   month: "short",

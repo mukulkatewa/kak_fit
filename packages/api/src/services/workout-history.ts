@@ -53,7 +53,7 @@ type WorkoutRow = {
   _count: { exercises: number };
 };
 
-/** Uses @@index([userId, finishedAt]) for user-scoped history ordered by finishedAt DESC. */
+/** Uses @@index([userId, finishedAt(sort: Desc)]) for user-scoped history ordered by finishedAt DESC. */
 export async function queryWorkoutHistoryPage(
   prisma: PrismaClient,
   userId: string,

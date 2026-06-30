@@ -1,9 +1,11 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
+import { QueryErrorBoundary } from "../../src/components/query-error-boundary";
 import { EmptyState, ThemedDialog, useToast } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
@@ -28,7 +30,7 @@ function formatDuration(startedAt: string | Date, finishedAt: string | Date | nu
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
-export default function WorkoutDetailScreen() {
+function WorkoutDetailScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -309,7 +311,14 @@ export default function WorkoutDetailScreen() {
                   key={p.id}
                   onLongPress={() => setDeletePhotoDialog({ visible: true, photoId: p.id })}
                 >
-                  <Image source={{ uri: p.url }} style={styles.photoThumb} />
+                  <Image
+                    source={{ uri: p.url }}
+                    style={styles.photoThumb}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    transition={150}
+                    recyclingKey={p.id}
+                  />
                 </Pressable>
               ))}
             </ScrollView>
@@ -355,6 +364,23 @@ export default function WorkoutDetailScreen() {
       ]}
     />
     </>
+  );
+}
+
+export default function WorkoutDetailScreenWithErrorBoundary() {
+  const utils = trpc.useUtils();
+  const { id } = useLocalSearchParams<{ id: string }>();
+
+  return (
+    <QueryErrorBoundary
+      onRetry={() => {
+        if (id) {
+          void utils.workout.getById.invalidate({ id });
+        }
+      }}
+    >
+      <WorkoutDetailScreen />
+    </QueryErrorBoundary>
   );
 }
 

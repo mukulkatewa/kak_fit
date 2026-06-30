@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
 import { Button, EmptyState, Screen } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
@@ -68,7 +69,14 @@ export default function PhotoCompareScreen() {
               const slot = p.id === leftId ? "left" : p.id === rightId ? "right" : null;
               return (
                 <Pressable key={p.id} onPress={() => pick(p.id)} style={[styles.thumb, slot && styles.thumbActive]}>
-                  <Image source={{ uri: p.url }} style={styles.thumbImg} />
+                  <Image
+                    source={{ uri: p.url }}
+                    style={styles.thumbImg}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    transition={150}
+                    recyclingKey={p.id}
+                  />
                   <Text style={styles.thumbDate}>
                     {new Date(p.takenAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                   </Text>
@@ -108,7 +116,14 @@ function ComparePane({
       <Text style={styles.paneLabel}>{label}</Text>
       {photo ? (
         <>
-          <Image source={{ uri: photo.url }} style={styles.paneImg} resizeMode="cover" />
+          <Image
+            source={{ uri: photo.url }}
+            style={styles.paneImg}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={150}
+            recyclingKey={photo.url}
+          />
           <Text style={styles.paneDate}>
             {new Date(photo.takenAt).toLocaleDateString(undefined, {
               month: "short",

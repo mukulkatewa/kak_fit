@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RectButton, Swipeable } from "react-native-gesture-handler";
 import { ExerciseAvatar } from "../../src/components/exercise-avatar";
@@ -23,6 +24,7 @@ import {
   type ActiveWorkout,
 } from "../../src/lib/active-workout-cache";
 import { ReorderableExerciseList } from "../../src/components/reorderable-exercises";
+import { QueryErrorBoundary } from "../../src/components/query-error-boundary";
 import {
   Button,
   Card,
@@ -48,6 +50,10 @@ import {
 } from "../../src/lib/offline-workouts";
 import { formatElapsedDuration } from "../../src/lib/format-duration";
 import { useWorkoutSetMutationQueue } from "../../src/lib/workout-mutation-queue";
+import {
+  WORKOUT_HISTORY_PAGE_SIZE,
+  workoutHistoryInfiniteOptions,
+} from "../../src/lib/workout-history-query";
 import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
 
 const SET_TYPES = ["NORMAL", "WARMUP", "DROP", "FAILURE"] as const;
@@ -84,7 +90,8 @@ function exercisesToSuperLinks(exercises: ActiveWorkout["exercises"]): boolean[]
   );
 }
 
-export default function ActiveWorkoutScreen() {
+function ActiveWorkoutScreen() {
+  const mounted = useRef(true);
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const { weightUnit, defaultRestSeconds } = useUserPreferences();
@@ -126,16 +133,43 @@ export default function ActiveWorkoutScreen() {
     setSearch("");
   };
 
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const exerciseIds = useMemo(
     () => workout?.exercises.map((e) => e.exercise.id) ?? [],
     [workout?.exercises],
   );
 
+  useEffect(() => {
+    void utils.workout.history.prefetchInfinite(
+      { limit: WORKOUT_HISTORY_PAGE_SIZE },
+      workoutHistoryInfiniteOptions,
+    );
+    void utils.personalRecord.list.prefetch(undefined, {
+      staleTime: queryStaleTime.progress,
+    });
+  }, [utils]);
+
+  useEffect(() => {
+    if (!workout?.exercises.length) return;
+    const urls = workout.exercises
+      .map((e) => e.exercise.imageUrl)
+      .filter((url): url is string => Boolean(url));
+    if (urls.length > 0) {
+      void Image.prefetch(urls, "memory-disk");
+    }
+  }, [workout?.exercises]);
+
   const exercisesInWorkout = useMemo(() => new Set(exerciseIds), [exerciseIds]);
 
   const { data: previousMap } = trpc.workout.previousSets.useQuery(
     { exerciseIds },
-    { enabled: exerciseIds.length > 0, staleTime: 60 * 1000 },
+    { enabled: exerciseIds.length > 0, staleTime: queryStaleTime.previousPerformance },
   );
 
   const { data: exercises } = trpc.exercise.list.useQuery(
@@ -146,35 +180,72 @@ export default function ActiveWorkoutScreen() {
   const { secondsLeft, isRunning, start, tick, stop, setDefault, addSeconds } = useRestTimer();
 
   useEffect(() => {
-    if (!isRunning) return;
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
+    if (!isRunning) {
+      return undefined;
+    }
+
+    const id = setInterval(() => {
+      if (mounted.current) {
+        tick();
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(id);
+    };
   }, [isRunning, tick]);
 
   useEffect(() => {
-    let mounted = true;
+    let syncMounted = true;
+    let syncTimer: ReturnType<typeof setTimeout> | null = null;
+
     async function syncOffline() {
-      const before = await getQueuedWorkoutMutationCount();
-      if (mounted) setPendingOffline(before);
-      const result = await syncQueuedWorkoutMutations({
-        invalidateActiveWorkout: () => utils.workout.active.invalidate(),
-      });
-      if (!mounted) return;
-      setPendingOffline(result.remaining);
-      if (result.synced > 0) {
-        refetch();
-        utils.workout.history.invalidate();
-        utils.personalRecord.list.invalidate();
-      }
-      if (result.syncFailed) {
-        showToast("Some workout changes couldn't be saved to the server.", "error");
+      if (!syncMounted) return;
+
+      try {
+        const before = await getQueuedWorkoutMutationCount();
+        if (!syncMounted) return;
+
+        if (mounted.current) {
+          setPendingOffline(before);
+        }
+
+        const result = await syncQueuedWorkoutMutations({
+          invalidateActiveWorkout: () => utils.workout.active.invalidate(),
+        });
+
+        if (!syncMounted) return;
+
+        if (mounted.current) {
+          setPendingOffline(result.remaining);
+        }
+
+        if (result.synced > 0) {
+          refetch();
+          utils.workout.history.invalidate();
+          utils.personalRecord.list.invalidate();
+        }
+        if (result.syncFailed) {
+          showToast("Some workout changes couldn't be saved to the server.", "error");
+        }
+
+        if (result.remaining > 0 && syncMounted) {
+          syncTimer = setTimeout(() => {
+            void syncOffline();
+          }, 5000);
+        }
+      } catch {
+        // Ignore sync errors — will retry on next interval or remount
       }
     }
-    syncOffline().catch(() => undefined);
+
+    void syncOffline();
+
     return () => {
-      mounted = false;
+      syncMounted = false;
+      if (syncTimer) clearTimeout(syncTimer);
     };
-  }, [refetch, utils]);
+  }, [refetch, utils, showToast]);
 
   const patchActiveWorkout = useCallback(
     (updater: (workout: ActiveWorkout) => ActiveWorkout) => {
@@ -349,24 +420,35 @@ export default function ActiveWorkoutScreen() {
   }, [workout]);
 
   useEffect(() => {
-    if (!workout) return;
+    if (!workout) {
+      if (mounted.current) {
+        setElapsedSeconds(0);
+      }
+      return;
+    }
 
-    const startedAt = workout.startedAt;
-    setElapsedSeconds(Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)));
+    const startedAt = new Date(workout.startedAt).getTime();
 
-    const id = setInterval(() => {
-      const fresh = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
-      setElapsedSeconds(Math.max(0, fresh));
-    }, 1000);
+    const updateElapsed = () => {
+      if (!mounted.current) return;
+      const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+      setElapsedSeconds(elapsed);
+    };
 
-    return () => clearInterval(id);
-  }, [workout?.id, workout?.startedAt?.getTime()]);
+    updateElapsed();
+    const id = setInterval(updateElapsed, 1000);
+
+    return () => {
+      clearInterval(id);
+    };
+  }, [workout?.id, workout?.startedAt]);
 
   useEffect(() => {
     if (!workout) return;
+    if (!mounted.current) return;
     setFinishName(workout.name ?? "Workout");
     setFinishNotes(workout.notes ?? "");
-  }, [workout?.id]);
+  }, [workout?.id, workout?.name, workout?.notes]);
 
   const openRestTimerSettings = () => {
     setRestSettingsOpen(true);
@@ -890,6 +972,16 @@ export default function ActiveWorkoutScreen() {
       ]}
     />
     </>
+  );
+}
+
+export default function ActiveWorkoutScreenWithErrorBoundary() {
+  const utils = trpc.useUtils();
+
+  return (
+    <QueryErrorBoundary onRetry={() => void utils.workout.active.invalidate()}>
+      <ActiveWorkoutScreen />
+    </QueryErrorBoundary>
   );
 }
 

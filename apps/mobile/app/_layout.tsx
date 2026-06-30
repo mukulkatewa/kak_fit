@@ -11,6 +11,7 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
+import { QueryErrorBoundary } from "../src/components/query-error-boundary";
 import { StartupErrorBoundary } from "../src/components/startup-error-boundary";
 import { DevApiBanner } from "../src/components/dev-api-banner";
 import { TrpcPrefetchBootstrap } from "../src/components/trpc-prefetch-bootstrap";
@@ -68,6 +69,37 @@ function AuthLoadingOverlay() {
   );
 }
 
+function AppStack() {
+  const utils = trpc.useUtils();
+  const { colors } = useTheme();
+
+  return (
+    <QueryErrorBoundary onRetry={() => void utils.invalidate()}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="login-callback" options={{ animation: "fade" }} />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="workout" />
+        <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
+        <Stack.Screen name="exercise/create" options={{ presentation: "modal" }} />
+        <Stack.Screen name="exercise/[id]" />
+        <Stack.Screen name="measurements" />
+        <Stack.Screen name="settings" options={{ presentation: "modal" }} />
+        <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
+        <Stack.Screen name="nutrition-foods" options={{ presentation: "modal" }} />
+        <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
+        <Stack.Screen name="photos" />
+        <Stack.Screen name="photos/compare" />
+        <Stack.Screen name="calendar" />
+        <Stack.Screen name="tools" options={{ presentation: "modal" }} />
+        <Stack.Screen name="developer-api" options={{ presentation: "modal" }} />
+        <Stack.Screen name="routine/share/[token]" />
+      </Stack>
+    </QueryErrorBoundary>
+  );
+}
+
 function ThemedApp() {
   const { colors, isDark } = useTheme();
   const base = isDark ? NavDarkTheme : NavDefaultTheme;
@@ -88,27 +120,7 @@ function ThemedApp() {
       <StatusBar style={isDark ? "light" : "dark"} />
       <View style={styles.root}>
         <ToastProvider>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="login-callback" options={{ animation: "fade" }} />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="workout" />
-          <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
-          <Stack.Screen name="exercise/create" options={{ presentation: "modal" }} />
-          <Stack.Screen name="exercise/[id]" />
-          <Stack.Screen name="measurements" />
-          <Stack.Screen name="settings" options={{ presentation: "modal" }} />
-          <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
-          <Stack.Screen name="nutrition-foods" options={{ presentation: "modal" }} />
-          <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
-          <Stack.Screen name="photos" />
-          <Stack.Screen name="photos/compare" />
-          <Stack.Screen name="calendar" />
-          <Stack.Screen name="tools" options={{ presentation: "modal" }} />
-          <Stack.Screen name="developer-api" options={{ presentation: "modal" }} />
-          <Stack.Screen name="routine/share/[token]" />
-        </Stack>
+        <AppStack />
         <AuthRedirect />
         <AuthLoadingOverlay />
         <DevApiBanner />

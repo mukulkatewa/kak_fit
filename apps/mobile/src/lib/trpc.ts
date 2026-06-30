@@ -7,25 +7,26 @@ import { authHeaders, trpcFetch } from "./trpc-fetch";
 
 export const trpc = createTRPCReact<AppRouter>();
 
-/** Minimum stale window — React Query also dedupes in-flight identical queries. */
-export const queryDedupStaleTime = 1000;
+/** Minimum stale window — React Query dedupes in-flight identical queries. */
+export const queryDedupStaleTime = 5000;
 
 export const queryStaleTime = {
   default: 30 * 1000,
   authMe: 5 * 60 * 1000,
   authStats: 5 * 60 * 1000,
   /** Active workout — fresh enough for live UI without constant refetch. */
-  workoutActive: 5 * 1000,
+  workoutActive: 10 * 1000,
   weeklyVolume: 5 * 60 * 1000,
-  workoutHistory: 60 * 1000,
-  routineList: 60 * 1000,
-  progress: 2 * 60 * 1000,
+  workoutHistory: 2 * 60 * 1000,
+  routineList: 2 * 60 * 1000,
+  progress: 3 * 60 * 1000,
   progressStreak: 5 * 60 * 1000,
   exerciseDetail: 10 * 60 * 1000,
-  previousPerformance: 60 * 1000,
+  previousPerformance: 2 * 60 * 1000,
   nutritionDaily: 30 * 1000,
   nutritionMeals: 30 * 1000,
   nutritionTargets: 10 * 60 * 1000,
+  authToken: 60 * 1000,
 } as const;
 
 /** Default React Query options — used by query-client.ts (30s baseline for unstated queries). */
@@ -36,6 +37,9 @@ export const defaultQueryClientOptions = {
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     structuralSharing: true,
+    networkMode: "online" as const,
+    gcTime: 5 * 60 * 1000,
+    refetchOnMount: true, // refetch on mount only when data is stale (TanStack Query v5 default)
   },
 } as const;
 

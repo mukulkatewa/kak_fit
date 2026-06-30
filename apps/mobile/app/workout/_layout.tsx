@@ -6,6 +6,7 @@ export default function WorkoutLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="active" options={{ presentation: "fullScreenModal" }} />
+      <Stack.Screen name="history" />
       <Stack.Screen name="my-routines" />
       <Stack.Screen name="programs" />
       <Stack.Screen name="program/[id]" />

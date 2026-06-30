@@ -145,6 +145,8 @@ function ActiveWorkoutScreen() {
     [workout?.exercises],
   );
 
+  const previousMap = workout?.previousSets;
+
   useEffect(() => {
     void utils.workout.history.prefetchInfinite(
       { limit: WORKOUT_HISTORY_PAGE_SIZE },
@@ -166,11 +168,6 @@ function ActiveWorkoutScreen() {
   }, [workout?.exercises]);
 
   const exercisesInWorkout = useMemo(() => new Set(exerciseIds), [exerciseIds]);
-
-  const { data: previousMap } = trpc.workout.previousSets.useQuery(
-    { exerciseIds },
-    { enabled: exerciseIds.length > 0, staleTime: queryStaleTime.previousPerformance },
-  );
 
   const { data: exercises } = trpc.exercise.list.useQuery(
     { search: search || undefined, limit: 30 },
@@ -287,9 +284,11 @@ function ActiveWorkoutScreen() {
   });
   const deleteExercise = trpc.workout.deleteExercise.useMutation({
     onSuccess: (updatedWorkout) => {
-      patchActiveWorkout(() => updatedWorkout);
+      patchActiveWorkout((workout) => ({
+        ...updatedWorkout,
+        previousSets: workout.previousSets ?? {},
+      }));
       setDeleteExerciseDialog({ visible: false });
-      utils.workout.previousSets.invalidate();
     },
     onError: (e) => showToast(e.message, "error"),
   });
@@ -309,7 +308,9 @@ function ActiveWorkoutScreen() {
 
   const reorderExercises = trpc.workout.reorderExercises.useMutation({
     onSuccess: (updatedWorkout) => {
-      utils.workout.active.setData(undefined, updatedWorkout);
+      utils.workout.active.setData(undefined, (current) =>
+        current ? { ...updatedWorkout, previousSets: current.previousSets ?? {} } : null,
+      );
     },
     onError: (e) => showToast(e.message, "error"),
   });
@@ -332,9 +333,20 @@ function ActiveWorkoutScreen() {
   };
 
   const addExercise = trpc.workout.addExercise.useMutation({
-    onSuccess: (newExercise, variables) => {
+    onSuccess: async (newExercise, variables) => {
       patchActiveWorkout((workout) => addExerciseToWorkout(workout, newExercise));
-      utils.workout.previousSets.invalidate();
+
+      const fetched = await utils.workout.previousSets.fetch({
+        exerciseIds: [variables.exerciseId],
+      });
+      utils.workout.active.setData(undefined, (current) =>
+        current
+          ? {
+              ...current,
+              previousSets: { ...(current.previousSets ?? {}), ...fetched },
+            }
+          : current,
+      );
 
       const exerciseName =
         exercises?.find((e) => e.id === variables.exerciseId)?.name ?? "Exercise";

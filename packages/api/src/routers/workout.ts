@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import type { PrismaClient } from "@kak-fit/db";
 import { getPreviousSetsBatch } from "../services/previous-values";
 import { recalculatePersonalRecordsForExercise, needsFullPersonalRecordRecalc, syncPersonalRecords, updatePersonalRecordsIncremental } from "../services/personal-records";
 import {
@@ -9,6 +10,21 @@ import {
 } from "../services/workout-history";
 import { logWorkoutDeletion } from "../public-api/handlers";
 import { protectedProcedure, router } from "../trpc";
+
+type WorkoutWithDetails = NonNullable<
+  Awaited<ReturnType<PrismaClient["workout"]["findFirst"]>>
+>;
+
+async function withPreviousSets<T extends WorkoutWithDetails>(
+  prisma: PrismaClient,
+  userId: string,
+  workout: T,
+  exerciseIds: string[],
+) {
+  const previousSets =
+    exerciseIds.length > 0 ? await getPreviousSetsBatch(prisma, userId, exerciseIds) : {};
+  return { ...workout, previousSets };
+}
 
 const workoutHistoryInput = z
   .object({
@@ -37,11 +53,16 @@ const workoutExerciseInput = z.object({
 
 export const workoutRouter = router({
   active: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.prisma.workout.findFirst({
+    const workout = await ctx.prisma.workout.findFirst({
       where: { userId: ctx.user.id, finishedAt: null },
       include: workoutDetailInclude,
       orderBy: { startedAt: "desc" },
     });
+
+    if (!workout) return null;
+
+    const exerciseIds = workout.exercises.map((ex) => ex.exerciseId);
+    return withPreviousSets(ctx.prisma, ctx.user.id, workout, exerciseIds);
   }),
 
   previousSets: protectedProcedure
@@ -74,18 +95,6 @@ export const workoutRouter = router({
       return workout;
     }),
 
-  getWorkoutWithDetails: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ ctx, input }) => {
-      const workout = await getWorkoutWithDetails(ctx.prisma, ctx.user.id, input.id);
-
-      if (!workout) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
-      }
-
-      return workout;
-    }),
-
   startEmpty: protectedProcedure
     .input(z.object({ name: z.string().optional() }).optional())
     .mutation(async ({ ctx, input }) => {
@@ -100,13 +109,18 @@ export const workoutRouter = router({
         });
       }
 
-      return ctx.prisma.workout.create({
-        data: {
-          userId: ctx.user.id,
-          name: input?.name ?? "Workout",
-        },
-        include: workoutDetailInclude,
-      });
+      return withPreviousSets(
+        ctx.prisma,
+        ctx.user.id,
+        await ctx.prisma.workout.create({
+          data: {
+            userId: ctx.user.id,
+            name: input?.name ?? "Workout",
+          },
+          include: workoutDetailInclude,
+        }),
+        [],
+      );
     }),
 
   startFromRoutine: protectedProcedure
@@ -134,32 +148,39 @@ export const workoutRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });
       }
 
-      return ctx.prisma.workout.create({
-        data: {
-          userId: ctx.user.id,
-          name: routine.name,
-          exercises: {
-            create: routine.exercises.map((ex) => ({
-              exerciseId: ex.exerciseId,
-              order: ex.order,
-              notes: ex.notes,
-              restSeconds: ex.restSeconds ?? undefined,
-              supersetGroup: ex.supersetGroup ?? null,
-              sets: {
-                create: ex.sets.map((set) => ({
-                  setNumber: set.setNumber,
-                  weight: set.targetWeight,
-                  reps: set.targetReps,
-                  duration: set.targetDuration,
-                  setType: set.setType,
-                  isCompleted: false,
-                })),
-              },
-            })),
+      const exerciseIds = routine.exercises.map((ex) => ex.exerciseId);
+
+      return withPreviousSets(
+        ctx.prisma,
+        ctx.user.id,
+        await ctx.prisma.workout.create({
+          data: {
+            userId: ctx.user.id,
+            name: routine.name,
+            exercises: {
+              create: routine.exercises.map((ex) => ({
+                exerciseId: ex.exerciseId,
+                order: ex.order,
+                notes: ex.notes,
+                restSeconds: ex.restSeconds ?? undefined,
+                supersetGroup: ex.supersetGroup ?? null,
+                sets: {
+                  create: ex.sets.map((set) => ({
+                    setNumber: set.setNumber,
+                    weight: set.targetWeight,
+                    reps: set.targetReps,
+                    duration: set.targetDuration,
+                    setType: set.setType,
+                    isCompleted: false,
+                  })),
+                },
+              })),
+            },
           },
-        },
-        include: workoutDetailInclude,
-      });
+          include: workoutDetailInclude,
+        }),
+        exerciseIds,
+      );
     }),
 
   addExercise: protectedProcedure
@@ -299,18 +320,22 @@ export const workoutRouter = router({
       }
 
       await ctx.prisma.$transaction(async (tx) => {
-        for (let i = 0; i < input.workoutExerciseIds.length; i++) {
-          await tx.workoutExercise.update({
-            where: { id: input.workoutExerciseIds[i] },
-            data: { order: 10_000 + i },
-          });
-        }
-        for (let i = 0; i < input.workoutExerciseIds.length; i++) {
-          await tx.workoutExercise.update({
-            where: { id: input.workoutExerciseIds[i] },
-            data: { order: i },
-          });
-        }
+        await Promise.all(
+          input.workoutExerciseIds.map((id, i) =>
+            tx.workoutExercise.update({
+              where: { id },
+              data: { order: 10_000 + i },
+            }),
+          ),
+        );
+        await Promise.all(
+          input.workoutExerciseIds.map((id, i) =>
+            tx.workoutExercise.update({
+              where: { id },
+              data: { order: i },
+            }),
+          ),
+        );
       });
 
       return ctx.prisma.workout.findFirstOrThrow({
@@ -419,34 +444,42 @@ export const workoutRouter = router({
         });
       }
 
+      const completedSets = workout.exercises.reduce(
+        (sum, exercise) => sum + exercise.sets.length,
+        0,
+      );
+      const totalVolume = workout.exercises.reduce(
+        (sum, exercise) =>
+          sum + exercise.sets.reduce((setSum, set) => setSum + (set.weight ?? 0) * (set.reps ?? 0), 0),
+        0,
+      );
+
       const finished = await ctx.prisma.workout.update({
         where: { id: workout.id },
         data: {
           finishedAt: new Date(),
           name: input.name ?? workout.name,
           notes: input.notes,
+          completedSetCount: completedSets,
+          totalVolume,
         },
         include: workoutDetailInclude,
       });
 
-      const newRecords = [];
+      const newRecords = (
+        await Promise.all(
+          workout.exercises.map(async (exercise) => {
+            const records = await syncPersonalRecords(
+              ctx.prisma,
+              ctx.user.id,
+              exercise.exerciseId,
+              exercise.sets,
+            );
+            return records.map((r) => ({ ...r, exerciseId: exercise.exerciseId }));
+          }),
+        )
+      ).flat();
 
-      for (const exercise of workout.exercises) {
-        const records = await syncPersonalRecords(
-          ctx.prisma,
-          ctx.user.id,
-          exercise.exerciseId,
-          exercise.sets,
-        );
-        newRecords.push(...records.map((r) => ({ ...r, exerciseId: exercise.exerciseId })));
-      }
-
-      const completedSets = workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
-      const totalVolume = workout.exercises.reduce(
-        (sum, exercise) =>
-          sum + exercise.sets.reduce((setSum, set) => setSum + (set.weight ?? 0) * (set.reps ?? 0), 0),
-        0,
-      );
       const durationMinutes = Math.max(
         1,
         Math.round((finished.finishedAt!.getTime() - workout.startedAt.getTime()) / 60000),
@@ -559,32 +592,39 @@ export const workoutRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
       }
 
-      return ctx.prisma.workout.create({
-        data: {
-          userId: ctx.user.id,
-          name: input.name ?? source.name ?? "Workout",
-          exercises: {
-            create: source.exercises.map((ex) => ({
-              exerciseId: ex.exerciseId,
-              order: ex.order,
-              notes: ex.notes,
-              supersetGroup: ex.supersetGroup ?? null,
-              sets: {
-                create: ex.sets.map((set) => ({
-                  setNumber: set.setNumber,
-                  weight: set.weight,
-                  reps: set.reps,
-                  duration: set.duration,
-                  setType: set.setType,
-                  notes: set.notes,
-                  isCompleted: false,
-                })),
-              },
-            })),
+      const exerciseIds = source.exercises.map((ex) => ex.exerciseId);
+
+      return withPreviousSets(
+        ctx.prisma,
+        ctx.user.id,
+        await ctx.prisma.workout.create({
+          data: {
+            userId: ctx.user.id,
+            name: input.name ?? source.name ?? "Workout",
+            exercises: {
+              create: source.exercises.map((ex) => ({
+                exerciseId: ex.exerciseId,
+                order: ex.order,
+                notes: ex.notes,
+                supersetGroup: ex.supersetGroup ?? null,
+                sets: {
+                  create: ex.sets.map((set) => ({
+                    setNumber: set.setNumber,
+                    weight: set.weight,
+                    reps: set.reps,
+                    duration: set.duration,
+                    setType: set.setType,
+                    notes: set.notes,
+                    isCompleted: false,
+                  })),
+                },
+              })),
+            },
           },
-        },
-        include: workoutDetailInclude,
-      });
+          include: workoutDetailInclude,
+        }),
+        exerciseIds,
+      );
     }),
 
   /** Save a finished workout as a reusable routine template. */

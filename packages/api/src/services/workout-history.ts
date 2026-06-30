@@ -16,6 +16,8 @@ const workoutSummarySelect = {
   startedAt: true,
   finishedAt: true,
   notes: true,
+  completedSetCount: true,
+  totalVolume: true,
   _count: {
     select: {
       exercises: true,
@@ -50,6 +52,8 @@ type WorkoutRow = {
   startedAt: Date;
   finishedAt: Date | null;
   notes: string | null;
+  completedSetCount: number | null;
+  totalVolume: number | null;
   _count: { exercises: number };
 };
 
@@ -77,9 +81,20 @@ export async function queryWorkoutHistoryPage(
   const hasMore = rows.length > limit;
   const pageRows = (hasMore ? rows.slice(0, limit) : rows) as unknown as WorkoutRow[];
   const workoutIds = pageRows.map((row) => row.id);
-  const stats = await batchWorkoutSetStats(prisma, workoutIds);
 
-  const items = pageRows.map((row) => toWorkoutSummary(row, stats.get(row.id)));
+  const legacyIds = pageRows
+    .filter((row) => row.completedSetCount == null || row.totalVolume == null)
+    .map((row) => row.id);
+  const batchStats =
+    legacyIds.length > 0 ? await batchWorkoutSetStats(prisma, legacyIds) : new Map();
+
+  const items = pageRows.map((row) => {
+    const hasDenormStats = row.completedSetCount != null && row.totalVolume != null;
+    const stat = hasDenormStats
+      ? { setCount: row.completedSetCount!, volume: row.totalVolume! }
+      : batchStats.get(row.id);
+    return toWorkoutSummary(row, stat);
+  });
 
   if (input?.includeDetails && workoutIds.length > 0) {
     await attachWorkoutDetails(prisma, items, workoutIds);

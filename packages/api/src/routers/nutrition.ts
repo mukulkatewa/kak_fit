@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { fetchExternal } from "../fetch-external";
+import { startOfUserDay } from "../lib/timezone";
 import { protectedProcedure, router } from "../trpc";
 
 const USDA_BASE = "https://api.nal.usda.gov/fdc/v1";
@@ -99,6 +100,152 @@ export type FoodSearchResult = {
   source: "local" | "usda";
 };
 
+const timezoneOffsetInput = z.object({
+  timezoneOffsetMinutes: z.number().int().optional(),
+});
+
+const searchFoodsInput = z.object({ query: z.string().min(2).max(100) });
+
+const searchFoodsUsdaInput = z.object({
+  query: z.string().min(2).max(100),
+  excludeNames: z.array(z.string()).optional(),
+});
+
+const USDA_SEARCH_TIMEOUT_MS = 3000;
+
+async function queryLocalFoods(
+  ctx: { prisma: import("@kak-fit/db").PrismaClient; user: { id: string } },
+  query: string,
+): Promise<FoodSearchResult[]> {
+  const local = await ctx.prisma.food.findMany({
+    where: {
+      name: { contains: query, mode: "insensitive" },
+      OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
+    },
+    take: 8,
+    orderBy: { name: "asc" },
+  });
+
+  return local.map(toLocalResult);
+}
+
+async function queryUsdaFoods(
+  query: string,
+  apiKey: string,
+  options?: { excludeNames?: Set<string>; limit?: number },
+): Promise<FoodSearchResult[]> {
+  const seen = new Set(options?.excludeNames ?? []);
+  const limit = options?.limit ?? 20;
+
+  const usdaFoods = await searchUsda(query, apiKey);
+  const results: FoodSearchResult[] = [];
+  const pendingDetail: UsdaFood[] = [];
+
+  for (const food of usdaFoods) {
+    if (results.length + pendingDetail.length >= limit) break;
+    const key = food.description.toLowerCase();
+    if (seen.has(key)) continue;
+
+    const nutrients = extractNutrients(food);
+    if (nutrients.calories === 0 && nutrients.protein === 0) {
+      pendingDetail.push(food);
+    } else {
+      results.push(toUsdaResult(food, nutrients));
+    }
+    seen.add(key);
+  }
+
+  if (pendingDetail.length > 0) {
+    const detailNutrients = await fetchUsdaDetailsInParallel(pendingDetail, apiKey, 3);
+    for (const food of pendingDetail) {
+      if (results.length >= limit) break;
+      const nutrients = detailNutrients.get(food.fdcId) ?? extractNutrients(food);
+      results.push(toUsdaResult(food, nutrients));
+    }
+  }
+
+  return results;
+}
+
+async function searchFoodsMerged(
+  ctx: { prisma: import("@kak-fit/db").PrismaClient; user: { id: string } },
+  query: string,
+): Promise<FoodSearchResult[]> {
+  const localResults = await queryLocalFoods(ctx, query);
+  const apiKey = getApiKey();
+
+  if (!apiKey) {
+    if (localResults.length === 0) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "USDA_API_KEY is missing on the server. Add it to .env and restart the API.",
+      });
+    }
+    return localResults;
+  }
+
+  const seen = new Set(localResults.map((r) => r.name.toLowerCase()));
+  const remaining = Math.max(0, 20 - localResults.length);
+
+  try {
+    const usdaResults = await Promise.race([
+      queryUsdaFoods(query, apiKey, { excludeNames: seen, limit: remaining }),
+      new Promise<FoodSearchResult[]>((_, reject) => {
+        setTimeout(() => reject(new Error("USDA timeout")), USDA_SEARCH_TIMEOUT_MS);
+      }),
+    ]);
+    return [...localResults, ...usdaResults].slice(0, 20);
+  } catch (err) {
+    if (localResults.length > 0) return localResults;
+    const msg = err instanceof Error ? err.message : "USDA search failed";
+    throw new TRPCError({
+      code: "BAD_GATEWAY",
+      message: `Could not reach USDA API. ${msg}`,
+    });
+  }
+}
+
+async function fetchUsdaDetailsInParallel(
+  foods: UsdaFood[],
+  apiKey: string,
+  concurrency = 3,
+): Promise<Map<number, ReturnType<typeof extractNutrients>>> {
+  const results = new Map<number, ReturnType<typeof extractNutrients>>();
+
+  for (let i = 0; i < foods.length; i += concurrency) {
+    const batch = foods.slice(i, i + concurrency);
+    const settled = await Promise.allSettled(
+      batch.map(async (food) => {
+        const detail = await fetchUsdaFoodDetail(food.fdcId, apiKey);
+        return {
+          fdcId: food.fdcId,
+          nutrients: detail ? extractNutrients(detail) : extractNutrients(food),
+        };
+      }),
+    );
+
+    for (const entry of settled) {
+      if (entry.status === "fulfilled") {
+        results.set(entry.value.fdcId, entry.value.nutrients);
+      }
+    }
+  }
+
+  return results;
+}
+
+const customFoodInput = z.object({
+  name: z.string().min(2).max(120),
+  brand: z.string().max(120).nullable().optional(),
+  calories: z.number().min(0).max(5000),
+  protein: z.number().min(0).max(1000),
+  carbs: z.number().min(0).max(1000),
+  fat: z.number().min(0).max(1000),
+  fiber: z.number().min(0).max(1000).nullable().optional(),
+  servingSize: z.number().positive().max(5000).default(100),
+  servingUnit: z.string().min(1).max(24).default("g"),
+});
+
 function toLocalResult(f: {
   id: string;
   usdaFdcId: number | null;
@@ -135,18 +282,6 @@ function toUsdaResult(food: UsdaFood, nutrients: ReturnType<typeof extractNutrie
     source: "usda",
   };
 }
-
-const customFoodInput = z.object({
-  name: z.string().min(2).max(120),
-  brand: z.string().max(120).nullable().optional(),
-  calories: z.number().min(0).max(5000),
-  protein: z.number().min(0).max(1000),
-  carbs: z.number().min(0).max(1000),
-  fat: z.number().min(0).max(1000),
-  fiber: z.number().min(0).max(1000).nullable().optional(),
-  servingSize: z.number().positive().max(5000).default(100),
-  servingUnit: z.string().min(1).max(24).default("g"),
-});
 
 function resolveTargets(user: {
   calorieGoal: number | null;
@@ -267,109 +402,79 @@ export const nutritionRouter = router({
       return input;
     }),
 
-  dailySummary: protectedProcedure.query(async ({ ctx }) => {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+  dailySummary: protectedProcedure
+    .input(timezoneOffsetInput.optional())
+    .query(async ({ ctx, input }) => {
+      const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
 
-    const [meals, user] = await Promise.all([
-      ctx.prisma.mealLog.findMany({
-        where: { userId: ctx.user.id, date: { gte: startOfDay } },
-        include: { items: { include: { food: true } } },
-      }),
-      ctx.prisma.user.findUnique({
-        where: { id: ctx.user.id },
-        select: { calorieGoal: true, proteinGoal: true, carbGoal: true, fatGoal: true },
-      }),
-    ]);
+      const [meals, user] = await Promise.all([
+        ctx.prisma.mealLog.findMany({
+          where: { userId: ctx.user.id, date: { gte: startOfDay } },
+          include: { items: { include: { food: true } } },
+        }),
+        ctx.prisma.user.findUnique({
+          where: { id: ctx.user.id },
+          select: { calorieGoal: true, proteinGoal: true, carbGoal: true, fatGoal: true },
+        }),
+      ]);
 
-    let calories = 0;
-    let protein = 0;
-    let carbs = 0;
-    let fat = 0;
+      let calories = 0;
+      let protein = 0;
+      let carbs = 0;
+      let fat = 0;
 
-    for (const meal of meals) {
-      for (const item of meal.items) {
-        const ratio = item.quantity / (item.food.servingSize ?? 100);
-        calories += item.food.calories * ratio;
-        protein += item.food.protein * ratio;
-        carbs += item.food.carbs * ratio;
-        fat += item.food.fat * ratio;
+      for (const meal of meals) {
+        for (const item of meal.items) {
+          const ratio = item.quantity / (item.food.servingSize ?? 100);
+          calories += item.food.calories * ratio;
+          protein += item.food.protein * ratio;
+          carbs += item.food.carbs * ratio;
+          fat += item.food.fat * ratio;
+        }
       }
-    }
 
-    return {
-      calories: Math.round(calories),
-      protein: Math.round(protein),
-      carbs: Math.round(carbs),
-      fat: Math.round(fat),
-      mealCount: meals.length,
-      targets: resolveTargets(
-        user ?? { calorieGoal: null, proteinGoal: null, carbGoal: null, fatGoal: null },
-      ),
-    };
+      return {
+        calories: Math.round(calories),
+        protein: Math.round(protein),
+        carbs: Math.round(carbs),
+        fat: Math.round(fat),
+        mealCount: meals.length,
+        targets: resolveTargets(
+          user ?? { calorieGoal: null, proteinGoal: null, carbGoal: null, fatGoal: null },
+        ),
+      };
+    }),
+
+  searchFoodsLocal: protectedProcedure.input(searchFoodsInput).query(async ({ ctx, input }) => {
+    return queryLocalFoods(ctx, input.query.trim());
   }),
 
-  searchFoods: protectedProcedure
-    .input(z.object({ query: z.string().min(2).max(100) }))
-    .query(async ({ ctx, input }) => {
-      const query = input.query.trim();
-      const apiKey = getApiKey();
+  searchFoodsUsda: protectedProcedure.input(searchFoodsUsdaInput).query(async ({ input }) => {
+    const query = input.query.trim();
+    const apiKey = getApiKey();
 
-      const local = await ctx.prisma.food.findMany({
-        where: {
-          name: { contains: query, mode: "insensitive" },
-          OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
-        },
-        take: 8,
-        orderBy: { name: "asc" },
+    if (!apiKey) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "USDA_API_KEY is missing on the server. Add it to .env and restart the API.",
       });
+    }
 
-      const localResults = local.map(toLocalResult);
-      const seen = new Set(localResults.map((r) => r.name.toLowerCase()));
+    const excludeNames = new Set((input.excludeNames ?? []).map((name) => name.toLowerCase()));
+    try {
+      return await queryUsdaFoods(query, apiKey, { excludeNames, limit: 20 });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "USDA search failed";
+      throw new TRPCError({
+        code: "BAD_GATEWAY",
+        message: `Could not reach USDA API. ${msg}`,
+      });
+    }
+  }),
 
-      if (!apiKey) {
-        if (localResults.length === 0) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message: "USDA_API_KEY is missing on the server. Add it to .env and restart the API.",
-          });
-        }
-        return localResults;
-      }
-
-      let usdaFoods: UsdaFood[];
-      try {
-        usdaFoods = await searchUsda(query, apiKey);
-      } catch (err) {
-        if (localResults.length > 0) return localResults;
-        const msg = err instanceof Error ? err.message : "USDA search failed";
-        throw new TRPCError({
-          code: "BAD_GATEWAY",
-          message: `Could not reach USDA API. ${msg}`,
-        });
-      }
-
-      const merged: FoodSearchResult[] = [...localResults];
-
-      for (const food of usdaFoods) {
-        if (merged.length >= 20) break;
-        const key = food.description.toLowerCase();
-        if (seen.has(key)) continue;
-
-        let nutrients = extractNutrients(food);
-
-        // Search results sometimes omit macros — fetch full food record
-        if (nutrients.calories === 0 && nutrients.protein === 0) {
-          const detail = await fetchUsdaFoodDetail(food.fdcId, apiKey);
-          if (detail) nutrients = extractNutrients(detail);
-        }
-
-        merged.push(toUsdaResult(food, nutrients));
-        seen.add(key);
-      }
-
-      return merged;
-    }),
+  searchFoods: protectedProcedure.input(searchFoodsInput).query(async ({ ctx, input }) => {
+    return searchFoodsMerged(ctx, input.query.trim());
+  }),
 
   logMeal: protectedProcedure
     .input(
@@ -407,20 +512,33 @@ export const nutritionRouter = router({
                   : null;
 
                 if (!food && item.fdcId && item.fdcId > 0) {
-                  food = await ctx.prisma.food.findUnique({ where: { usdaFdcId: item.fdcId } });
-                }
-
-                if (!food) {
-                  food = await ctx.prisma.food.create({
-                    data: {
-                      usdaFdcId: item.fdcId && item.fdcId > 0 ? item.fdcId : null,
+                  food = await ctx.prisma.food.upsert({
+                    where: { usdaFdcId: item.fdcId },
+                    create: {
+                      usdaFdcId: item.fdcId,
                       name: item.name,
                       calories: item.calories,
                       protein: item.protein,
                       carbs: item.carbs,
                       fat: item.fat,
-                      isCustom: !item.fdcId,
-                      userId: item.fdcId ? null : ctx.user.id,
+                      isCustom: false,
+                      userId: null,
+                    },
+                    update: {},
+                  });
+                }
+
+                if (!food) {
+                  food = await ctx.prisma.food.create({
+                    data: {
+                      usdaFdcId: null,
+                      name: item.name,
+                      calories: item.calories,
+                      protein: item.protein,
+                      carbs: item.carbs,
+                      fat: item.fat,
+                      isCustom: true,
+                      userId: ctx.user.id,
                     },
                   });
                 }
@@ -436,16 +554,17 @@ export const nutritionRouter = router({
       return meal;
     }),
 
-  todayMeals: protectedProcedure.query(async ({ ctx }) => {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+  todayMeals: protectedProcedure
+    .input(timezoneOffsetInput.optional())
+    .query(async ({ ctx, input }) => {
+      const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
 
-    return ctx.prisma.mealLog.findMany({
-      where: { userId: ctx.user.id, date: { gte: startOfDay } },
-      include: { items: { include: { food: true } } },
-      orderBy: { createdAt: "asc" },
-    });
-  }),
+      return ctx.prisma.mealLog.findMany({
+        where: { userId: ctx.user.id, date: { gte: startOfDay } },
+        include: { items: { include: { food: true } } },
+        orderBy: { createdAt: "asc" },
+      });
+    }),
 
   deleteMeal: protectedProcedure
     .input(z.object({ id: z.string() }))

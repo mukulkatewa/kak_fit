@@ -79,13 +79,48 @@ export default function NutritionScreen() {
   const { data: targets } = trpc.nutrition.getTargets.useQuery(undefined, {
     staleTime: queryStaleTime.nutritionTargets,
   });
+  const searchEnabled = search.length >= 2;
+
   const {
-    data: foods,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = trpc.nutrition.searchFoods.useQuery({ query: search }, { enabled: search.length >= 2 });
+    data: localFoods,
+    isLoading: localLoading,
+    isError: localError,
+    error: localErr,
+    refetch: refetchLocal,
+  } = trpc.nutrition.searchFoodsLocal.useQuery(
+    { query: search },
+    { enabled: searchEnabled, staleTime: queryStaleTime.default },
+  );
+
+  const excludeNames = useMemo(() => localFoods?.map((f) => f.name) ?? [], [localFoods]);
+
+  const {
+    data: usdaFoods,
+    isFetching: usdaFetching,
+    isError: usdaError,
+    error: usdaErr,
+    refetch: refetchUsda,
+  } = trpc.nutrition.searchFoodsUsda.useQuery(
+    { query: search, excludeNames },
+    {
+      enabled: searchEnabled && localFoods !== undefined,
+      staleTime: queryStaleTime.default,
+    },
+  );
+
+  const foods = useMemo(() => {
+    if (!localFoods) return undefined;
+    return [...localFoods, ...(usdaFoods ?? [])];
+  }, [localFoods, usdaFoods]);
+
+  const isLoading = localLoading;
+  const isError = localError || (usdaError && (localFoods?.length ?? 0) === 0);
+  const error = localError ? localErr : usdaErr;
+  const refetch = () => {
+    void refetchLocal();
+    void refetchUsda();
+  };
+  const usdaLoading = usdaFetching && !usdaFoods;
 
   const logMeal = trpc.nutrition.logMeal.useMutation({
     onSuccess: () => {
@@ -390,7 +425,7 @@ export default function NutritionScreen() {
             ) : isError ? (
               <View style={styles.errorBox}>
                 <Text style={styles.errorTitle}>Search failed</Text>
-                <Text style={styles.errorMsg}>{error.message}</Text>
+                <Text style={styles.errorMsg}>{error?.message}</Text>
                 <Text style={styles.errorHint} onPress={() => refetch()}>
                   Tap to retry
                 </Text>
@@ -398,7 +433,11 @@ export default function NutritionScreen() {
             ) : (foods ?? []).length === 0 ? (
               <EmptyState icon="search-outline" title="No foods found" message="Try chicken, rice, banana, or egg." />
             ) : (
-              <ListGroup>
+              <>
+                {usdaLoading ? (
+                  <Text style={styles.usdaLoadingHint}>Loading more results from USDA…</Text>
+                ) : null}
+                <ListGroup>
                 {foods?.map((item, index) => {
                   const key = `${item.source}-${item.fdcId}-${item.name}`;
                   return (
@@ -417,7 +456,8 @@ export default function NutritionScreen() {
                     />
                   );
                 })}
-              </ListGroup>
+                </ListGroup>
+              </>
             )}
           </View>
         ) : null}
@@ -656,6 +696,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
     loggerHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
     doneLink: { fontSize: 15, fontWeight: "700" as const, color: colors.accent },
     addLabel: { color: colors.accent, fontWeight: "700" as const, fontSize: 14 },
+    usdaLoadingHint: { fontSize: 13, color: colors.textMuted, fontStyle: "italic" as const },
     errorBox: {
       backgroundColor: colors.dangerMuted,
       borderRadius: radius.lg,

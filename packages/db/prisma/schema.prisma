@@ -278,6 +278,7 @@ model Routine {
 
   @@index([userId, updatedAt])
   @@index([userId, folderId, updatedAt])
+  @@index([userId, folderId])
 }
 
 model RoutineExercise {
@@ -309,15 +310,17 @@ model RoutineSet {
 }
 
 model Workout {
-  id         String    @id @default(cuid())
-  userId     String
-  name       String?
-  notes      String?
-  startedAt  DateTime  @default(now())
-  finishedAt DateTime?
-  isPublic   Boolean   @default(false)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  userId            String
+  name              String?
+  notes             String?
+  startedAt         DateTime  @default(now())
+  finishedAt        DateTime?
+  isPublic          Boolean   @default(false)
+  completedSetCount Int?
+  totalVolume       Float?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercises      WorkoutExercise[]
@@ -464,6 +467,7 @@ model Food {
   mealItems MealItem[]
 
   @@index([name])
+  @@index([isCustom, userId])
 }
 
 model MealLog {
@@ -492,4 +496,7 @@ model MealItem {
 
   meal MealLog @relation(fields: [mealId], references: [id], onDelete: Cascade)
   food Food    @relation(fields: [foodId], references: [id], onDelete: Cascade)
+
+  @@index([foodId])
+  @@index([mealId])
 }

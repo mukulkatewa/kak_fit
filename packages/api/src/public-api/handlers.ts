@@ -903,14 +903,24 @@ const routes: Array<{
       const body = (await request.json()) as { body_measurement?: Record<string, unknown> };
       const m = body.body_measurement ?? (body as Record<string, unknown>);
 
+      const optionalField = (
+        ...keys: string[]
+      ): number | null | undefined => {
+        const key = keys.find((k) => k in m);
+        if (!key) return undefined;
+        const value = m[key];
+        if (value === null) return null;
+        return Number(value);
+      };
+
       const updated = await prisma.bodyMeasurement.update({
         where: { id: existing.id },
         data: {
-          weight: m.weight_kg != null ? Number(m.weight_kg) : m.weight != null ? Number(m.weight) : null,
-          bodyFat: m.body_fat_percentage != null ? Number(m.body_fat_percentage) : null,
-          waist: m.waist_cm != null ? Number(m.waist_cm) : null,
-          chest: m.chest_cm != null ? Number(m.chest_cm) : null,
-          arms: m.arms_cm != null ? Number(m.arms_cm) : null,
+          weight: optionalField("weight_kg", "weight"),
+          bodyFat: optionalField("body_fat_percentage"),
+          waist: optionalField("waist_cm"),
+          chest: optionalField("chest_cm"),
+          arms: optionalField("arms_cm"),
         },
       });
       return { body_measurement: serializeMeasurement(updated) };

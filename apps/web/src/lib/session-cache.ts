@@ -1,12 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { LRUCache } from "lru-cache";
 import type { User } from "@kak-fit/db";
 
 export const SESSION_CACHE_TTL_MS = 30_000;
 const CLEANUP_INTERVAL_MS = 60_000;
-const CACHE_DUMP_FILE = join(tmpdir(), "kak-fit-trpc-session-cache.json");
 
 const maxEntries = Math.max(
   1,
@@ -38,29 +34,6 @@ const sessionCache = new LRUCache<string, User>({
 });
 
 let maintenanceStarted = false;
-let shutdownHooksRegistered = false;
-
-function restoreCacheState() {
-  try {
-    if (!existsSync(CACHE_DUMP_FILE)) return;
-    const raw = readFileSync(CACHE_DUMP_FILE, "utf8");
-    const dumped = JSON.parse(raw) as Parameters<LRUCache<string, User>["load"]>[0];
-    if (Array.isArray(dumped) && dumped.length > 0) {
-      sessionCache.load(dumped);
-    }
-  } catch (error) {
-    console.warn("[SessionCache] Failed to restore cache state", error);
-  }
-}
-
-function persistCacheState() {
-  try {
-    mkdirSync(tmpdir(), { recursive: true });
-    writeFileSync(CACHE_DUMP_FILE, JSON.stringify(sessionCache.dump()), "utf8");
-  } catch (error) {
-    console.warn("[SessionCache] Failed to persist cache state", error);
-  }
-}
 
 export function getSessionCacheStats() {
   return {
@@ -106,26 +79,9 @@ function logCacheStats() {
   );
 }
 
-function registerShutdownHooks() {
-  if (shutdownHooksRegistered) return;
-  shutdownHooksRegistered = true;
-
-  const shutdown = () => {
-    persistCacheState();
-    sessionCache.clear();
-  };
-
-  process.once("SIGTERM", shutdown);
-  process.once("SIGINT", shutdown);
-  process.once("beforeExit", persistCacheState);
-}
-
 export function startSessionCacheMaintenance() {
   if (maintenanceStarted) return;
   maintenanceStarted = true;
-
-  restoreCacheState();
-  registerShutdownHooks();
 
   const timer = setInterval(logCacheStats, CLEANUP_INTERVAL_MS);
   if (typeof timer === "object" && "unref" in timer) {

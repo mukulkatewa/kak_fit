@@ -1,33 +1,49 @@
-import { Animated, Easing, StyleSheet, View, type ViewStyle } from "react-native";
-import { useEffect, useRef } from "react";
-import { radius, spacing, useThemedStyles, type Palette } from "../lib/theme";
+import { LinearGradient } from "expo-linear-gradient";
+import { useEffect } from "react";
+import { StyleSheet, View, type ViewStyle } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+import { usePulse } from "../lib/animations";
+import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../lib/theme";
 
 function ShimmerBox({ style }: { style: ViewStyle }) {
+  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const opacity = useRef(new Animated.Value(0.35)).current;
+  const pulseStyle = usePulse();
+  const sweep = useSharedValue(-1);
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 0.75,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0.35,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
+    sweep.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1400 }),
+        withTiming(-1, { duration: 0 }),
+      ),
+      -1,
+      false,
     );
-    loop.start();
-    return () => loop.stop();
-  }, [opacity]);
+  }, [sweep]);
 
-  return <Animated.View style={[styles.box, style, { opacity }]} />;
+  const sweepStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: sweep.value * 120 }],
+  }));
+
+  return (
+    <Animated.View style={[styles.box, style, pulseStyle, { overflow: "hidden" }]}>
+      <Animated.View style={[StyleSheet.absoluteFillObject, sweepStyle]}>
+        <LinearGradient
+          colors={["transparent", `${colors.textDim}33`, "transparent"]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </Animated.View>
+    </Animated.View>
+  );
 }
 
 /** Generic shimmer placeholder for avatars, thumbnails, etc. */

@@ -42,9 +42,14 @@ export default function WorkoutHistoryScreen() {
   const deleteWorkout = trpc.workout.delete.useMutation({
     onSuccess: () => {
       setDeleteDialog({ visible: false });
-      void utils.workout.history.invalidate();
-      void utils.auth.stats.invalidate();
-      void utils.progress.weeklyVolume.invalidate();
+      void Promise.all([
+        utils.workout.history.invalidate(),
+        utils.auth.stats.invalidate(),
+        utils.progress.weeklyVolume.invalidate(),
+        utils.progress.dashboard.invalidate(),
+        utils.progress.volumeHistory.invalidate(),
+        utils.progress.muscleDistribution.invalidate(),
+      ]);
       showToast("Workout deleted", "success");
     },
     onError: (e) => showToast(e.message, "error"),

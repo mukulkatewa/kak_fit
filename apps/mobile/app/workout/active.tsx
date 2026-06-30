@@ -283,6 +283,7 @@ function ActiveWorkoutScreen() {
     setWorkout: setActiveWorkout,
     onError: (message) => showToast(message, "error"),
   });
+  const totalPendingMutations = pendingOffline + pendingSetMutations;
   const deleteExercise = trpc.workout.deleteExercise.useMutation({
     onSuccess: (updatedWorkout) => {
       patchActiveWorkout((workout) => ({
@@ -334,20 +335,23 @@ function ActiveWorkoutScreen() {
   };
 
   const addExercise = trpc.workout.addExercise.useMutation({
-    onSuccess: async (newExercise, variables) => {
-      patchActiveWorkout((workout) => addExerciseToWorkout(workout, newExercise));
-
+    onMutate: async (variables) => {
       const fetched = await utils.workout.previousSets.fetch({
         exerciseIds: [variables.exerciseId],
       });
-      utils.workout.active.setData(undefined, (current) =>
-        current
-          ? {
-              ...current,
-              previousSets: { ...(current.previousSets ?? {}), ...fetched },
-            }
-          : current,
-      );
+      return { previousSets: fetched };
+    },
+    onSuccess: (newExercise, variables, context) => {
+      patchActiveWorkout((workout) => {
+        const updated = addExerciseToWorkout(workout, newExercise);
+        return {
+          ...updated,
+          previousSets: {
+            ...(workout.previousSets ?? {}),
+            ...(context?.previousSets ?? {}),
+          },
+        };
+      });
 
       const exerciseName =
         exercises?.find((e) => e.id === variables.exerciseId)?.name ?? "Exercise";
@@ -554,24 +558,24 @@ function ActiveWorkoutScreen() {
         </Pressable>
       </View>
 
-      {pendingOffline > 0 ? (
-        <Text style={styles.offlineMeta}>{pendingOffline} offline edits pending sync</Text>
-      ) : null}
-
       {isReplayingSetMutations ? (
         <View style={styles.syncBanner}>
           <ActivityIndicator color={colors.accent} size="small" />
-          <Text style={styles.syncBannerText}>Restoring unsaved set changes…</Text>
+          <Text style={styles.syncBannerText}>Restoring unsaved changes…</Text>
         </View>
-      ) : isSyncingSets || pendingSetMutations > 0 ? (
+      ) : isSyncingSets ? (
         <View style={styles.syncBanner}>
           <ActivityIndicator color={colors.accent} size="small" />
           <Text style={styles.syncBannerText}>
-            {pendingSetMutations > 1
-              ? `Saving ${pendingSetMutations} set changes…`
-              : "Saving set changes…"}
+            {totalPendingMutations > 1
+              ? `Syncing ${totalPendingMutations} changes…`
+              : "Syncing changes…"}
           </Text>
         </View>
+      ) : totalPendingMutations > 0 ? (
+        <Text style={styles.offlineMeta}>
+          {totalPendingMutations} change{totalPendingMutations === 1 ? "" : "s"} pending sync
+        </Text>
       ) : null}
 
       {setMutationError ? (

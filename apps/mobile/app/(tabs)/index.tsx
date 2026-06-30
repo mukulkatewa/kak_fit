@@ -1,26 +1,300 @@
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Avatar, HevyButton, Screen, ThemedDialog, useToast } from "../../src/components/ui";
-import { QueryErrorState } from "../../src/components/query-error-state";
-import { QueryErrorBoundary } from "../../src/components/query-error-boundary";
-import { RoutineExpandableCard } from "../../src/components/routine-expandable-row";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { BoltIcon } from "react-native-heroicons/solid";
+import { ClockIcon } from "react-native-heroicons/outline";
+import { PlusCircleIcon } from "react-native-heroicons/outline";
+import Animated, {
+  FadeInDown,
+  FadeInLeft,
+  SlideInRight,
+  runOnJS,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { LineChart } from "../../src/components/charts";
+import { QueryErrorBoundary } from "../../src/components/query-error-boundary";
+import { QueryErrorState } from "../../src/components/query-error-state";
+import { RoutineExpandableCard } from "../../src/components/routine-expandable-row";
 import { SkeletonCards } from "../../src/components/skeleton";
+import {
+  Avatar,
+  HevyButton,
+  Screen,
+  ThemedDialog,
+  useToast,
+} from "../../src/components/ui";
+import { usePulse, useSpringPress } from "../../src/lib/animations";
 import { useAuth } from "../../src/lib/auth-context";
 import {
+  radius,
+  shadows,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Palette,
+} from "../../src/lib/theme";
+import { authMeQueryOptions, queryStaleTime, trpc } from "../../src/lib/trpc";
+import { tonnageFromKg, weightLabel } from "../../src/lib/units";
+import { useUserPreferences } from "../../src/lib/use-preferences";
+import { alertWorkoutConflict } from "../../src/lib/workout-errors";
+import {
+  WORKOUT_HISTORY_PAGE_SIZE,
   flattenFinishedWorkouts,
   useWorkoutHistoryInfinite,
   workoutHistoryInfiniteOptions,
-  WORKOUT_HISTORY_PAGE_SIZE,
 } from "../../src/lib/workout-history-query";
-import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
-import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
-import { tonnageFromKg, weightLabel } from "../../src/lib/units";
-import { useUserPreferences } from "../../src/lib/use-preferences";
-import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+
+function formatDashboardDate(date = new Date()) {
+  return date.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function SectionHeader({
+  title,
+  action,
+  delay = 200,
+}: {
+  title: string;
+  action?: ReactNode;
+  delay?: number;
+}) {
+  const styles = useThemedStyles(makeStyles);
+
+  return (
+    <View style={styles.sectionHeaderRow}>
+      <View style={styles.sectionTitleWrap}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <Animated.View
+          entering={FadeInLeft.delay(delay).springify().damping(16)}
+          style={styles.sectionUnderline}
+        />
+      </View>
+      {action}
+    </View>
+  );
+}
+
+function AnimatedCounter({
+  value,
+  loading,
+  style,
+}: {
+  value: number;
+  loading: boolean;
+  style: object;
+}) {
+  const animatedValue = useSharedValue(0);
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    if (loading) return;
+    animatedValue.value = 0;
+    animatedValue.value = withTiming(value, { duration: 800 });
+  }, [animatedValue, loading, value]);
+
+  useAnimatedReaction(
+    () => animatedValue.value,
+    (current) => {
+      runOnJS(setDisplay)(Math.round(current));
+    },
+  );
+
+  if (loading) {
+    return <Text style={style}>–</Text>;
+  }
+
+  return <Text style={style}>{display.toLocaleString()}</Text>;
+}
+
+function WeeklyProgressHeroCard({
+  weeklyLoading,
+  totalVolume,
+  volumeUnit,
+  chartData,
+  onPress,
+}: {
+  weeklyLoading: boolean;
+  totalVolume: number;
+  volumeUnit: string;
+  chartData: Array<{ label: string; value: number }>;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+  const glowOpacity = useSharedValue(0.35);
+
+  useEffect(() => {
+    glowOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.75, { duration: 1600 }),
+        withTiming(0.35, { duration: 1600 }),
+      ),
+      -1,
+      true,
+    );
+  }, [glowOpacity]);
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+  }));
+
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(100).springify().damping(16)}
+      style={[scale, styles.heroCardOuter]}
+    >
+      <Animated.View style={[styles.heroCardGlow, glowStyle]} pointerEvents="none" />
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={styles.heroCard}
+      >
+        <View style={styles.heroTopRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroTitle}>Weekly Progress</Text>
+            <View style={styles.heroBigRow}>
+              <AnimatedCounter
+                value={Math.round(totalVolume)}
+                loading={weeklyLoading}
+                style={styles.heroBig}
+              />
+              {!weeklyLoading ? (
+                <Text style={styles.heroUnit}>{volumeUnit}</Text>
+              ) : null}
+            </View>
+            <Text style={styles.heroSub}>
+              {weeklyLoading
+                ? "Loading weekly volume…"
+                : totalVolume > 0
+                  ? "lifted in the last 7 days"
+                  : "No workouts yet this week"}
+            </Text>
+          </View>
+          <View style={styles.heroBadge}>
+            <Ionicons name="trending-up" size={22} color={colors.onAccent} />
+          </View>
+        </View>
+
+        {weeklyLoading ? (
+          <View style={styles.heroChartSkeleton}>
+            {[0.35, 0.55, 0.4, 0.75, 0.5, 0.3, 0.65].map((h, i) => (
+              <View
+                key={i}
+                style={[styles.heroBarSkeleton, { height: 120 * h }]}
+              />
+            ))}
+          </View>
+        ) : (
+          <LineChart data={chartData} height={120} />
+        )}
+
+        <View style={styles.heroLabels}>
+          {(weeklyLoading
+            ? ["M", "T", "W", "T", "F", "S", "S"]
+            : chartData.map((d) => d.label)
+          ).map((label, i) => (
+            <Text key={`${label}-${i}`} style={styles.heroDay}>
+              {label}
+            </Text>
+          ))}
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function ActiveWorkoutCard({
+  name,
+  exerciseCount,
+  onPress,
+}: {
+  name: string;
+  exerciseCount: number;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const pulseStyle = usePulse();
+
+  return (
+    <Animated.View entering={SlideInRight.delay(200).springify().damping(16)}>
+      <Pressable style={styles.activeCard} onPress={onPress}>
+        <LinearGradient
+          colors={[colors.accent, "rgba(61,181,74,0.2)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.activeAccentBorder}
+        />
+        <View style={styles.activeIcon}>
+          <BoltIcon color={colors.onAccent} size={20} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={styles.activeTitleRow}>
+            <Animated.View style={[styles.activePulseDot, pulseStyle]} />
+            <Text style={styles.activeTitle} numberOfLines={1}>
+              {name}
+            </Text>
+          </View>
+          <Text style={styles.activeSub}>
+            {exerciseCount} exercises · tap to continue
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function StartEmptyWorkoutButton({
+  onPress,
+  loading,
+}: {
+  onPress: () => void;
+  loading: boolean;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
+  return (
+    <Animated.View entering={FadeInDown.delay(200).springify().damping(16)} style={scale}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={loading}
+        style={[styles.startEmptyButton, loading && styles.buttonDisabled]}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <>
+            <PlusCircleIcon color="#fff" size={22} />
+            <Text style={styles.startEmptyLabel}>Start Empty Workout</Text>
+          </>
+        )}
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 function DashboardScreen() {
   const router = useRouter();
@@ -56,7 +330,9 @@ function DashboardScreen() {
     isPending: activePending,
     isError: activeError,
     refetch: refetchActive,
-  } = trpc.workout.active.useQuery(undefined, { staleTime: queryStaleTime.workoutActive });
+  } = trpc.workout.active.useQuery(undefined, {
+    staleTime: queryStaleTime.workoutActive,
+  });
   const {
     data: historyPages,
     isPending: recentPending,
@@ -64,9 +340,10 @@ function DashboardScreen() {
     refetch: refetchRecent,
   } = useWorkoutHistoryInfinite();
   const finished = flattenFinishedWorkouts(historyPages?.pages);
-  const { data: weeklyChart, isPending: weeklyPending } = trpc.progress.weeklyVolume.useQuery(undefined, {
-    staleTime: queryStaleTime.weeklyVolume,
-  });
+  const { data: weeklyChart, isPending: weeklyPending } =
+    trpc.progress.weeklyVolume.useQuery(undefined, {
+      staleTime: queryStaleTime.weeklyVolume,
+    });
   const {
     data: routines,
     isPending: routinesPending,
@@ -88,14 +365,21 @@ function DashboardScreen() {
   const routinesLoading = routinesPending && routines === undefined;
   const activeLoading = activePending && active === undefined;
 
-  const [startingRoutineId, setStartingRoutineId] = useState<string | null>(null);
-  const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(() => new Set());
+  const [startingRoutineId, setStartingRoutineId] = useState<string | null>(
+    null,
+  );
+  const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [deleteWorkoutDialog, setDeleteWorkoutDialog] = useState<{
     visible: boolean;
     workoutId?: string;
     name?: string;
   }>({ visible: false });
-  const [startConfirm, setStartConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [startConfirm, setStartConfirm] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const toggleRoutineExpanded = (id: string) => {
     setExpandedRoutineIds((prev) => {
@@ -147,9 +431,14 @@ function DashboardScreen() {
   const deleteWorkout = trpc.workout.delete.useMutation({
     onSuccess: () => {
       setDeleteWorkoutDialog({ visible: false });
-      utils.workout.history.invalidate();
-      utils.auth.stats.invalidate();
-      utils.progress.weeklyVolume.invalidate();
+      void Promise.all([
+        utils.workout.history.invalidate(),
+        utils.auth.stats.invalidate(),
+        utils.progress.weeklyVolume.invalidate(),
+        utils.progress.dashboard.invalidate(),
+        utils.progress.volumeHistory.invalidate(),
+        utils.progress.muscleDistribution.invalidate(),
+      ]);
     },
     onError: (e) => showToast(e.message, "error"),
   });
@@ -160,87 +449,82 @@ function DashboardScreen() {
   const totalVolume = tonnageFromKg(totalVolumeKg, weightUnit);
   const volumeUnit = weightLabel(weightUnit);
 
+  const statItems = [
+    {
+      value: statsValue(stats?.workoutCount),
+      label: "Workouts",
+      onPress: () => router.push("/(tabs)/progress"),
+    },
+    {
+      value: statsValue(stats?.routineCount),
+      label: "Routines",
+      onPress: () => router.push("/(tabs)/routines"),
+    },
+    {
+      value: statsValue(stats?.prCount),
+      label: "PRs",
+      onPress: () =>
+        router.push({
+          pathname: "/(tabs)/progress",
+          params: { tab: "prs" },
+        }),
+    },
+  ];
+
   return (
     <Screen scroll padded={false}>
       <View style={styles.pad}>
-        {/* Profile stat header */}
-        <View style={styles.statHeader}>
-          <Pressable onPress={() => router.push("/(tabs)/profile")}>
-            <Avatar name={me?.name} size={48} />
-          </Pressable>
-          <View style={styles.statsRow}>
-            <Stat
-              value={statsValue(stats?.workoutCount)}
-              label="Workouts"
-              onPress={() => router.push("/(tabs)/progress")}
-            />
-            <Stat
-              value={statsValue(stats?.routineCount)}
-              label="Routines"
-              onPress={() => router.push("/(tabs)/routines")}
-            />
-            <Stat
-              value={statsValue(stats?.prCount)}
-              label="PRs"
-              onPress={() => router.push({ pathname: "/(tabs)/progress", params: { tab: "prs" } })}
-            />
-          </View>
-          <Pressable
-            hitSlop={8}
-            style={styles.gear}
-            onPress={() => router.push("/settings")}
+        {/* Greeting header + stats */}
+        <View style={styles.headerBlock}>
+          <Animated.View
+            entering={FadeInDown.springify().damping(16)}
+            style={styles.greetingRow}
           >
-            <Ionicons name="settings-outline" size={24} color={colors.text} />
-          </Pressable>
+            <View style={styles.greetingText}>
+              <Text style={styles.greetingTitle}>Ready to train?</Text>
+              <Text style={styles.greetingDate}>{formatDashboardDate()}</Text>
+            </View>
+            <View style={styles.headerRight}>
+              <Pressable
+                hitSlop={8}
+                style={styles.gear}
+                onPress={() => router.push("/settings")}
+              >
+                <Ionicons name="settings-outline" size={22} color={colors.textMuted} />
+              </Pressable>
+              <Pressable onPress={() => router.push("/(tabs)/profile")}>
+                <View style={[styles.avatarRing, { borderColor: colors.accent }]}>
+                  <Avatar name={me?.name} size={48} />
+                </View>
+              </Pressable>
+            </View>
+          </Animated.View>
+
+          <View style={styles.statsRow}>
+            {statItems.map((stat, index) => (
+              <Animated.View
+                key={stat.label}
+                entering={FadeInDown.delay(index * 80).springify().damping(16)}
+                style={styles.statWrap}
+              >
+                <Stat
+                  value={stat.value}
+                  label={stat.label}
+                  onPress={stat.onPress}
+                />
+              </Animated.View>
+            ))}
+          </View>
         </View>
 
         {/* Weekly progress hero card */}
-        <Pressable
-          style={({ pressed }) => [styles.heroCard, pressed && styles.pressed]}
+        <WeeklyProgressHeroCard
+          weeklyLoading={weeklyLoading}
+          totalVolume={totalVolume}
+          volumeUnit={volumeUnit}
+          chartData={chartData}
           onPress={() => router.push("/(tabs)/progress")}
-        >
-          <View style={styles.heroTopRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heroTitle}>Weekly Progress</Text>
-              <View style={styles.heroBigRow}>
-                <Text style={styles.heroBig}>
-                  {weeklyLoading ? "–" : Math.round(totalVolume).toLocaleString()}
-                </Text>
-                {!weeklyLoading ? <Text style={styles.heroUnit}>{volumeUnit}</Text> : null}
-              </View>
-              <Text style={styles.heroSub}>
-                {weeklyLoading
-                  ? "Loading weekly volume…"
-                  : totalVolume > 0
-                    ? "lifted in the last 7 days"
-                    : "No workouts yet this week"}
-              </Text>
-            </View>
-            <View style={styles.heroBadge}>
-              <Ionicons name="trending-up" size={22} color={colors.onAccent} />
-            </View>
-          </View>
-
-          {weeklyLoading ? (
-            <View style={styles.heroChartSkeleton}>
-              {[0.35, 0.55, 0.4, 0.75, 0.5, 0.3, 0.65].map((h, i) => (
-                <View key={i} style={[styles.heroBarSkeleton, { height: 120 * h }]} />
-              ))}
-            </View>
-          ) : (
-            <LineChart data={chartData} height={120} />
-          )}
-
-          <View style={styles.heroLabels}>
-            {(weeklyLoading ? ["M", "T", "W", "T", "F", "S", "S"] : chartData.map((d) => d.label)).map(
-              (label, i) => (
-                <Text key={`${label}-${i}`} style={styles.heroDay}>
-                  {label}
-                </Text>
-              ),
-            )}
-          </View>
-        </Pressable>
+        />
 
         {/* Primary CTA / continue active workout */}
         {activeError ? (
@@ -249,33 +533,33 @@ function DashboardScreen() {
             onRetry={() => void refetchActive()}
           />
         ) : active ? (
-          <Pressable style={styles.activeCard} onPress={() => router.push("/workout/active")}>
-            <View style={styles.activeIcon}>
-              <Ionicons name="barbell" size={20} color={colors.onAccent} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.activeTitle}>{active.name ?? "Workout in progress"}</Text>
-              <Text style={styles.activeSub}>{active.exercises.length} exercises · tap to continue</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
-          </Pressable>
+          <ActiveWorkoutCard
+            name={active.name ?? "Workout in progress"}
+            exerciseCount={active.exercises.length}
+            onPress={() => router.push("/workout/active")}
+          />
         ) : !activeLoading ? (
-          <HevyButton
-            label="Start Empty Workout"
+          <StartEmptyWorkoutButton
             onPress={() => startEmpty.mutate({})}
             loading={startEmpty.isPending}
           />
         ) : null}
 
         {/* Recent Activity */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          {finished.length > 0 ? (
-            <Pressable hitSlop={8} onPress={() => router.push("/workout/history")}>
-              <Text style={styles.viewAll}>View all</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <SectionHeader
+          title="Recent Activity"
+          delay={300}
+          action={
+            finished.length > 0 ? (
+              <Pressable
+                hitSlop={8}
+                onPress={() => router.push("/workout/history")}
+              >
+                <Text style={styles.viewAll}>View all</Text>
+              </Pressable>
+            ) : undefined
+          }
+        />
         {recentError ? (
           <QueryErrorState
             message="Couldn't load workouts. Check your connection."
@@ -292,10 +576,10 @@ function DashboardScreen() {
           </View>
         ) : (
           <View style={styles.cardStack}>
-            {finished.slice(0, 3).map((w) => (
+            {finished.slice(0, 3).map((w, index) => (
               <ActivityCard
                 key={w.id}
-                icon="fitness"
+                index={index}
                 title={w.name ?? "Workout"}
                 subtitle={`${w.exerciseCount} exercises · ${Math.round(tonnageFromKg(w.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
                 onPress={() => router.push(`/workout/${w.id}`)}
@@ -312,14 +596,20 @@ function DashboardScreen() {
         )}
 
         {/* My Routines */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>My Routines</Text>
-          {!routinesLoading && (routines?.length ?? 0) > 0 ? (
-            <Pressable hitSlop={8} onPress={() => router.push("/workout/my-routines")}>
-              <Text style={styles.viewAll}>View all</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <SectionHeader
+          title="My Routines"
+          delay={400}
+          action={
+            !routinesLoading && (routines?.length ?? 0) > 0 ? (
+              <Pressable
+                hitSlop={8}
+                onPress={() => router.push("/workout/my-routines")}
+              >
+                <Text style={styles.viewAll}>View all</Text>
+              </Pressable>
+            ) : undefined
+          }
+        />
 
         {routinesError ? (
           <QueryErrorState
@@ -339,16 +629,24 @@ function DashboardScreen() {
           </View>
         ) : (
           <View style={styles.cardStack}>
-            {routines?.slice(0, 4).map((item) => (
-              <RoutineExpandableCard
+            {routines?.slice(0, 4).map((item, index) => (
+              <Animated.View
                 key={item.id}
-                routine={item}
-                expanded={expandedRoutineIds.has(item.id)}
-                onToggleExpand={() => toggleRoutineExpanded(item.id)}
-                disabled={startingRoutineId === item.id}
-                loading={startingRoutineId === item.id}
-                onStart={() => setStartConfirm({ id: item.id, name: item.name })}
-              />
+                entering={FadeInDown.delay(400 + index * 80)
+                  .springify()
+                  .damping(16)}
+              >
+                <RoutineExpandableCard
+                  routine={item}
+                  expanded={expandedRoutineIds.has(item.id)}
+                  onToggleExpand={() => toggleRoutineExpanded(item.id)}
+                  disabled={startingRoutineId === item.id}
+                  loading={startingRoutineId === item.id}
+                  onStart={() =>
+                    setStartConfirm({ id: item.id, name: item.name })
+                  }
+                />
+              </Animated.View>
             ))}
           </View>
         )}
@@ -443,14 +741,14 @@ function Stat({
 }
 
 function ActivityCard({
-  icon,
+  index,
   title,
   subtitle,
   onPress,
   onLongPress,
   disabled,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  index: number;
   title: string;
   subtitle: string;
   onPress: () => void;
@@ -459,137 +757,298 @@ function ActivityCard({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
   return (
-    <Pressable
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.activityCard,
-        pressed && !disabled && styles.pressed,
-        disabled && { opacity: 0.5 },
-      ]}
-      onPress={onPress}
-      onLongPress={onLongPress}
+    <Animated.View
+      entering={FadeInDown.delay(300 + index * 60).springify().damping(16)}
+      style={scale}
     >
-      <View style={styles.activityIcon}>
-        <Ionicons name={icon} size={20} color={colors.onAccent} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.activityTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={styles.activitySub} numberOfLines={1}>
-          {subtitle}
-        </Text>
-      </View>
-    </Pressable>
+      <Pressable
+        disabled={disabled}
+        style={[
+          styles.activityCard,
+          disabled && { opacity: 0.5 },
+        ]}
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        onLongPress={onLongPress}
+      >
+        <View style={[styles.activityAccentBorder, { backgroundColor: colors.accent }]} />
+        <View style={styles.activityIcon}>
+          <ClockIcon color={colors.onAccent} size={20} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.activityTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.activitySub} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
-const makeStyles = (colors: Palette) => StyleSheet.create({
-  pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    pad: {
+      paddingHorizontal: spacing.lg,
+      gap: spacing.lg,
+      paddingBottom: spacing.xxl,
+    },
 
-  statHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  statsRow: { flex: 1, flexDirection: "row", justifyContent: "space-around" },
-  statCol: { alignItems: "center", gap: 1 },
-  statValueRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  statValue: { fontSize: 18, fontWeight: "800", color: colors.text },
-  statLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
-  gear: { padding: 2 },
+    headerBlock: { gap: spacing.lg },
+    greetingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: spacing.md,
+    },
+    greetingText: { flex: 1, gap: 4 },
+    greetingTitle: {
+      fontSize: 28,
+      fontWeight: "800",
+      color: colors.text,
+      letterSpacing: -0.4,
+    },
+    greetingDate: {
+      fontSize: 14,
+      fontWeight: "500",
+      color: colors.textMuted,
+    },
+    headerRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    avatarRing: {
+      borderWidth: 2,
+      borderRadius: 999,
+      padding: 2,
+    },
+    statsRow: {
+      flexDirection: "row",
+      justifyContent: "space-around",
+    },
+    statWrap: { flex: 1 },
+    statCol: { alignItems: "center", gap: 1 },
+    statValueRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+    statValue: { fontSize: 18, fontWeight: "800", color: colors.text },
+    statLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
+    gear: { padding: 2 },
 
-  heroCard: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    gap: spacing.lg,
-    ...shadows.glow,
-  },
-  heroTopRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  heroTitle: { fontSize: 15, fontWeight: "700", color: colors.onAccentMuted, letterSpacing: 0.3 },
-  heroBigRow: { flexDirection: "row", alignItems: "flex-end", gap: 6, marginTop: 4 },
-  heroBig: { fontSize: 40, fontWeight: "800", color: colors.onAccent, lineHeight: 44 },
-  heroUnit: { fontSize: 16, fontWeight: "700", color: colors.onAccentMuted, marginBottom: 6 },
-  heroSub: { fontSize: 13, fontWeight: "500", color: colors.onAccentMuted, marginTop: 2 },
-  heroBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: -spacing.sm },
-  heroDay: { flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: colors.onAccentFaint },
-  heroChartSkeleton: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    height: 120,
-    gap: 6,
-  },
-  heroBarSkeleton: {
-    flex: 1,
-    borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    opacity: 0.5,
-  },
+    heroCardOuter: {
+      borderRadius: radius.xl,
+      position: "relative",
+    },
+    heroCardGlow: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: radius.xl,
+      borderWidth: 2,
+      borderColor: "rgba(255,255,255,0.55)",
+    },
+    heroCard: {
+      backgroundColor: colors.accent,
+      borderRadius: radius.xl,
+      padding: spacing.xl,
+      gap: spacing.lg,
+      ...shadows.glow,
+    },
+    heroTopRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+    },
+    heroTitle: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.onAccentMuted,
+      letterSpacing: 0.3,
+    },
+    heroBigRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 6,
+      marginTop: 4,
+    },
+    heroBig: {
+      fontSize: 40,
+      fontWeight: "800",
+      color: colors.onAccent,
+      lineHeight: 44,
+    },
+    heroUnit: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.onAccentMuted,
+      marginBottom: 6,
+    },
+    heroSub: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: colors.onAccentMuted,
+      marginTop: 2,
+    },
+    heroBadge: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(255,255,255,0.18)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    heroLabels: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: -spacing.sm,
+    },
+    heroDay: {
+      flex: 1,
+      textAlign: "center",
+      fontSize: 11,
+      fontWeight: "600",
+      color: colors.onAccentFaint,
+    },
+    heroChartSkeleton: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      justifyContent: "space-between",
+      height: 120,
+      gap: 6,
+    },
+    heroBarSkeleton: {
+      flex: 1,
+      borderRadius: 4,
+      backgroundColor: "rgba(255,255,255,0.25)",
+      opacity: 0.5,
+    },
 
-  activeCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    ...shadows.card,
-  },
-  activeIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  activeTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-  activeSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+    activeCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.lg,
+      overflow: "hidden",
+      ...shadows.card,
+    },
+    activeAccentBorder: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 4,
+    },
+    activeIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
+      backgroundColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    activeTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    activePulseDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.accent,
+    },
+    activeTitle: {
+      flex: 1,
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    activeSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
 
-  sectionTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
-  sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  viewAll: { fontSize: 15, fontWeight: "700", color: colors.accent },
+    startEmptyButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.accent,
+      borderRadius: radius.lg,
+      minHeight: 52,
+      paddingHorizontal: spacing.xl,
+      ...shadows.glow,
+    },
+    startEmptyLabel: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: "#fff",
+    },
+    buttonDisabled: { opacity: 0.6 },
 
-  cardStack: { gap: spacing.md },
-  activityCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  activityIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  activityTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-  activitySub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  pressed: { opacity: 0.7 },
+    sectionTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
+    sectionTitleWrap: { gap: 6 },
+    sectionUnderline: {
+      width: 32,
+      height: 3,
+      borderRadius: 2,
+      backgroundColor: colors.accent,
+    },
+    sectionHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    viewAll: { fontSize: 15, fontWeight: "700", color: colors.accent },
 
-  emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.xxl,
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  emptyTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
-  emptyHint: { color: colors.textMuted, fontSize: 14, textAlign: "center", lineHeight: 20 },
-});
+    cardStack: { gap: spacing.md },
+    activityCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      overflow: "hidden",
+      ...shadows.card,
+    },
+    activityAccentBorder: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 2,
+    },
+    activityIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: radius.md,
+      backgroundColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    activityTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
+    activitySub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+    pressed: { opacity: 0.7 },
+
+    emptyCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.xxl,
+      alignItems: "center",
+      gap: spacing.md,
+    },
+    emptyTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
+    emptyHint: {
+      color: colors.textMuted,
+      fontSize: 14,
+      textAlign: "center",
+      lineHeight: 20,
+    },
+  });

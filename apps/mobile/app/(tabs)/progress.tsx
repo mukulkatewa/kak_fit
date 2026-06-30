@@ -1,13 +1,34 @@
-import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { ArrowRightIcon } from "react-native-heroicons/outline";
+import { TrophyIcon } from "react-native-heroicons/solid";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInRight,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { BarChart } from "../../src/components/charts";
 import { MuscleHeatmap } from "../../src/components/muscle-heatmap";
 import {
   Header,
   ListGroup,
   ListRow,
-  PRBadge,
   Screen,
   SectionHeader,
   StatBlock,
@@ -17,12 +38,165 @@ import { formatWeight, tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
 import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
+function AnimatedStatBlock({
+  index,
+  value,
+  label,
+}: {
+  index: number;
+  value: string | number;
+  label: string;
+}) {
+  return (
+    <Animated.View
+      entering={FadeInUp.delay(index * 100).springify().damping(16)}
+      style={{ flex: 1 }}
+    >
+      <StatBlock value={value} label={label} />
+    </Animated.View>
+  );
+}
+
+function AnimatedBar({
+  label,
+  value,
+  max,
+  color,
+  unit,
+  height,
+  index,
+  mutedColor,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  color: string;
+  unit: string;
+  height: number;
+  index: number;
+  mutedColor: string;
+}) {
+  const targetHeight = Math.max(4, (value / max) * (height - 24));
+  const barHeight = useSharedValue(0);
+
+  useEffect(() => {
+    barHeight.value = 0;
+    barHeight.value = withTiming(targetHeight, { duration: 600 + index * 80 });
+  }, [barHeight, index, targetHeight]);
+
+  const barStyle = useAnimatedStyle(() => ({
+    height: barHeight.value,
+  }));
+
+  return (
+    <View style={{ flex: 1, alignItems: "center", gap: 4 }}>
+      <Text style={{ fontSize: 10, color: mutedColor, fontWeight: "600" }} numberOfLines={1}>
+        {value}
+        {unit}
+      </Text>
+      <Animated.View
+        style={[
+          {
+            width: "70%",
+            borderRadius: 4,
+            backgroundColor: color,
+          },
+          barStyle,
+        ]}
+      />
+      <Text style={{ fontSize: 11, color: mutedColor, fontWeight: "500" }} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function AnimatedVolumeChart({
+  data,
+  color,
+  unit,
+  height = 140,
+  mutedColor,
+}: {
+  data: Array<{ label: string; value: number }>;
+  color: string;
+  unit: string;
+  height?: number;
+  mutedColor: string;
+}) {
+  if (data.length === 0) {
+    return <Text style={{ color: mutedColor, textAlign: "center" }}>No data yet</Text>;
+  }
+
+  const max = Math.max(...data.map((d) => d.value), 1);
+
+  return (
+    <View
+      style={{
+        backgroundColor: "transparent",
+        borderRadius: 12,
+        padding: spacing.lg,
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "flex-end", height, gap: spacing.sm }}>
+        {data.map((point, index) => (
+          <AnimatedBar
+            key={`${point.label}-${index}`}
+            label={point.label}
+            value={point.value}
+            max={max}
+            color={color}
+            unit={unit}
+            height={height}
+            index={index}
+            mutedColor={mutedColor}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function ShimmerPRBadge({ label }: { label: string }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const shimmer = useSharedValue(0.5);
+
+  useEffect(() => {
+    shimmer.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1200 }),
+        withTiming(0.45, { duration: 1200 }),
+      ),
+      -1,
+      true,
+    );
+  }, [shimmer]);
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    opacity: shimmer.value,
+  }));
+
+  return (
+    <View style={styles.prBadgeWrap}>
+      <Animated.View style={[styles.prBadgeGlow, shimmerStyle]} pointerEvents="none" />
+      <View style={styles.prBadge}>
+        <TrophyIcon color={colors.gold} size={12} />
+        <Text style={styles.prBadgeText}>{label}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function ProgressScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { weightUnit } = useUserPreferences();
   const [refreshing, setRefreshing] = useState(false);
+  const params = useLocalSearchParams();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const prsScrollY = useRef(0);
 
   const {
     data: volume,
@@ -81,13 +255,39 @@ export default function ProgressScreen() {
     }
   }, [refetchVolume, refetchMuscle, refetchTopExercises, refetchPrs, refetchDashboard]);
 
+  const tabParam = Array.isArray(params.tab) ? params.tab[0] : params.tab;
+
+  useEffect(() => {
+    if (tabParam !== "prs" || !scrollViewRef.current) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, prsScrollY.current - 20),
+        animated: true,
+      });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [tabParam, prs]);
+
   const weekVolumeDisplay = dashboard
     ? tonnageFromKg(dashboard.weekVolume, weightUnit) / 1000
     : 0;
 
+  const statItems = dashboard
+    ? [
+        { value: dashboard.streakWeeks, label: "Week streak" },
+        { value: `${weekVolumeDisplay.toFixed(1)}k`, label: `Week vol (${weightLabel(weightUnit)})` },
+        { value: dashboard.monthPrs, label: "PRs (month)" },
+      ]
+    : [];
+
   return (
     <Screen
       scroll
+      scrollViewRef={scrollViewRef}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -100,11 +300,21 @@ export default function ProgressScreen() {
       <Header title="Progress" subtitle="Charts, PRs, and muscle volume" />
 
       {dashboard ? (
-        <View style={styles.statsRow}>
-          <StatBlock value={dashboard.streakWeeks} label="Week streak" />
-          <StatBlock value={`${weekVolumeDisplay.toFixed(1)}k`} label={`Week vol (${weightLabel(weightUnit)})`} />
-          <StatBlock value={dashboard.monthPrs} label="PRs (month)" />
-        </View>
+        <LinearGradient
+          colors={[colors.surface, `${colors.accent}22`]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.statsRow}
+        >
+          {statItems.map((stat, index) => (
+            <AnimatedStatBlock
+              key={stat.label}
+              index={index}
+              value={stat.value}
+              label={stat.label}
+            />
+          ))}
+        </LinearGradient>
       ) : dashError ? (
         <Text style={styles.empty}>Couldn't load stats. Pull to refresh.</Text>
       ) : null}
@@ -115,11 +325,14 @@ export default function ProgressScreen() {
       ) : volError ? (
         <Text style={styles.empty}>Couldn't load volume chart.</Text>
       ) : (
-        <BarChart
-          data={(volume ?? []).map((v) => ({ label: v.label, value: v.volume }))}
-          color={colors.accent}
-          unit="kg"
-        />
+        <Animated.View entering={FadeIn.delay(200).duration(500)}>
+          <AnimatedVolumeChart
+            data={(volume ?? []).map((v) => ({ label: v.label, value: v.volume }))}
+            color={colors.accent}
+            unit="kg"
+            mutedColor={colors.textMuted}
+          />
+        </Animated.View>
       )}
 
       <SectionHeader title="Muscle Heatmap" />
@@ -131,10 +344,17 @@ export default function ProgressScreen() {
       </Text>
       {muscleLoading ? (
         <ActivityIndicator color={colors.accent} />
-      ) : muscleError ? (
-        <Text style={styles.empty}>Couldn't load muscle data.</Text>
+      ) : muscleError || !muscleData?.heatmap ? (
+        <View style={styles.retryBlock}>
+          <Text style={styles.empty}>Couldn't load muscle data.</Text>
+          <Pressable onPress={() => void refetchMuscle()} hitSlop={8}>
+            <Text style={styles.retry}>Tap to retry</Text>
+          </Pressable>
+        </View>
       ) : (
-        <MuscleHeatmap data={muscleData?.heatmap ?? []} />
+        <Animated.View entering={FadeIn.delay(300).duration(500)}>
+          <MuscleHeatmap data={muscleData.heatmap} />
+        </Animated.View>
       )}
 
       <SectionHeader title="Top Exercises" />
@@ -150,79 +370,123 @@ export default function ProgressScreen() {
       ) : (
         <ListGroup>
           {topExercises?.map((ex, i) => (
-            <ListRow
+            <Animated.View
               key={ex.id}
-              title={ex.name}
-              subtitle={`${ex.count} sessions`}
-              onPress={() => router.push(`/exercise/${ex.id}`)}
-              last={i === (topExercises?.length ?? 0) - 1}
-            />
+              entering={FadeInDown.delay(i * 60).springify().damping(16)}
+            >
+              <ListRow
+                title={ex.name}
+                subtitle={`${ex.count} sessions`}
+                onPress={() => router.push(`/exercise/${ex.id}`)}
+                last={i === (topExercises?.length ?? 0) - 1}
+              />
+            </Animated.View>
           ))}
         </ListGroup>
       )}
 
-      <SectionHeader title="Recent PRs" />
-      <View style={styles.prList}>
-        {prsError ? (
-          <View style={styles.retryBlock}>
-            <Text style={styles.empty}>Couldn't load personal records.</Text>
-            <Pressable onPress={() => void refetchPrs()} hitSlop={8}>
-              <Text style={styles.retry}>Tap to retry</Text>
-            </Pressable>
-          </View>
-        ) : (prs ?? []).length === 0 ? (
-          <Text style={styles.empty}>Hit new PRs by completing workouts.</Text>
-        ) : (
-          prs?.map((pr) => (
-            <Pressable
-              key={pr.id}
-              style={styles.prRow}
-              onPress={() => router.push(`/exercise/${pr.exercise.id}`)}
-            >
-              <PRBadge label={pr.type.replace(/_/g, " ")} />
-              <Text style={styles.prName} numberOfLines={1}>
-                {pr.exercise.name}
-              </Text>
-              <Text style={styles.prVal}>
-                {pr.type === "MAX_REPS"
-                  ? `${pr.value} reps`
-                  : `${formatWeight(pr.value, weightUnit)} ${weightLabel(weightUnit)}`}
-              </Text>
-            </Pressable>
-          ))
-        )}
+      <View
+        onLayout={(e) => {
+          prsScrollY.current = e.nativeEvent.layout.y;
+        }}
+      >
+        <SectionHeader title="Recent PRs" />
+        <View style={styles.prList}>
+          {prsError ? (
+            <View style={styles.retryBlock}>
+              <Text style={styles.empty}>Couldn't load personal records.</Text>
+              <Pressable onPress={() => void refetchPrs()} hitSlop={8}>
+                <Text style={styles.retry}>Tap to retry</Text>
+              </Pressable>
+            </View>
+          ) : (prs ?? []).length === 0 ? (
+            <Text style={styles.empty}>Hit new PRs by completing workouts.</Text>
+          ) : (
+            prs?.map((pr, index) => (
+              <Animated.View
+                key={pr.id}
+                entering={FadeInRight.delay(index * 80).springify().damping(16)}
+              >
+                <Pressable
+                  style={styles.prRow}
+                  onPress={() => router.push(`/exercise/${pr.exercise.id}`)}
+                >
+                  <ShimmerPRBadge label={pr.type.replace(/_/g, " ")} />
+                  <Text style={styles.prName} numberOfLines={1}>
+                    {pr.exercise.name}
+                  </Text>
+                  <Text style={styles.prVal}>
+                    {pr.type === "MAX_REPS"
+                      ? `${pr.value} reps`
+                      : `${formatWeight(pr.value, weightUnit)} ${weightLabel(weightUnit)}`}
+                  </Text>
+                </Pressable>
+              </Animated.View>
+            ))
+          )}
+        </View>
       </View>
 
       <Pressable style={styles.measureLink} onPress={() => router.push("/measurements")}>
-        <Text style={styles.measureLinkText}>Body Measurements →</Text>
+        <Text style={styles.measureLinkText}>Body Measurements</Text>
+        <ArrowRightIcon color={colors.accent} size={18} />
       </Pressable>
     </Screen>
   );
 }
 
-const makeStyles = (colors: Palette) => StyleSheet.create({
-  statsRow: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.md,
-  },
-  prList: { gap: spacing.sm },
-  prRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: spacing.md,
-  },
-  prName: { flex: 1, color: colors.text, fontSize: 15 },
-  prVal: { color: colors.gold, fontWeight: "700", fontSize: 15 },
-  empty: { color: colors.textMuted, fontSize: 14, textAlign: "center", paddingVertical: spacing.lg },
-  retryBlock: { alignItems: "center", gap: spacing.xs },
-  retry: { color: colors.accent, fontSize: 14, fontWeight: "600" },
-  measureLink: { alignItems: "center", paddingVertical: spacing.lg },
-  measureLinkText: { color: colors.accent, fontSize: 16, fontWeight: "600" },
-  sectionSub: { fontSize: 13, color: colors.textMuted, marginTop: -8, marginBottom: spacing.sm },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    statsRow: {
+      flexDirection: "row",
+      borderRadius: 12,
+      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.md,
+      overflow: "hidden",
+    },
+    prList: { gap: spacing.sm },
+    prRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: spacing.md,
+    },
+    prBadgeWrap: { position: "relative" },
+    prBadgeGlow: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: 999,
+      backgroundColor: colors.gold,
+    },
+    prBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: colors.goldMuted,
+      borderRadius: 999,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+    },
+    prBadgeText: {
+      fontSize: 10,
+      fontWeight: "800",
+      color: colors.gold,
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+    },
+    prName: { flex: 1, color: colors.text, fontSize: 15 },
+    prVal: { color: colors.gold, fontWeight: "700", fontSize: 15 },
+    empty: { color: colors.textMuted, fontSize: 14, textAlign: "center", paddingVertical: spacing.lg },
+    retryBlock: { alignItems: "center", gap: spacing.xs },
+    retry: { color: colors.accent, fontSize: 14, fontWeight: "600" },
+    measureLink: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.lg,
+    },
+    measureLinkText: { color: colors.accent, fontSize: 16, fontWeight: "600" },
+    sectionSub: { fontSize: 13, color: colors.textMuted, marginTop: -8, marginBottom: spacing.sm },
+  });

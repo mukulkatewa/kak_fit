@@ -7,7 +7,15 @@ import {
   Text,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { ChevronUpIcon, TrashIcon } from "react-native-heroicons/outline";
+import Animated, {
+  SlideInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedDialog } from "./ui";
 import { useAuth } from "../lib/auth-context";
@@ -29,6 +37,67 @@ function getCurrentExerciseName(workout: ActiveWorkout): string {
   return "Active Workout";
 }
 
+function PulsingDot({ color }: { color: string }) {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+
+  useEffect(() => {
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.3, { duration: 900 }),
+        withTiming(1, { duration: 900 }),
+      ),
+      -1,
+      true,
+    );
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0.6, { duration: 900 }),
+        withTiming(1, { duration: 900 }),
+      ),
+      -1,
+      true,
+    );
+  }, [opacity, scale]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[styles.dot, { backgroundColor: color }, style]}
+    />
+  );
+}
+
+function ElapsedTimeText({
+  elapsedSeconds,
+  color,
+}: {
+  elapsedSeconds: number;
+  color: string;
+}) {
+  const opacity = useSharedValue(1);
+  const label = `Workout ${formatElapsedDuration(elapsedSeconds)}`;
+
+  useEffect(() => {
+    opacity.value = 0.45;
+    opacity.value = withTiming(1, { duration: 280 });
+  }, [elapsedSeconds, opacity]);
+
+  const textStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.Text style={[styles.line1, { color }, textStyle]} numberOfLines={1}>
+      {label}
+    </Animated.Text>
+  );
+}
+
 export function ActiveWorkoutOverlay() {
   const pathname = usePathname();
   const router = useRouter();
@@ -39,6 +108,7 @@ export function ActiveWorkoutOverlay() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [discardError, setDiscardError] = useState<string | null>(null);
+  const borderGlow = useSharedValue(0.35);
 
   const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
     staleTime: queryStaleTime.workoutActive,
@@ -73,10 +143,25 @@ export function ActiveWorkoutOverlay() {
     return () => clearInterval(id);
   }, [activeWorkout?.id, activeWorkout?.startedAt]);
 
+  useEffect(() => {
+    borderGlow.value = withRepeat(
+      withSequence(
+        withTiming(0.85, { duration: 1400 }),
+        withTiming(0.35, { duration: 1400 }),
+      ),
+      -1,
+      true,
+    );
+  }, [borderGlow]);
+
   const exerciseName = useMemo(
     () => (activeWorkout ? getCurrentExerciseName(activeWorkout) : ""),
     [activeWorkout],
   );
+
+  const glowStyle = useAnimatedStyle(() => ({
+    borderColor: `rgba(61, 181, 74, ${borderGlow.value})`,
+  }));
 
   const hiddenRoute =
     !isAuthenticated ||
@@ -91,13 +176,14 @@ export function ActiveWorkoutOverlay() {
 
   return (
     <>
-      <View
+      <Animated.View
+        entering={SlideInDown.springify().damping(16)}
         style={[
           styles.pill,
+          glowStyle,
           {
             bottom,
             backgroundColor: colors.surface,
-            borderColor: colors.border,
           },
         ]}
       >
@@ -106,15 +192,13 @@ export function ActiveWorkoutOverlay() {
           style={[styles.circleBtn, { backgroundColor: colors.bgElevated }]}
           hitSlop={4}
         >
-          <Ionicons name="chevron-up" size={22} color={colors.text} />
+          <ChevronUpIcon color={colors.text} size={22} />
         </Pressable>
 
         <Pressable onPress={() => router.push("/workout/active")} style={styles.centerBlock}>
           <View style={styles.titleRow}>
-            <View style={[styles.dot, { backgroundColor: colors.success }]} />
-            <Text style={[styles.line1, { color: colors.text }]} numberOfLines={1}>
-              Workout {formatElapsedDuration(elapsedSeconds)}
-            </Text>
+            <PulsingDot color={colors.success} />
+            <ElapsedTimeText elapsedSeconds={elapsedSeconds} color={colors.text} />
           </View>
           <Text style={[styles.line2, { color: colors.textMuted }]} numberOfLines={1}>
             {exerciseName}
@@ -133,10 +217,10 @@ export function ActiveWorkoutOverlay() {
           {discardActive.isPending ? (
             <ActivityIndicator size="small" color={colors.danger} />
           ) : (
-            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+            <TrashIcon color={colors.danger} size={20} />
           )}
         </Pressable>
-      </View>
+      </Animated.View>
 
       <ThemedDialog
         visible={discardOpen}
@@ -170,7 +254,7 @@ const styles = StyleSheet.create({
     right: 16,
     height: 64,
     borderRadius: 28,
-    borderWidth: 1,
+    borderWidth: 2,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,

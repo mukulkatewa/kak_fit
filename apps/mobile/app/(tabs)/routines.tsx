@@ -1,14 +1,33 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState, useCallback } from "react";
-import { Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { useMemo, useState, useCallback, type ReactNode } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EmptyState, HevyButton, ListGroup, ListRow, Screen, ThemedDialog, useToast } from "../../src/components/ui";
+import { FireIcon } from "react-native-heroicons/solid";
+import {
+  AdjustmentsHorizontalIcon,
+  ArrowPathIcon,
+  ChevronDownIcon,
+  EyeIcon,
+  PlusCircleIcon,
+  TrashIcon,
+} from "react-native-heroicons/outline";
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  SlideInDown,
+} from "react-native-reanimated";
+import { EmptyState, ListGroup, ListRow, Screen, ThemedDialog, useToast } from "../../src/components/ui";
 import { QueryErrorState } from "../../src/components/query-error-state";
 import { RoutineExpandableRow } from "../../src/components/routine-expandable-row";
 import {
-  HevyCategoryTile,
-  HevyFilterBar,
   HevyOutlineButton,
   HevyProgramCard,
 } from "../../src/components/hevy-ui";
@@ -22,6 +41,7 @@ import {
   type ProgramGoal,
   type ProgramLevel,
 } from "../../src/lib/explore-data";
+import { useSpringPress } from "../../src/lib/animations";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
@@ -34,9 +54,210 @@ import { useUserPreferences } from "../../src/lib/use-preferences";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type FilterKey = "level" | "goal" | "equipment" | null;
+type FilterChip = {
+  key: string;
+  label: string;
+  showFilterIcon?: boolean;
+  active?: boolean;
+  onPress: () => void;
+};
 
 const PREVIEW_COUNT = 3;
 const ROUTINE_PREVIEW = 6;
+
+function AnimatedFilterChip({ chip }: { chip: FilterChip }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
+  return (
+    <Animated.View style={scale}>
+      <Pressable
+        onPress={chip.onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={[styles.filterChip, chip.active && styles.filterChipActive]}
+      >
+        {chip.showFilterIcon ? (
+          <AdjustmentsHorizontalIcon
+            color={chip.active ? "#fff" : colors.text}
+            size={14}
+          />
+        ) : null}
+        <Text style={[styles.filterChipText, chip.active && styles.filterChipTextActive]}>
+          {chip.label}
+        </Text>
+        {chip.key !== "filters" ? (
+          <ChevronDownIcon
+            color={chip.active ? "#fff" : colors.textMuted}
+            size={12}
+          />
+        ) : null}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function AnimatedFilterBar({ chips }: { chips: FilterChip[] }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.filterRow}>
+      {chips.map((chip) => (
+        <AnimatedFilterChip key={chip.key} chip={chip} />
+      ))}
+    </View>
+  );
+}
+
+function StartEmptyWorkoutButton({
+  onPress,
+  loading,
+}: {
+  onPress: () => void;
+  loading: boolean;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
+  return (
+    <Animated.View style={scale}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={loading}
+        style={[styles.startEmptyButton, loading && styles.startEmptyDisabled]}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <>
+            <PlusCircleIcon color="#fff" size={22} />
+            <Text style={styles.startEmptyLabel}>Start Empty Workout</Text>
+          </>
+        )}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function AnimatedRecentWorkoutRow({
+  index,
+  title,
+  subtitle,
+  last,
+  onPress,
+  onLongPress,
+  disabled = false,
+}: {
+  index: number;
+  title: string;
+  subtitle: string;
+  last: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+  disabled?: boolean;
+}) {
+  const { colors } = useTheme();
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(index * 60).springify().damping(16)}
+      style={[scale, disabled && { opacity: 0.5 }]}
+    >
+      <Pressable
+        onPress={onPress}
+        onLongPress={onLongPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={disabled}
+      >
+        <ListRow
+          title={title}
+          subtitle={subtitle}
+          icon="time-outline"
+          last={last}
+          right={
+            disabled ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : undefined
+          }
+        />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function SpringOutlineButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
+  return (
+    <Animated.View style={scale}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={styles.outlineBtn}
+      >
+        <Text style={styles.outlineBtnText}>{label}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function AnimatedCategoryTile({
+  label,
+  icon,
+  onPress,
+}: {
+  label: string;
+  icon: string;
+  onPress: () => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
+  return (
+    <Animated.View style={[scale, styles.categoryTileWrap]}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={styles.categoryTile}
+      >
+        <Text style={styles.categoryLabel}>{label}</Text>
+        <Text style={styles.categoryIcon}>{icon}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function MenuActionRow({
+  index,
+  icon,
+  label,
+  danger,
+  onPress,
+}: {
+  index: number;
+  icon: ReactNode;
+  label: string;
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+
+  return (
+    <Animated.View entering={FadeInDown.delay(index * 60).springify().damping(16)}>
+      <Pressable style={styles.menuAction} onPress={onPress}>
+        {icon}
+        <Text style={[styles.menuActionText, danger && styles.menuActionDanger]}>{label}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 export default function WorkoutTabScreen() {
   const router = useRouter();
@@ -165,7 +386,14 @@ export default function WorkoutTabScreen() {
     onSuccess: () => {
       setDeleteWorkoutDialog({ visible: false });
       setWorkoutMenu({ visible: false });
-      utils.workout.history.invalidate();
+      void Promise.all([
+        utils.workout.history.invalidate(),
+        utils.auth.stats.invalidate(),
+        utils.progress.weeklyVolume.invalidate(),
+        utils.progress.dashboard.invalidate(),
+        utils.progress.volumeHistory.invalidate(),
+        utils.progress.muscleDistribution.invalidate(),
+      ]);
       showToast("Workout deleted", "success");
     },
     onError: (e) => showToast(e.message, "error"),
@@ -195,11 +423,11 @@ export default function WorkoutTabScreen() {
     setOpenFilter((prev) => (prev === key ? null : key));
   };
 
-  const filterChips = [
+  const filterChips: FilterChip[] = [
     {
       key: "filters",
       label: hasFilters ? "Clear" : "Filters",
-      icon: "options-outline" as const,
+      showFilterIcon: true,
       active: hasFilters,
       onPress: hasFilters ? clearFilters : () => setOpenFilter("level"),
     },
@@ -272,10 +500,12 @@ export default function WorkoutTabScreen() {
       }
     >
       <View style={[styles.pad, { paddingBottom: insets.bottom + spacing.xxl }]}>
-        <Text style={styles.pageTitle}>Workout</Text>
+        <Animated.View entering={FadeInDown.springify().damping(16)} style={styles.pageTitleRow}>
+          <Text style={styles.pageTitle}>Workout</Text>
+          <FireIcon color={colors.accent} size={28} />
+        </Animated.View>
 
-        <HevyButton
-          label="Start Empty Workout"
+        <StartEmptyWorkoutButton
           onPress={() => startEmpty.mutate({})}
           loading={startEmpty.isPending}
         />
@@ -298,11 +528,11 @@ export default function WorkoutTabScreen() {
             </View>
             <ListGroup>
               {finishedRecent.map((workout, index) => (
-                <ListRow
+                <AnimatedRecentWorkoutRow
                   key={workout.id}
+                  index={index}
                   title={workout.name ?? "Workout"}
                   subtitle={`${workout.exerciseCount} exercises · ${Math.round(tonnageFromKg(workout.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
-                  icon="time-outline"
                   last={index === finishedRecent.length - 1}
                   onPress={() => router.push(`/workout/${workout.id}`)}
                   onLongPress={() =>
@@ -312,6 +542,7 @@ export default function WorkoutTabScreen() {
                       workoutName: workout.name ?? "Workout",
                     })
                   }
+                  disabled={pendingWorkoutId === workout.id}
                 />
               ))}
             </ListGroup>
@@ -340,15 +571,19 @@ export default function WorkoutTabScreen() {
           ) : (
             <ListGroup>
               {routines!.slice(0, ROUTINE_PREVIEW).map((routine, index, arr) => (
-                <RoutineExpandableRow
+                <Animated.View
                   key={routine.id}
-                  routine={routine}
-                  expanded={expandedRoutineIds.has(routine.id)}
-                  onToggleExpand={() => toggleRoutineExpanded(routine.id)}
-                  last={index === arr.length - 1}
-                  disabled={pendingRoutineId === routine.id}
-                  onStart={() => setStartConfirm({ id: routine.id, name: routine.name })}
-                />
+                  entering={FadeInDown.delay(index * 70).springify().damping(16)}
+                >
+                  <RoutineExpandableRow
+                    routine={routine}
+                    expanded={expandedRoutineIds.has(routine.id)}
+                    onToggleExpand={() => toggleRoutineExpanded(routine.id)}
+                    last={index === arr.length - 1}
+                    disabled={pendingRoutineId === routine.id}
+                    onStart={() => setStartConfirm({ id: routine.id, name: routine.name })}
+                  />
+                </Animated.View>
               ))}
             </ListGroup>
           )}
@@ -359,25 +594,29 @@ export default function WorkoutTabScreen() {
               onPress={() => router.push("/workout/my-routines")}
             />
           ) : (
-            <HevyOutlineButton label="Create routine" onPress={() => router.push("/routine/create")} />
+            <SpringOutlineButton label="Create routine" onPress={() => router.push("/routine/create")} />
           )}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Explore Programs</Text>
-          <HevyFilterBar chips={filterChips} />
+          <AnimatedFilterBar chips={filterChips} />
           {renderFilterOptions()}
 
           <View style={styles.programList}>
-            {previewPrograms.map((program) => (
-              <HevyProgramCard
+            {previewPrograms.map((program, index) => (
+              <Animated.View
                 key={program.id}
-                badge={program.badge}
-                badgeColor={program.badgeColor}
-                title={program.title}
-                routineCount={program.routines.length}
-                onPress={() => router.push(`/workout/program/${program.id}`)}
-              />
+                entering={FadeInUp.delay(index * 80).springify().damping(16)}
+              >
+                <HevyProgramCard
+                  badge={program.badge}
+                  badgeColor={program.badgeColor}
+                  title={program.title}
+                  routineCount={program.routines.length}
+                  onPress={() => router.push(`/workout/program/${program.id}`)}
+                />
+              </Animated.View>
             ))}
           </View>
 
@@ -390,7 +629,7 @@ export default function WorkoutTabScreen() {
 
           <View style={styles.categoryGrid}>
             {ROUTINE_CATEGORIES.map((cat) => (
-              <HevyCategoryTile
+              <AnimatedCategoryTile
                 key={cat.id}
                 label={cat.label}
                 icon={cat.icon}
@@ -408,36 +647,40 @@ export default function WorkoutTabScreen() {
         onRequestClose={() => setWorkoutMenu({ visible: false })}
       >
         <Pressable style={styles.menuBackdrop} onPress={() => setWorkoutMenu({ visible: false })}>
-          <View style={[styles.menuCard, { paddingBottom: insets.bottom + spacing.md }]}>
+          <Animated.View
+            entering={SlideInDown.springify().damping(18)}
+            style={[styles.menuCard, { paddingBottom: insets.bottom + spacing.md }]}
+          >
             <Text style={styles.menuTitle} numberOfLines={1}>
               {workoutMenu.workoutName ?? "Workout"}
             </Text>
-            <Pressable
-              style={styles.menuAction}
+            <MenuActionRow
+              index={0}
+              icon={<EyeIcon color={colors.text} size={20} />}
+              label="View Workout"
               onPress={() => {
                 if (workoutMenu.workoutId) {
                   setWorkoutMenu({ visible: false });
                   router.push(`/workout/${workoutMenu.workoutId}`);
                 }
               }}
-            >
-              <Ionicons name="eye-outline" size={20} color={colors.text} />
-              <Text style={styles.menuActionText}>View Workout</Text>
-            </Pressable>
-            <Pressable
-              style={styles.menuAction}
+            />
+            <MenuActionRow
+              index={1}
+              icon={<ArrowPathIcon color={colors.text} size={20} />}
+              label="Repeat Workout"
               onPress={() => {
                 if (!workoutMenu.workoutId) return;
                 setWorkoutMenu({ visible: false });
                 setPendingWorkoutId(workoutMenu.workoutId);
                 repeatWorkout.mutate({ workoutId: workoutMenu.workoutId });
               }}
-            >
-              <Ionicons name="repeat-outline" size={20} color={colors.text} />
-              <Text style={styles.menuActionText}>Repeat Workout</Text>
-            </Pressable>
-            <Pressable
-              style={styles.menuAction}
+            />
+            <MenuActionRow
+              index={2}
+              icon={<TrashIcon color={colors.danger} size={20} />}
+              label="Delete Workout"
+              danger
               onPress={() => {
                 setWorkoutMenu({ visible: false });
                 setDeleteWorkoutDialog({
@@ -446,14 +689,13 @@ export default function WorkoutTabScreen() {
                   workoutName: workoutMenu.workoutName,
                 });
               }}
-            >
-              <Ionicons name="trash-outline" size={20} color={colors.danger} />
-              <Text style={[styles.menuActionText, styles.menuActionDanger]}>Delete Workout</Text>
-            </Pressable>
-            <Pressable style={styles.menuCancel} onPress={() => setWorkoutMenu({ visible: false })}>
-              <Text style={styles.menuCancelText}>Cancel</Text>
-            </Pressable>
-          </View>
+            />
+            <Animated.View entering={FadeInDown.delay(180).springify().damping(16)}>
+              <Pressable style={styles.menuCancel} onPress={() => setWorkoutMenu({ visible: false })}>
+                <Text style={styles.menuCancelText}>Cancel</Text>
+              </Pressable>
+            </Animated.View>
+          </Animated.View>
         </Pressable>
       </Modal>
 
@@ -508,11 +750,41 @@ export default function WorkoutTabScreen() {
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingTop: spacing.sm },
+    pageTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
     pageTitle: { fontSize: 34, fontWeight: "800", color: colors.text },
+    startEmptyButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.accent,
+      borderRadius: radius.lg,
+      minHeight: 52,
+      paddingHorizontal: spacing.xl,
+    },
+    startEmptyDisabled: { opacity: 0.6 },
+    startEmptyLabel: { fontSize: 16, fontWeight: "700", color: "#fff" },
     section: { gap: spacing.md },
     sectionTitle: { fontSize: 22, fontWeight: "700", color: colors.text },
     sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     manageLink: { fontSize: 15, fontWeight: "700", color: colors.accent },
+    filterRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
+    filterChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: colors.surface,
+      borderRadius: radius.full,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+    },
+    filterChipActive: { backgroundColor: colors.accent },
+    filterChipText: { color: colors.text, fontSize: 14, fontWeight: "500" },
+    filterChipTextActive: { color: "#fff" },
     filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     filterOption: {
       backgroundColor: colors.surface,
@@ -525,6 +797,29 @@ const makeStyles = (colors: Palette) =>
     filterOptionTextActive: { color: "#fff" },
     programList: { gap: spacing.md },
     categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "space-between" },
+    categoryTileWrap: {
+      flexBasis: "48%",
+      flexGrow: 1,
+      maxWidth: "48%",
+    },
+    categoryTile: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 64,
+    },
+    categoryLabel: { fontSize: 16, fontWeight: "500", color: colors.text, flex: 1 },
+    categoryIcon: { fontSize: 28 },
+    outlineBtn: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    outlineBtnText: { fontSize: 16, fontWeight: "600", color: colors.text },
     menuBackdrop: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.5)",

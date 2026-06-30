@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, type FC } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Platform,
   Pressable,
   ScrollView,
@@ -11,63 +11,199 @@ import {
   Text,
   View,
 } from "react-native";
+import { BeakerIcon } from "react-native-heroicons/outline";
+import { ArrowTrendingUpIcon } from "react-native-heroicons/outline";
+import { FireIcon } from "react-native-heroicons/outline";
+import { BoltIcon } from "react-native-heroicons/solid";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSpringPress } from "../src/lib/animations";
 import { useAuth } from "../src/lib/auth-context";
-import { useThemedStyles, useTheme, spacing, radius, type Palette } from "../src/lib/theme";
+import { useTheme } from "../src/lib/theme";
 
+const PARTICLES = [
+  { left: "12%", top: "18%", size: 10, drift: 2800 },
+  { left: "78%", top: "12%", size: 8, drift: 3400 },
+  { left: "65%", top: "38%", size: 12, drift: 4200 },
+  { left: "22%", top: "52%", size: 9, drift: 3600 },
+  { left: "88%", top: "58%", size: 11, drift: 3000 },
+  { left: "40%", top: "72%", size: 8, drift: 3800 },
+] as const;
 
-function AnimatedFeatureCard({
-  icon,
-  title,
-  description,
-  delay,
-  colors,
+const GRADIENT_DARK = ["#0A0E21", "#1A1040", "#0D1B2A"] as const;
+const GRADIENT_LIGHT = ["#E8F5E9", "#C8E6C9", "#A5D6A7"] as const;
+
+type FeatureIcon = FC<{ color?: string; size?: number }>;
+
+function FloatingParticle({
+  left,
+  top,
+  size,
+  accentColor,
+  drift,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  description: string;
-  delay: number;
-  colors: Palette;
+  left: `${number}%`;
+  top: `${number}%`;
+  size: number;
+  accentColor: string;
+  drift: number;
 }) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const translateY = useSharedValue(0);
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        delay,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        delay,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fadeAnim, slideAnim, delay]);
+    translateY.value = withRepeat(
+      withSequence(
+        withTiming(-18, { duration: drift }),
+        withTiming(18, { duration: drift }),
+      ),
+      -1,
+      true,
+    );
+  }, [drift, translateY]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
 
   return (
     <Animated.View
+      pointerEvents="none"
+      style={[
+        {
+          position: "absolute",
+          left,
+          top,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: accentColor,
+          opacity: 0.15,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+function GlassFeatureCard({
+  Icon,
+  title,
+  description,
+  index,
+  isDark,
+  textColor,
+  mutedColor,
+  accentColor,
+}: {
+  Icon: FeatureIcon;
+  title: string;
+  description: string;
+  index: number;
+  isDark: boolean;
+  textColor: string;
+  mutedColor: string;
+  accentColor: string;
+}) {
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(600 + index * 120)
+        .springify()
+        .damping(16)}
       style={[
         styles.featureCard,
         {
-          backgroundColor: colors.surface,
-          borderColor: colors.borderSubtle,
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
+          backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.6)",
+          borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.85)",
         },
       ]}
     >
-      <View style={[styles.featureIconContainer, { backgroundColor: colors.accentMuted }]}>
-        <Ionicons name={icon} size={20} color={colors.accent} />
+      <View
+        style={[
+          styles.featureIconContainer,
+          {
+            backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.85)",
+          },
+        ]}
+      >
+        <Icon color={accentColor} size={22} />
       </View>
       <View style={styles.featureTextContainer}>
-        <Text style={[styles.featureTitle, { color: colors.text }]}>{title}</Text>
-        <Text style={[styles.featureDescription, { color: colors.textMuted }]}>{description}</Text>
+        <Text style={[styles.featureTitle, { color: textColor }]}>{title}</Text>
+        <Text style={[styles.featureDescription, { color: mutedColor }]}>{description}</Text>
       </View>
+    </Animated.View>
+  );
+}
+
+function GoogleSignInButton({
+  onPress,
+  loading,
+  isDark,
+  accentColor,
+  textColor,
+}: {
+  onPress: () => void;
+  loading: boolean;
+  isDark: boolean;
+  accentColor: string;
+  textColor: string;
+}) {
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
+  return (
+    <Animated.View
+      entering={FadeInUp.delay(1000).springify()}
+      style={[
+        scale,
+        styles.googleButtonShadow,
+        Platform.select({
+          ios: {
+            shadowColor: accentColor,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.35,
+            shadowRadius: 14,
+          },
+          android: { elevation: 6 },
+          default: {},
+        }),
+      ]}
+    >
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={loading}
+        style={[
+          styles.googleButton,
+          {
+            backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "#FFFFFF",
+            borderColor: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.06)",
+          },
+          loading && styles.googleButtonDisabled,
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator color={textColor} size="small" />
+        ) : (
+          <>
+            <View style={styles.googleIconContainer}>
+              <Ionicons name="logo-google" size={22} color="#4285F4" />
+            </View>
+            <Text style={[styles.googleButtonText, { color: textColor }]}>
+              Continue with Google
+            </Text>
+          </>
+        )}
+      </Pressable>
     </Animated.View>
   );
 }
@@ -80,48 +216,6 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Animations
-  const logoScale = useRef(new Animated.Value(0.8)).current;
-  const logoOpacity = useRef(new Animated.Value(0)).current;
-  const contentOpacity = useRef(new Animated.Value(0)).current;
-  const buttonSlide = useRef(new Animated.Value(30)).current;
-  const buttonOpacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.sequence([
-      Animated.parallel([
-        Animated.spring(logoScale, {
-          toValue: 1,
-          friction: 8,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoOpacity, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.timing(contentOpacity, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-      Animated.parallel([
-        Animated.timing(buttonSlide, {
-          toValue: 0,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(buttonOpacity, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-  }, [logoScale, logoOpacity, contentOpacity, buttonSlide, buttonOpacity]);
-
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError(null);
@@ -133,134 +227,175 @@ export default function LoginScreen() {
       }
       // On web, the page redirects to Google — no further action needed
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Google sign-in failed";
+      const message =
+        err instanceof Error ? err.message : "Google sign-in failed";
       setError(message);
     } finally {
-      if (Platform.OS !== "web") {
-        setLoading(false);
-      }
+      // Always clear loading state on both platforms
+      setLoading(false);
     }
   };
 
-  const features = [
+  const gradientColors = isDark ? GRADIENT_DARK : GRADIENT_LIGHT;
+  const headlineColor = isDark ? "#FFFFFF" : "#1A2E1A";
+  const mutedColor = isDark ? "rgba(255,255,255,0.72)" : "rgba(26,46,26,0.72)";
+  const subduedColor = isDark ? "rgba(255,255,255,0.45)" : "rgba(26,46,26,0.55)";
+
+  const features: Array<{
+    Icon: FeatureIcon;
+    title: string;
+    description: string;
+  }> = [
     {
-      icon: "barbell-outline" as const,
+      Icon: FireIcon,
       title: "Track Workouts",
       description: "Log every set, rep, and weight with precision",
     },
     {
-      icon: "trending-up-outline" as const,
+      Icon: ArrowTrendingUpIcon,
       title: "See Progress",
       description: "Charts and PRs that show your growth",
     },
     {
-      icon: "nutrition-outline" as const,
+      Icon: BeakerIcon,
       title: "Nutrition",
       description: "Track macros and meals to fuel your gains",
     },
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+    <View style={styles.container}>
+      <Animated.View entering={FadeIn.duration(700)} style={StyleSheet.absoluteFill}>
+        <LinearGradient
+          colors={[...gradientColors]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        {PARTICLES.map((particle, index) => (
+          <FloatingParticle
+            key={index}
+            left={particle.left}
+            top={particle.top}
+            size={particle.size}
+            accentColor={colors.accent}
+            drift={particle.drift}
+          />
+        ))}
+      </View>
+
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 24 },
+          { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 32 },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo Section */}
         <Animated.View
-          style={[
-            styles.logoSection,
-            {
-              opacity: logoOpacity,
-              transform: [{ scale: logoScale }],
-            },
-          ]}
+          entering={FadeInDown.delay(200).springify().damping(16)}
+          style={styles.logoSection}
         >
-          <View style={[styles.logoContainer, { backgroundColor: colors.accent }]}>
-            <Ionicons name="barbell" size={40} color="#FFFFFF" />
-          </View>
-          <Text style={[styles.appName, { color: colors.text }]}>Kak Fit</Text>
-          <Text style={[styles.tagline, { color: colors.textMuted }]}>
-            Your personal fitness companion
-          </Text>
-        </Animated.View>
-
-        {/* Features */}
-        <Animated.View style={[styles.featuresSection, { opacity: contentOpacity }]}>
-          {features.map((feature, index) => (
-            <AnimatedFeatureCard
-              key={feature.title}
-              icon={feature.icon}
-              title={feature.title}
-              description={feature.description}
-              delay={800 + index * 150}
-              colors={colors}
-            />
-          ))}
-        </Animated.View>
-
-        {/* Sign In Section */}
-        <Animated.View
-          style={[
-            styles.signInSection,
-            {
-              opacity: buttonOpacity,
-              transform: [{ translateY: buttonSlide }],
-            },
-          ]}
-        >
-          <View style={[styles.dividerRow]}>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-            <Text style={[styles.dividerText, { color: colors.textMuted }]}>
-              Get started
-            </Text>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-          </View>
-
-          <Pressable
-            onPress={handleGoogleSignIn}
-            disabled={loading}
-            style={({ pressed }) => [
-              styles.googleButton,
+          <View
+            style={[
+              styles.logoContainer,
               {
-                backgroundColor: isDark ? colors.surface : "#FFFFFF",
-                borderColor: colors.border,
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(255,255,255,0.55)",
+                borderColor: isDark
+                  ? "rgba(255,255,255,0.2)"
+                  : "rgba(255,255,255,0.9)",
               },
-              pressed && styles.googleButtonPressed,
-              loading && styles.googleButtonDisabled,
             ]}
           >
-            {loading ? (
-              <ActivityIndicator color={colors.text} size="small" />
-            ) : (
-              <>
-                <View style={styles.googleIconContainer}>
-                  {/* Google "G" logo colors */}
-                  <Ionicons name="logo-google" size={20} color="#4285F4" />
-                </View>
-                <Text style={[styles.googleButtonText, { color: isDark ? colors.text : "#1f1f1f" }]}>
-                  Continue with Google
-                </Text>
-              </>
-            )}
-          </Pressable>
+            <BoltIcon color={colors.accent} size={44} />
+          </View>
+        </Animated.View>
+
+        <Animated.Text
+          entering={FadeInDown.delay(400).springify().damping(16)}
+          style={[styles.appName, { color: headlineColor }]}
+        >
+          Kak Fit
+        </Animated.Text>
+
+        <Animated.Text
+          entering={FadeInDown.delay(480).springify().damping(16)}
+          style={[styles.tagline, { color: mutedColor }]}
+        >
+          Your personal fitness companion
+        </Animated.Text>
+
+        <View style={styles.featuresSection}>
+          {features.map((feature, index) => (
+            <GlassFeatureCard
+              key={feature.title}
+              Icon={feature.Icon}
+              title={feature.title}
+              description={feature.description}
+              index={index}
+              isDark={isDark}
+              textColor={headlineColor}
+              mutedColor={mutedColor}
+              accentColor={colors.accent}
+            />
+          ))}
+        </View>
+
+        <View style={styles.signInSection}>
+          <Animated.View entering={FadeInUp.delay(900).springify()} style={styles.dividerRow}>
+            <View
+              style={[
+                styles.dividerLine,
+                { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)" },
+              ]}
+            />
+            <Text style={[styles.dividerText, { color: mutedColor }]}>Get started</Text>
+            <View
+              style={[
+                styles.dividerLine,
+                { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)" },
+              ]}
+            />
+          </Animated.View>
+
+          <GoogleSignInButton
+            onPress={handleGoogleSignIn}
+            loading={loading}
+            isDark={isDark}
+            accentColor={colors.accent}
+            textColor={headlineColor}
+          />
 
           {error ? (
-            <View style={[styles.errorContainer, { backgroundColor: colors.dangerMuted }]}>
+            <Animated.View
+              entering={FadeIn.duration(300)}
+              style={[
+                styles.errorContainer,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(255,80,80,0.15)"
+                    : colors.dangerMuted,
+                },
+              ]}
+            >
               <Ionicons name="alert-circle" size={16} color={colors.danger} />
               <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
-            </View>
+            </Animated.View>
           ) : null}
 
-          <Text style={[styles.legal, { color: colors.textDim }]}>
-            By continuing, you agree to our Terms of Service and Privacy Policy.
-            Your Google account will be used to securely sign you in.
-          </Text>
-        </Animated.View>
+          <Animated.Text
+            entering={FadeIn.delay(1200).duration(500)}
+            style={[styles.legal, { color: subduedColor }]}
+          >
+            By continuing, you agree to our Terms of Service and Privacy Policy. Your Google
+            account will be used to securely sign you in.
+          </Animated.Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -273,48 +408,36 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    gap: 32,
+    gap: 28,
   },
-
-  // Logo
   logoSection: {
     alignItems: "center",
-    gap: 12,
-    marginTop: 20,
+    marginTop: 12,
   },
   logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
+    width: 96,
+    height: 96,
+    borderRadius: 28,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#3DB54A",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-      },
-      android: { elevation: 8 },
-      default: {},
-    }),
   },
   appName: {
-    fontSize: 36,
+    fontSize: 42,
     fontWeight: "800",
-    letterSpacing: -0.5,
-    marginTop: 8,
+    letterSpacing: -0.8,
+    textAlign: "center",
   },
   tagline: {
     fontSize: 16,
     fontWeight: "400",
-    letterSpacing: 0.2,
+    letterSpacing: 0.6,
+    textAlign: "center",
+    marginTop: -16,
   },
-
-  // Features
   featuresSection: {
     gap: 12,
-    marginTop: 8,
+    marginTop: 4,
   },
   featureCard: {
     flexDirection: "row",
@@ -325,29 +448,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   featureIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   featureTextContainer: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
   featureTitle: {
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
   },
   featureDescription: {
     fontSize: 13,
     lineHeight: 18,
   },
-
-  // Sign In
   signInSection: {
-    gap: 16,
-    marginTop: 8,
+    gap: 18,
+    marginTop: 4,
   },
   dividerRow: {
     flexDirection: "row",
@@ -356,13 +477,16 @@ const styles = StyleSheet.create({
   },
   dividerLine: {
     flex: 1,
-    height: 1,
+    height: StyleSheet.hairlineWidth,
   },
   dividerText: {
-    fontSize: 13,
-    fontWeight: "500",
+    fontSize: 12,
+    fontWeight: "600",
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 1.4,
+  },
+  googleButtonShadow: {
+    borderRadius: 16,
   },
   googleButton: {
     flexDirection: "row",
@@ -371,22 +495,8 @@ const styles = StyleSheet.create({
     gap: 12,
     borderWidth: 1,
     borderRadius: 16,
-    minHeight: 56,
+    height: 60,
     paddingHorizontal: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: { elevation: 3 },
-      default: {},
-    }),
-  },
-  googleButtonPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.98 }],
   },
   googleButtonDisabled: {
     opacity: 0.6,
@@ -398,9 +508,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   googleButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    letterSpacing: 0.1,
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   errorContainer: {
     flexDirection: "row",
@@ -415,9 +525,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   legal: {
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 16,
     textAlign: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+    letterSpacing: 0.2,
   },
 });

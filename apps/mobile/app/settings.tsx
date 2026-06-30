@@ -1,9 +1,26 @@
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FC, type ReactNode } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Button, Screen } from "../src/components/ui";
+import {
+  CalculatorIcon,
+  CheckCircleIcon,
+  CommandLineIcon,
+  DevicePhoneMobileIcon,
+  MoonIcon,
+  SunIcon,
+} from "react-native-heroicons/outline";
+import Animated, {
+  FadeInDown,
+  ZoomIn,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { Screen } from "../src/components/ui";
 import { HevyStackHeader } from "../src/components/hevy-ui";
+import { useSpringPress } from "../src/lib/animations";
 import { useAuth } from "../src/lib/auth-context";
 import { trpc } from "../src/lib/trpc";
 import { formatRestTime } from "../src/lib/rest-timer";
@@ -16,10 +33,12 @@ import {
   type ThemeMode,
 } from "../src/lib/theme";
 
-const THEME_OPTIONS: Array<{ key: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
-  { key: "system", label: "System", icon: "phone-portrait-outline" },
-  { key: "light", label: "Light", icon: "sunny-outline" },
-  { key: "dark", label: "Dark", icon: "moon-outline" },
+type ThemeIcon = FC<{ color?: string; size?: number }>;
+
+const THEME_OPTIONS: Array<{ key: ThemeMode; label: string; Icon: ThemeIcon }> = [
+  { key: "system", label: "System", Icon: DevicePhoneMobileIcon },
+  { key: "light", label: "Light", Icon: SunIcon },
+  { key: "dark", label: "Dark", Icon: MoonIcon },
 ];
 
 const UNIT_OPTIONS = [
@@ -28,6 +47,148 @@ const UNIT_OPTIONS = [
 ];
 
 const REST_PRESETS = [60, 90, 120, 180, 300];
+
+function AnimatedSection({
+  sectionIndex,
+  children,
+}: {
+  sectionIndex: number;
+  children: ReactNode;
+}) {
+  return (
+    <Animated.View entering={FadeInDown.delay(sectionIndex * 100).springify().damping(16)}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function SpringRow({
+  onPress,
+  bordered,
+  children,
+}: {
+  onPress?: () => void;
+  bordered?: boolean;
+  children: ReactNode;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
+  return (
+    <Animated.View style={scale}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={!onPress}
+        style={[styles.row, bordered && styles.rowBorder]}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function ThemeOptionRow({
+  label,
+  Icon,
+  active,
+  bordered,
+  onPress,
+}: {
+  label: string;
+  Icon: ThemeIcon;
+  active: boolean;
+  bordered?: boolean;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
+  return (
+    <SpringRow onPress={onPress} bordered={bordered}>
+      <Icon color={colors.textMuted} size={20} />
+      <Text style={styles.rowLabel}>{label}</Text>
+      {active ? (
+        <Animated.View entering={ZoomIn.springify().damping(14)}>
+          <CheckCircleIcon color={colors.accent} size={22} />
+        </Animated.View>
+      ) : (
+        <View style={styles.radioEmpty} />
+      )}
+    </SpringRow>
+  );
+}
+
+function RestTimerChip({
+  seconds,
+  active,
+  onPress,
+}: {
+  seconds: number;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+  const progress = useSharedValue(active ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(active ? 1 : 0, { duration: 220 });
+  }, [active, progress]);
+
+  const chipStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [colors.surface, colors.accent],
+    ),
+    borderColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [colors.border, colors.accent],
+    ),
+  }));
+
+  const textStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(
+      progress.value,
+      [0, 1],
+      [colors.textMuted, colors.onAccent],
+    ),
+  }));
+
+  return (
+    <Animated.View style={scale}>
+      <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut}>
+        <Animated.View style={[styles.restChip, chipStyle]}>
+          <Animated.Text style={[styles.restChipText, textStyle]}>
+            {formatRestTime(seconds)}
+          </Animated.Text>
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function SignOutButton({ onPress }: { onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
+  return (
+    <Animated.View style={scale}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={styles.signOutBtn}
+      >
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -63,109 +224,114 @@ export default function SettingsScreen() {
     <Screen scroll>
       <HevyStackHeader title="Settings" onBack={() => router.back()} />
 
-      <Text style={styles.sectionLabel}>Appearance</Text>
-      <View style={styles.group}>
-        {THEME_OPTIONS.map((opt, i) => {
-          const active = mode === opt.key;
-          return (
-            <Pressable
+      <AnimatedSection sectionIndex={0}>
+        <Text style={styles.sectionLabel}>Appearance</Text>
+        <View style={styles.group}>
+          {THEME_OPTIONS.map((opt, i) => (
+            <ThemeOptionRow
               key={opt.key}
+              label={opt.label}
+              Icon={opt.Icon}
+              active={mode === opt.key}
+              bordered={i < THEME_OPTIONS.length - 1}
               onPress={() => setMode(opt.key)}
-              style={[styles.row, i < THEME_OPTIONS.length - 1 && styles.rowBorder]}
-            >
-              <Ionicons name={opt.icon} size={20} color={colors.textMuted} />
-              <Text style={styles.rowLabel}>{opt.label}</Text>
-              {active ? (
-                <Ionicons name="checkmark-circle" size={22} color={colors.accent} />
-              ) : (
-                <View style={styles.radioEmpty} />
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
+            />
+          ))}
+        </View>
+      </AnimatedSection>
 
-      <Text style={styles.sectionLabel}>Workout</Text>
-      <View style={styles.group}>
-        {UNIT_OPTIONS.map((opt, i) => {
-          const active = weightUnit === opt.key;
-          return (
-            <Pressable
-              key={opt.key}
+      <AnimatedSection sectionIndex={1}>
+        <Text style={styles.sectionLabel}>Workout</Text>
+        <View style={styles.group}>
+          {UNIT_OPTIONS.map((opt, i) => {
+            const active = weightUnit === opt.key;
+            return (
+              <SpringRow
+                key={opt.key}
+                bordered={i < UNIT_OPTIONS.length - 1}
+                onPress={() => {
+                  setWeightUnit(opt.key);
+                  persist({ weightUnit: opt.key });
+                }}
+              >
+                <Ionicons name="barbell-outline" size={20} color={colors.textMuted} />
+                <Text style={styles.rowLabel}>{opt.label}</Text>
+                {active ? (
+                  <Animated.View entering={ZoomIn.springify().damping(14)}>
+                    <CheckCircleIcon color={colors.accent} size={22} />
+                  </Animated.View>
+                ) : (
+                  <View style={styles.radioEmpty} />
+                )}
+              </SpringRow>
+            );
+          })}
+        </View>
+      </AnimatedSection>
+
+      <AnimatedSection sectionIndex={2}>
+        <Text style={styles.sectionLabel}>Default rest timer</Text>
+        <View style={styles.restRow}>
+          {REST_PRESETS.map((sec) => (
+            <RestTimerChip
+              key={sec}
+              seconds={sec}
+              active={restSeconds === sec}
               onPress={() => {
-                setWeightUnit(opt.key);
-                persist({ weightUnit: opt.key });
+                setRestSeconds(sec);
+                persist({ defaultRestSeconds: sec });
               }}
-              style={[styles.row, i < UNIT_OPTIONS.length - 1 && styles.rowBorder]}
-            >
-              <Ionicons name="barbell-outline" size={20} color={colors.textMuted} />
-              <Text style={styles.rowLabel}>{opt.label}</Text>
-              {active ? (
-                <Ionicons name="checkmark-circle" size={22} color={colors.accent} />
-              ) : (
-                <View style={styles.radioEmpty} />
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
+            />
+          ))}
+        </View>
+      </AnimatedSection>
 
-      <Text style={styles.sectionLabel}>Default rest timer</Text>
-      <View style={styles.restRow}>
-        {REST_PRESETS.map((sec) => (
-          <Pressable
-            key={sec}
-            onPress={() => {
-              setRestSeconds(sec);
-              persist({ defaultRestSeconds: sec });
-            }}
-            style={[styles.restChip, restSeconds === sec && styles.restChipActive]}
-          >
-            <Text style={[styles.restChipText, restSeconds === sec && styles.restChipTextActive]}>
-              {formatRestTime(sec)}
+      <AnimatedSection sectionIndex={3}>
+        <Text style={styles.sectionLabel}>Tools</Text>
+        <View style={styles.group}>
+          <SpringRow bordered onPress={() => router.push("/tools")}>
+            <CalculatorIcon color={colors.textMuted} size={20} />
+            <Text style={styles.rowLabel}>Plate & warm-up calculator</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
+          </SpringRow>
+          <SpringRow onPress={() => router.push("/developer-api")}>
+            <CommandLineIcon color={colors.textMuted} size={20} />
+            <Text style={styles.rowLabel}>Developer API</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
+          </SpringRow>
+        </View>
+      </AnimatedSection>
+
+      <AnimatedSection sectionIndex={4}>
+        <Text style={styles.sectionLabel}>Account</Text>
+        <View style={styles.group}>
+          <View style={[styles.row, styles.rowBorder]}>
+            <Ionicons name="person-outline" size={20} color={colors.textMuted} />
+            <Text style={styles.rowLabel}>{user?.name ?? "Athlete"}</Text>
+          </View>
+          <View style={styles.row}>
+            <Ionicons name="mail-outline" size={20} color={colors.textMuted} />
+            <Text style={styles.rowLabel} numberOfLines={1}>
+              {user?.email ?? ""}
             </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <Text style={styles.sectionLabel}>Tools</Text>
-      <View style={styles.group}>
-        <Pressable style={[styles.row, styles.rowBorder]} onPress={() => router.push("/tools")}>
-          <Ionicons name="calculator-outline" size={20} color={colors.textMuted} />
-          <Text style={styles.rowLabel}>Plate & warm-up calculator</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
-        </Pressable>
-        <Pressable style={styles.row} onPress={() => router.push("/developer-api")}>
-          <Ionicons name="code-slash-outline" size={20} color={colors.textMuted} />
-          <Text style={styles.rowLabel}>Developer API</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
-        </Pressable>
-      </View>
-
-      <Text style={styles.sectionLabel}>Account</Text>
-      <View style={styles.group}>
-        <View style={[styles.row, styles.rowBorder]}>
-          <Ionicons name="person-outline" size={20} color={colors.textMuted} />
-          <Text style={styles.rowLabel}>{user?.name ?? "Athlete"}</Text>
+          </View>
         </View>
-        <View style={styles.row}>
-          <Ionicons name="mail-outline" size={20} color={colors.textMuted} />
-          <Text style={styles.rowLabel} numberOfLines={1}>
-            {user?.email ?? ""}
-          </Text>
-        </View>
-      </View>
+      </AnimatedSection>
 
-      <Text style={styles.sectionLabel}>About</Text>
-      <View style={styles.group}>
-        <View style={styles.row}>
-          <Ionicons name="information-circle-outline" size={20} color={colors.textMuted} />
-          <Text style={styles.rowLabel}>Kak Fit</Text>
-          <Text style={styles.rowValue}>v0.2.0 · Free</Text>
+      <AnimatedSection sectionIndex={5}>
+        <Text style={styles.sectionLabel}>About</Text>
+        <View style={styles.group}>
+          <View style={styles.row}>
+            <Ionicons name="information-circle-outline" size={20} color={colors.textMuted} />
+            <Text style={styles.rowLabel}>Kak Fit</Text>
+            <Text style={styles.rowValue}>v0.2.0 · Free</Text>
+          </View>
         </View>
-      </View>
+      </AnimatedSection>
 
-      <Button label="Sign Out" variant="danger" fullWidth onPress={handleSignOut} />
+      <AnimatedSection sectionIndex={6}>
+        <SignOutButton onPress={handleSignOut} />
+      </AnimatedSection>
     </Screen>
   );
 }
@@ -210,11 +376,15 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: 10,
       paddingHorizontal: 16,
       borderRadius: radius.md,
-      backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
     },
-    restChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-    restChipText: { fontSize: 14, fontWeight: "600", color: colors.textMuted },
-    restChipTextActive: { color: colors.onAccent },
+    restChipText: { fontSize: 14, fontWeight: "600" },
+    signOutBtn: {
+      backgroundColor: colors.danger,
+      borderRadius: radius.lg,
+      paddingVertical: 16,
+      alignItems: "center",
+      marginTop: spacing.sm,
+    },
+    signOutText: { fontSize: 16, fontWeight: "700", color: "#fff" },
   });

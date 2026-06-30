@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
+  Animated as RNAnimated,
   Modal,
   Pressable,
   ScrollView,
@@ -15,8 +16,27 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from "react-native";
+import {
+  ChevronRightIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+  XCircleIcon,
+} from "react-native-heroicons/outline";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  ZoomIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
+import { SPRING_CONFIG } from "../lib/animations";
 import {
   radius,
   spacing,
@@ -28,6 +48,20 @@ import {
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
+function usePressScale(activeScale = 0.95) {
+  const scale = useSharedValue(1);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  const onPressIn = () => {
+    scale.value = withSpring(activeScale, SPRING_CONFIG.snappy);
+  };
+  const onPressOut = () => {
+    scale.value = withSpring(1, SPRING_CONFIG.snappy);
+  };
+  return { style, onPressIn, onPressOut };
+}
+
 // ─── Layout ─────────────────────────────────────────────────────────────────
 
 export function Screen({
@@ -36,12 +70,14 @@ export function Screen({
   style,
   padded = true,
   refreshControl,
+  scrollViewRef,
 }: {
   children: React.ReactNode;
   scroll?: boolean;
   style?: ViewStyle;
   padded?: boolean;
   refreshControl?: ScrollViewProps["refreshControl"];
+  scrollViewRef?: React.RefObject<ScrollView | null>;
 }) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -53,6 +89,7 @@ export function Screen({
     <View style={[styles.screen, { paddingTop: insets.top + spacing.sm }]}>
       {scroll ? (
         <ScrollView
+          ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -243,13 +280,19 @@ export function Chip({
   onPress?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const { style, onPressIn, onPressOut } = usePressScale(0.95);
+
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
-    >
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-    </Pressable>
+    <Animated.View style={style}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={[styles.chip, active && styles.chipActive]}
+      >
+        <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -289,25 +332,39 @@ export function HevyButton({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { style, onPressIn, onPressOut } = usePressScale(0.95);
+
+  const content = loading ? (
+    <ActivityIndicator color={variant === "secondary" ? colors.accent : "#fff"} size="small" />
+  ) : (
+    <Text style={[styles.hevyButtonText, variant === "secondary" && styles.hevyButtonTextSecondary]}>
+      {label}
+    </Text>
+  );
+
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={loading}
-      style={({ pressed }) => [
-        styles.hevyButton,
-        variant === "secondary" && styles.hevyButtonSecondary,
-        pressed && styles.pressed,
-        loading && styles.buttonDisabled,
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator color={variant === "secondary" ? colors.accent : "#fff"} size="small" />
-      ) : (
-        <Text style={[styles.hevyButtonText, variant === "secondary" && styles.hevyButtonTextSecondary]}>
-          {label}
-        </Text>
-      )}
-    </Pressable>
+    <Animated.View style={style}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={loading}
+        style={loading && styles.buttonDisabled}
+      >
+        {variant === "primary" ? (
+          <LinearGradient
+            colors={[colors.accentBright, colors.accentDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.hevyButton}
+          >
+            {content}
+          </LinearGradient>
+        ) : (
+          <View style={[styles.hevyButton, styles.hevyButtonSecondary]}>{content}</View>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -357,6 +414,7 @@ export function Button({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { style, onPressIn, onPressOut } = usePressScale(0.95);
   const tint =
     variant === "primary"
       ? "#fff"
@@ -369,55 +427,101 @@ export function Button({
             : colors.accentBright;
 
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled || loading}
-      style={({ pressed }) => [
-        styles.button,
-        size === "sm" ? styles.buttonSm : styles.buttonMd,
-        fullWidth && styles.buttonFull,
-        variant === "secondary" && styles.buttonSecondary,
-        variant === "ghost" && styles.buttonGhost,
-        variant === "danger" && styles.buttonDanger,
-        variant === "gold" && styles.buttonGold,
-        (disabled || loading) && styles.buttonDisabled,
-        pressed && styles.pressed,
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator color={tint} size="small" />
-      ) : (
-        <View style={styles.buttonInner}>
-          {icon ? <Ionicons name={icon} size={size === "sm" ? 16 : 18} color={tint} /> : null}
-          <Text style={[size === "sm" ? styles.buttonTextSm : styles.buttonText, { color: tint }]}>
-            {label}
-          </Text>
-        </View>
-      )}
-    </Pressable>
+    <Animated.View style={[style, fullWidth && styles.buttonFull]}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={disabled || loading}
+        style={[
+          styles.button,
+          size === "sm" ? styles.buttonSm : styles.buttonMd,
+          fullWidth && styles.buttonFullInner,
+          variant === "secondary" && styles.buttonSecondary,
+          variant === "ghost" && styles.buttonGhost,
+          variant === "danger" && styles.buttonDanger,
+          variant === "gold" && styles.buttonGold,
+          (disabled || loading) && styles.buttonDisabled,
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator color={tint} size="small" />
+        ) : (
+          <View style={styles.buttonInner}>
+            {icon ? <Ionicons name={icon} size={size === "sm" ? 16 : 18} color={tint} /> : null}
+            <Text style={[size === "sm" ? styles.buttonTextSm : styles.buttonText, { color: tint }]}>
+              {label}
+            </Text>
+          </View>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
 export function FAB({ onPress, icon = "add" }: { onPress: () => void; icon?: IconName }) {
   const { colors, isDark } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const scale = useSharedValue(1);
+  const shadowPulse = useSharedValue(0.35);
+
+  useEffect(() => {
+    shadowPulse.value = withRepeat(
+      withSequence(
+        withTiming(0.55, { duration: 1200 }),
+        withTiming(0.25, { duration: 1200 }),
+      ),
+      -1,
+      true,
+    );
+  }, [shadowPulse]);
+
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const shadowStyle = useAnimatedStyle(() => ({
+    shadowOpacity: shadowPulse.value,
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.9, SPRING_CONFIG.snappy);
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSequence(
+      withSpring(1.1, SPRING_CONFIG.snappy),
+      withSpring(1, SPRING_CONFIG.snappy),
+    );
+  };
+
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
+    <Animated.View
+      style={[
         styles.fab,
         !isDark && {
           shadowColor: colors.accent,
-          shadowOpacity: 0.35,
           shadowRadius: 16,
           shadowOffset: { width: 0, height: 4 },
           elevation: 8,
         },
-        pressed && styles.fabPressed,
+        shadowStyle,
+        scaleStyle,
       ]}
     >
-      <Ionicons name={icon} size={26} color={colors.onAccent} />
-    </Pressable>
+      <Pressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={styles.fabInner}
+      >
+        {icon === "add" ? (
+          <PlusIcon color={colors.onAccent} size={26} />
+        ) : (
+          <Ionicons name={icon} size={26} color={colors.onAccent} />
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -434,22 +538,36 @@ export function SearchBar({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const [focused, setFocused] = useState(false);
+  const focusProgress = useSharedValue(0);
+
+  useEffect(() => {
+    focusProgress.value = withTiming(focused ? 1 : 0, { duration: 200 });
+  }, [focused, focusProgress]);
+
+  const barStyle = useAnimatedStyle(() => ({
+    borderWidth: 1,
+    borderColor: focusProgress.value > 0.5 ? colors.accent : "transparent",
+  }));
+
   return (
-    <View style={styles.searchBar}>
-      <Ionicons name="search" size={18} color={colors.textDim} />
+    <Animated.View style={[styles.searchBar, barStyle]}>
+      <MagnifyingGlassIcon color={colors.textDim} size={18} />
       <TextInput
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder ?? "Search..."}
         placeholderTextColor={colors.textDim}
         style={styles.searchInput}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
       />
       {value.length > 0 ? (
         <Pressable onPress={() => onChangeText("")} hitSlop={8}>
-          <Ionicons name="close-circle" size={18} color={colors.textDim} />
+          <XCircleIcon color={colors.textDim} size={18} />
         </Pressable>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -482,34 +600,109 @@ export function ListRow({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { style, onPressIn, onPressOut } = usePressScale(0.98);
+  const interactive = Boolean(onPress || onLongPress);
+
   return (
-    <Pressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      disabled={!onPress && !onLongPress}
-      style={({ pressed }) => [
-        styles.listRow,
-        !last && styles.listRowBorder,
-        onPress && pressed && styles.listRowPressed,
-      ]}
-    >
-      {icon ? (
-        <View style={[styles.listRowIcon, gold && styles.listRowIconGold]}>
-          <Ionicons name={icon} size={18} color={gold ? colors.gold : colors.textMuted} />
-        </View>
-      ) : null}
-      <View style={styles.listRowBody}>
-        <Text style={styles.listRowTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text style={styles.listRowSubtitle} numberOfLines={1}>
-            {subtitle}
-          </Text>
+    <Animated.View style={style}>
+      <Pressable
+        onPress={onPress}
+        onLongPress={onLongPress}
+        onPressIn={interactive ? onPressIn : undefined}
+        onPressOut={interactive ? onPressOut : undefined}
+        disabled={!interactive}
+        style={[styles.listRow, !last && styles.listRowBorder]}
+      >
+        {icon ? (
+          <View style={[styles.listRowIcon, gold && styles.listRowIconGold]}>
+            <Ionicons name={icon} size={18} color={gold ? colors.gold : colors.textMuted} />
+          </View>
         ) : null}
-      </View>
-      {right ?? (onPress ? <Ionicons name="chevron-forward" size={16} color={colors.textDim} /> : null)}
-    </Pressable>
+        <View style={styles.listRowBody}>
+          <Text style={styles.listRowTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text style={styles.listRowSubtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+        {right ?? (onPress ? <ChevronRightIcon color={colors.textDim} size={16} /> : null)}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function DialogActionButton({
+  btn,
+  onDismiss,
+}: {
+  btn: {
+    label: string;
+    onPress?: () => void;
+    variant?: "primary" | "secondary" | "destructive";
+    dismissOnPress?: boolean;
+  };
+  onDismiss?: () => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const scale = useSharedValue(1);
+  const shakeX = useSharedValue(0);
+  const isPrimary = btn.variant === "primary";
+  const isDestructive = btn.variant === "destructive";
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }, { translateX: shakeX.value }],
+  }));
+
+  const handlePress = () => {
+    if (isDestructive) {
+      shakeX.value = withSequence(
+        withTiming(-5, { duration: 45 }),
+        withTiming(5, { duration: 45 }),
+        withTiming(-4, { duration: 45 }),
+        withTiming(0, { duration: 45 }),
+      );
+    }
+    btn.onPress?.();
+    const shouldDismiss = btn.dismissOnPress ?? btn.variant !== "destructive";
+    if (shouldDismiss) {
+      onDismiss?.();
+    }
+  };
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <Pressable
+        style={[
+          styles.dialogBtn,
+          isPrimary && styles.dialogBtnPrimary,
+          isDestructive && styles.dialogBtnDestructive,
+        ]}
+        onPress={handlePress}
+        onPressIn={() => {
+          if (isPrimary) {
+            scale.value = withSpring(0.95, SPRING_CONFIG.snappy);
+          }
+        }}
+        onPressOut={() => {
+          if (isPrimary) {
+            scale.value = withSpring(1, SPRING_CONFIG.snappy);
+          }
+        }}
+      >
+        <Text
+          style={[
+            styles.dialogBtnText,
+            isPrimary && styles.dialogBtnTextPrimary,
+            isDestructive && styles.dialogBtnTextDestructive,
+          ]}
+        >
+          {btn.label}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -533,45 +726,27 @@ export function ThemedDialog({
   onDismiss?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
-      <View style={styles.dialogBackdrop}>
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onDismiss} accessibilityRole="button" />
-        <View style={styles.dialogCard} accessibilityViewIsModal>
-          <Text style={styles.dialogTitle}>{title}</Text>
-          {message ? <Text style={styles.dialogMessage}>{message}</Text> : null}
-          <View style={styles.dialogActions}>
-            {buttons.map((btn) => (
-              <Pressable
-                key={btn.label}
-                style={[
-                  styles.dialogBtn,
-                  btn.variant === "primary" && styles.dialogBtnPrimary,
-                  btn.variant === "destructive" && styles.dialogBtnDestructive,
-                ]}
-                onPress={() => {
-                  btn.onPress?.();
-                  const shouldDismiss =
-                    btn.dismissOnPress ?? btn.variant !== "destructive";
-                  if (shouldDismiss) {
-                    onDismiss?.();
-                  }
-                }}
-              >
-                <Text
-                  style={[
-                    styles.dialogBtnText,
-                    btn.variant === "primary" && styles.dialogBtnTextPrimary,
-                    btn.variant === "destructive" && styles.dialogBtnTextDestructive,
-                  ]}
-                >
-                  {btn.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      </View>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss}>
+      {visible ? (
+        <Animated.View entering={FadeIn.duration(200)} style={styles.dialogBackdrop}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={onDismiss} accessibilityRole="button" />
+          <Animated.View
+            entering={FadeInUp.springify().damping(16)}
+            style={styles.dialogCard}
+            accessibilityViewIsModal
+          >
+            <Text style={styles.dialogTitle}>{title}</Text>
+            {message ? <Text style={styles.dialogMessage}>{message}</Text> : null}
+            <View style={styles.dialogActions}>
+              {buttons.map((btn) => (
+                <DialogActionButton key={btn.label} btn={btn} onDismiss={onDismiss} />
+              ))}
+            </View>
+          </Animated.View>
+        </Animated.View>
+      ) : null}
     </Modal>
   );
 }
@@ -590,12 +765,16 @@ export function EmptyState({
   return (
     <View style={styles.empty}>
       {icon ? (
-        <View style={styles.emptyIcon}>
+        <Animated.View entering={ZoomIn.springify().damping(14)} style={styles.emptyIcon}>
           <Ionicons name={icon} size={30} color={colors.textDim} />
-        </View>
+        </Animated.View>
       ) : null}
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyMessage}>{message}</Text>
+      <Animated.Text entering={FadeInDown.delay(100).springify().damping(16)} style={styles.emptyTitle}>
+        {title}
+      </Animated.Text>
+      <Animated.Text entering={FadeInDown.delay(160).springify().damping(16)} style={styles.emptyMessage}>
+        {message}
+      </Animated.Text>
     </View>
   );
 }
@@ -806,6 +985,7 @@ const makeStyles = (colors: Palette) =>
     buttonMd: { paddingVertical: 14, paddingHorizontal: 20, minHeight: 50 },
     buttonSm: { paddingVertical: 8, paddingHorizontal: 14, minHeight: 36 },
     buttonFull: { alignSelf: "stretch" },
+    buttonFullInner: { alignSelf: "stretch" },
     buttonSecondary: { backgroundColor: colors.surfaceHover },
     buttonGhost: { backgroundColor: "transparent" },
     buttonDanger: { backgroundColor: colors.dangerMuted },
@@ -817,7 +997,6 @@ const makeStyles = (colors: Palette) =>
     pressed: { opacity: 0.7 },
 
     hevyButton: {
-      backgroundColor: colors.accent,
       borderRadius: radius.md,
       paddingVertical: 16,
       paddingHorizontal: spacing.xxl,
@@ -845,10 +1024,13 @@ const makeStyles = (colors: Palette) =>
       height: 56,
       borderRadius: 28,
       backgroundColor: colors.accent,
+    },
+    fabInner: {
+      width: "100%",
+      height: "100%",
       alignItems: "center",
       justifyContent: "center",
     },
-    fabPressed: { opacity: 0.8 },
 
     searchBar: {
       flexDirection: "row",
@@ -1030,16 +1212,16 @@ export function ToastContainer() {
   const visible = useToastStore((s) => s.visible);
   const message = useToastStore((s) => s.message);
   const type = useToastStore((s) => s.type);
-  const opacity = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new RNAnimated.Value(0)).current;
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setMounted(true);
-      Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      RNAnimated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
       return;
     }
-    Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(
+    RNAnimated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(
       ({ finished }) => {
         if (finished) setMounted(false);
       },
@@ -1055,7 +1237,7 @@ export function ToastContainer() {
   const borderColor = type === "info" ? colors.border : "transparent";
 
   return (
-    <Animated.View
+    <RNAnimated.View
       pointerEvents="none"
       style={{
         position: "absolute",
@@ -1084,7 +1266,7 @@ export function ToastContainer() {
       >
         {message}
       </Text>
-    </Animated.View>
+    </RNAnimated.View>
   );
 }
 

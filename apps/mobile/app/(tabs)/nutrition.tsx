@@ -1,9 +1,27 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FC, type ReactNode } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  FireIcon,
+  MoonIcon,
+  PencilSquareIcon,
+  PlusIcon,
+  SparklesIcon,
+  SunIcon,
+  TrashIcon,
+} from "react-native-heroicons/outline";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInRight,
+  runOnJS,
+  useAnimatedReaction,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import {
   Button,
   EmptyState,
@@ -17,14 +35,17 @@ import {
 } from "../../src/components/ui";
 import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
+import { useSpringPress } from "../../src/lib/animations";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { radius, spacing, useTheme, type Palette, type ShadowSet } from "../../src/lib/theme";
 
+type MealIcon = FC<{ color?: string; size?: number }>;
+
 const MEAL_TYPES = [
-  { key: "BREAKFAST" as const, label: "Breakfast", icon: "cafe-outline" as const },
-  { key: "LUNCH" as const, label: "Lunch", icon: "restaurant-outline" as const },
-  { key: "DINNER" as const, label: "Dinner", icon: "pizza-outline" as const },
-  { key: "SNACK" as const, label: "Snacks", icon: "nutrition-outline" as const },
+  { key: "BREAKFAST" as const, label: "Breakfast", Icon: SunIcon },
+  { key: "LUNCH" as const, label: "Lunch", Icon: FireIcon },
+  { key: "DINNER" as const, label: "Dinner", Icon: MoonIcon },
+  { key: "SNACK" as const, label: "Snacks", Icon: SparklesIcon },
 ];
 
 const MEAL_ACCENT_LIGHT: Record<(typeof MEAL_TYPES)[number]["key"], string> = {
@@ -58,6 +79,134 @@ type FoodInputModalState = {
 
 const DEFAULT_FOOD_QUANTITY_G = 100;
 
+function AnimatedCalorieRing({
+  progress,
+  size,
+  color,
+  track,
+  ticks,
+  tickLength,
+  children,
+}: {
+  progress: number;
+  size: number;
+  color: string;
+  track: string;
+  ticks: number;
+  tickLength: number;
+  children: ReactNode;
+}) {
+  const animatedProgress = useSharedValue(0);
+  const [displayProgress, setDisplayProgress] = useState(0);
+
+  useEffect(() => {
+    animatedProgress.value = 0;
+    animatedProgress.value = withTiming(progress, { duration: 1000 });
+  }, [animatedProgress, progress]);
+
+  useAnimatedReaction(
+    () => animatedProgress.value,
+    (value) => {
+      runOnJS(setDisplayProgress)(value);
+    },
+  );
+
+  return (
+    <Animated.View entering={FadeInDown.springify().damping(16)}>
+      <ProgressRing
+        size={size}
+        progress={displayProgress}
+        color={color}
+        track={track}
+        ticks={ticks}
+        tickLength={tickLength}
+      >
+        {children}
+      </ProgressRing>
+    </Animated.View>
+  );
+}
+
+function MealCard({
+  index,
+  label,
+  Icon,
+  accent,
+  subtitle,
+  onPress,
+}: {
+  index: number;
+  label: string;
+  Icon: MealIcon;
+  accent?: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(
+    () => StyleSheet.create(makeStyles(colors, shadows, isDark)),
+    [colors, shadows, isDark],
+  );
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+  const iconColor = !isDark && accent ? accent : colors.accent;
+
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(index * 80).springify().damping(16)}
+      style={scale}
+    >
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={[
+          styles.mealCard,
+          !isDark && accent ? { borderLeftWidth: 3, borderLeftColor: accent } : null,
+        ]}
+      >
+        <View style={[styles.mealIcon, !isDark && accent ? { backgroundColor: `${accent}18` } : null]}>
+          <Icon color={iconColor} size={22} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.mealName}>{label}</Text>
+          <Text style={styles.mealSub}>{subtitle}</Text>
+        </View>
+        <View style={styles.addBtn}>
+          <PlusIcon color={!isDark ? colors.textMuted : colors.onAccent} size={20} />
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function AnimatedFoodRow({
+  item,
+  isLast,
+  accentColor,
+  onPress,
+}: {
+  item: FoodSearchItem;
+  isLast: boolean;
+  accentColor: string;
+  onPress: () => void;
+}) {
+  const { scale, onPressIn, onPressOut } = useSpringPress();
+
+  return (
+    <Animated.View style={scale}>
+      <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut}>
+        <ListRow
+          title={item.name}
+          subtitle={`${Math.round(item.calories)} cal · P${Math.round(item.protein)} C${Math.round(item.carbs)} F${Math.round(item.fat)} · ${item.source}`}
+          icon="restaurant-outline"
+          right={<PlusIcon color={accentColor} size={22} />}
+          last={isLast}
+        />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export default function NutritionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -66,7 +215,7 @@ export default function NutritionScreen() {
   const headerText = isDark ? colors.text : "#1A1A1A";
   const gradientColors = isDark
     ? ([colors.bg, colors.bg] as const)
-    : (["#EDF86A", "#6DC643"] as const);
+    : (["#A8E063", "#56AB2F"] as const);
 
   const [search, setSearch] = useState("");
   const [mealType, setMealType] = useState<MealKey>("LUNCH");
@@ -119,7 +268,7 @@ export default function NutritionScreen() {
   } = trpc.nutrition.searchFoodsUsda.useQuery(
     { query: search, excludeNames },
     {
-      enabled: searchEnabled && localFoods !== undefined,
+      enabled: searchEnabled && localFoods !== undefined && !localLoading && !localError,
       staleTime: queryStaleTime.default,
     },
   );
@@ -259,6 +408,17 @@ export default function NutritionScreen() {
       (macroTargets?.carbs ?? 0) === 0 &&
       (macroTargets?.fat ?? 0) === 0);
 
+  const loggedItems = useMemo(
+    () =>
+      (meals ?? []).flatMap((meal) =>
+        meal.items.map((item) => ({
+          meal,
+          item,
+        })),
+      ),
+    [meals],
+  );
+
   return (
     <Screen scroll padded={false} style={{ backgroundColor: colors.bg }}>
       <LinearGradient
@@ -294,9 +454,9 @@ export default function NutritionScreen() {
             </View>
           ) : summary ? (
             <View style={styles.calHero}>
-              <ProgressRing
-                size={140}
+              <AnimatedCalorieRing
                 progress={calProgress}
+                size={140}
                 color={colors.accent}
                 track={isDark ? colors.surfaceHover : "#E8E5DE"}
                 ticks={56}
@@ -307,7 +467,7 @@ export default function NutritionScreen() {
                   {calTarget > 0 ? `/ ${calTarget.toLocaleString()}` : "No goal set"}
                 </Text>
                 <Text style={[styles.calUnit, { color: isDark ? colors.textDim : "#A8A8A8" }]}>Calories</Text>
-              </ProgressRing>
+              </AnimatedCalorieRing>
             </View>
           ) : null}
         </View>
@@ -326,6 +486,7 @@ export default function NutritionScreen() {
           ) : (
             <View style={styles.macroBlock}>
               <MacroRingRow
+                index={0}
                 label="Carbs"
                 value={summary.carbs}
                 target={macroTargets?.carbs ?? 0}
@@ -333,6 +494,7 @@ export default function NutritionScreen() {
                 track={isDark ? undefined : "#E8E5DE"}
               />
               <MacroRingRow
+                index={1}
                 label="Protein"
                 value={summary.protein}
                 target={macroTargets?.protein ?? 0}
@@ -340,6 +502,7 @@ export default function NutritionScreen() {
                 track={isDark ? undefined : "#E8E5DE"}
               />
               <MacroRingRow
+                index={2}
                 label="Fats"
                 value={summary.fat}
                 target={macroTargets?.fat ?? 0}
@@ -352,56 +515,42 @@ export default function NutritionScreen() {
 
         <Text style={styles.sectionTitle}>Today&apos;s Meals</Text>
         <View style={styles.mealStack}>
-          {MEAL_TYPES.map((meal) => {
+          {MEAL_TYPES.map((meal, index) => {
             const total = mealTotals[meal.key];
             const accent = !isDark ? MEAL_ACCENT_LIGHT[meal.key] : undefined;
             return (
-              <Pressable
+              <MealCard
                 key={meal.key}
-                style={({ pressed }) => [
-                  styles.mealCard,
-                  !isDark && accent ? { borderLeftWidth: 3, borderLeftColor: accent } : null,
-                  pressed && styles.pressed,
-                ]}
+                index={index}
+                label={meal.label}
+                Icon={meal.Icon}
+                accent={accent}
+                subtitle={
+                  total
+                    ? `${total.count} item${total.count === 1 ? "" : "s"} · ${Math.round(total.cal)} cal`
+                    : "Tap to add food"
+                }
                 onPress={() => openLogger(meal.key)}
-              >
-                <View style={[styles.mealIcon, !isDark && accent ? { backgroundColor: `${accent}18` } : null]}>
-                  <Ionicons name={meal.icon} size={22} color={!isDark && accent ? accent : colors.accent} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.mealName}>{meal.label}</Text>
-                  <Text style={styles.mealSub}>
-                    {total
-                      ? `${total.count} item${total.count === 1 ? "" : "s"} · ${Math.round(total.cal)} cal`
-                      : "Tap to add food"}
-                  </Text>
-                </View>
-                <View style={styles.addBtn}>
-                  <Ionicons
-                    name="add"
-                    size={22}
-                    color={!isDark ? colors.textMuted : colors.onAccent}
-                  />
-                </View>
-              </Pressable>
+              />
             );
           })}
         </View>
 
-        {(meals ?? []).length > 0 ? (
+        {loggedItems.length > 0 ? (
           <>
             <Text style={styles.sectionTitle}>Logged Today</Text>
             <ListGroup>
-              {(meals ?? []).flatMap((meal, mealIndex) =>
-                meal.items.map((item, itemIndex) => {
-                  const ratio = item.quantity / (item.food.servingSize ?? 100);
-                  const cal = Math.round(item.food.calories * ratio);
-                  const mealLabel = MEAL_TYPES.find((m) => m.key === meal.mealType)?.label ?? meal.mealType;
-                  const isLast =
-                    mealIndex === (meals?.length ?? 0) - 1 && itemIndex === meal.items.length - 1;
-                  return (
+              {loggedItems.map(({ meal, item }, flatIndex) => {
+                const ratio = item.quantity / (item.food.servingSize ?? 100);
+                const cal = Math.round(item.food.calories * ratio);
+                const mealLabel = MEAL_TYPES.find((m) => m.key === meal.mealType)?.label ?? meal.mealType;
+                const isLast = flatIndex === loggedItems.length - 1;
+                return (
+                  <Animated.View
+                    key={`${meal.id}-${item.id}`}
+                    entering={FadeInDown.delay(flatIndex * 60).springify().damping(16)}
+                  >
                     <ListRow
-                      key={`${meal.id}-${item.id}`}
                       title={item.food.name}
                       subtitle={`${mealLabel} · ${Math.round(item.quantity)}g · ${cal} cal`}
                       icon="restaurant-outline"
@@ -411,21 +560,21 @@ export default function NutritionScreen() {
                             hitSlop={8}
                             onPress={() => openEditFood(item.id, item.food.name, item.quantity)}
                           >
-                            <Ionicons name="pencil-outline" size={18} color={colors.accent} />
+                            <PencilSquareIcon color={colors.accent} size={18} />
                           </Pressable>
                           <Pressable
                             hitSlop={8}
                             onPress={() => confirmDeleteMeal(meal.id, item.food.name)}
                           >
-                            <Ionicons name="trash-outline" size={18} color={colors.textDim} />
+                            <TrashIcon color={colors.textDim} size={18} />
                           </Pressable>
                         </View>
                       }
                       last={isLast}
                     />
-                  );
-                }),
-              )}
+                  </Animated.View>
+                );
+              })}
             </ListGroup>
           </>
         ) : null}
@@ -466,26 +615,22 @@ export default function NutritionScreen() {
             ) : (foods ?? []).length === 0 ? (
               <EmptyState icon="search-outline" title="No foods found" message="Try chicken, rice, banana, or egg." />
             ) : (
-              <>
+              <Animated.View entering={FadeIn.duration(400)}>
                 {usdaLoading ? (
                   <Text style={styles.usdaLoadingHint}>Loading more results from USDA…</Text>
                 ) : null}
                 <ListGroup>
-                {foods?.map((item, index) => (
-                    <ListRow
+                  {foods?.map((item, index) => (
+                    <AnimatedFoodRow
                       key={`${item.source}-${item.fdcId}-${item.name}`}
-                      title={item.name}
-                      subtitle={`${Math.round(item.calories)} cal · P${Math.round(item.protein)} C${Math.round(item.carbs)} F${Math.round(item.fat)} · ${item.source}`}
-                      icon="restaurant-outline"
+                      item={item}
+                      isLast={index === (foods?.length ?? 0) - 1}
+                      accentColor={colors.accent}
                       onPress={() => handleLogFood(item)}
-                      right={
-                        <Ionicons name="add-circle-outline" size={22} color={colors.accent} />
-                      }
-                      last={index === (foods?.length ?? 0) - 1}
                     />
                   ))}
                 </ListGroup>
-              </>
+              </Animated.View>
             )}
           </View>
         ) : null}
@@ -557,12 +702,14 @@ export default function NutritionScreen() {
 }
 
 function MacroRingRow({
+  index,
   label,
   value,
   target,
   color,
   track,
 }: {
+  index: number;
   label: string;
   value: number;
   target: number;
@@ -577,7 +724,7 @@ function MacroRingRow({
   const progress = target > 0 ? Math.min(1, value / target) : 0;
   const pct = Math.round(progress * 100);
   return (
-    <View style={styles.macroRow}>
+    <Animated.View entering={FadeInRight.delay(index * 100).springify().damping(16)} style={styles.macroRow}>
       <ProgressRing
         size={52}
         progress={progress}
@@ -595,7 +742,7 @@ function MacroRingRow({
           {Math.round(value)}g / {target > 0 ? `${target}g` : "—"}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -712,7 +859,6 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       alignItems: "center" as const,
       justifyContent: "center" as const,
     },
-    pressed: { opacity: 0.7 },
 
     mealRowActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
     editModal: {

@@ -1,27 +1,32 @@
-import { QueryClientProvider } from "@tanstack/react-query";
 import {
   DarkTheme as NavDarkTheme,
   DefaultTheme as NavDefaultTheme,
   ThemeProvider as NavThemeProvider,
 } from "@react-navigation/native";
-import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
+import { QueryClientProvider } from "@tanstack/react-query";
+import {
+  Stack,
+  useRootNavigationState,
+  useRouter,
+  useSegments,
+} from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
+import { DevApiBanner } from "../src/components/dev-api-banner";
 import { QueryErrorBoundary } from "../src/components/query-error-boundary";
 import { StartupErrorBoundary } from "../src/components/startup-error-boundary";
-import { DevApiBanner } from "../src/components/dev-api-banner";
-import { TrpcPrefetchBootstrap } from "../src/components/trpc-prefetch-bootstrap";
 import { TokenRefreshBadge } from "../src/components/token-refresh-badge";
+import { TrpcPrefetchBootstrap } from "../src/components/trpc-prefetch-bootstrap";
 import { ToastContainer, ToastProvider } from "../src/components/ui";
-import { AuthSessionValidator } from "../src/lib/auth-session-validator";
 import { AuthProvider, useAuth } from "../src/lib/auth-context";
+import { AuthSessionValidator } from "../src/lib/auth-session-validator";
 import { queryClient } from "../src/lib/query-client";
-import { createTRPCClient, trpc } from "../src/lib/trpc";
 import { ThemeProvider, useTheme } from "../src/lib/theme";
+import { createTRPCClient, trpc } from "../src/lib/trpc";
 
 const trpcClient = createTRPCClient();
 
@@ -62,7 +67,11 @@ function AuthLoadingOverlay() {
   return (
     <View
       pointerEvents="auto"
-      style={[StyleSheet.absoluteFillObject, styles.loadingOverlay, { backgroundColor: colors.bg }]}
+      style={[
+        StyleSheet.absoluteFillObject,
+        styles.loadingOverlay,
+        { backgroundColor: colors.bg },
+      ]}
     >
       <ActivityIndicator color={colors.accent} size="large" />
     </View>
@@ -75,25 +84,46 @@ function AppStack() {
 
   return (
     <QueryErrorBoundary onRetry={() => void utils.invalidate()}>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.bg },
+          animation: "slide_from_right",
+        }}
+      >
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
         <Stack.Screen name="login-callback" options={{ animation: "fade" }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="workout" />
-        <Stack.Screen name="routine/create" options={{ presentation: "modal" }} />
-        <Stack.Screen name="exercise/create" options={{ presentation: "modal" }} />
+        <Stack.Screen
+          name="routine/create"
+          options={{ presentation: "modal" }}
+        />
+        <Stack.Screen
+          name="exercise/create"
+          options={{ presentation: "modal" }}
+        />
         <Stack.Screen name="exercise/[id]" />
         <Stack.Screen name="measurements" />
         <Stack.Screen name="settings" options={{ presentation: "modal" }} />
-        <Stack.Screen name="nutrition-goals" options={{ presentation: "modal" }} />
-        <Stack.Screen name="nutrition-foods" options={{ presentation: "modal" }} />
+        <Stack.Screen
+          name="nutrition-goals"
+          options={{ presentation: "modal" }}
+        />
+        <Stack.Screen
+          name="nutrition-foods"
+          options={{ presentation: "modal" }}
+        />
         <Stack.Screen name="profile-edit" options={{ presentation: "modal" }} />
         <Stack.Screen name="photos" />
         <Stack.Screen name="photos/compare" />
         <Stack.Screen name="calendar" />
         <Stack.Screen name="tools" options={{ presentation: "modal" }} />
-        <Stack.Screen name="developer-api" options={{ presentation: "modal" }} />
+        <Stack.Screen
+          name="developer-api"
+          options={{ presentation: "modal" }}
+        />
         <Stack.Screen name="routine/share/[token]" />
       </Stack>
     </QueryErrorBoundary>
@@ -120,13 +150,13 @@ function ThemedApp() {
       <StatusBar style={isDark ? "light" : "dark"} />
       <View style={styles.root}>
         <ToastProvider>
-        <AppStack />
-        <AuthRedirect />
-        <AuthLoadingOverlay />
-        <DevApiBanner />
-        <TokenRefreshBadge />
-        <ActiveWorkoutOverlay />
-        <ToastContainer />
+          <AppStack />
+          <AuthRedirect />
+          <AuthLoadingOverlay />
+          <DevApiBanner />
+          <TokenRefreshBadge />
+          <ActiveWorkoutOverlay />
+          <ToastContainer />
         </ToastProvider>
       </View>
     </NavThemeProvider>
@@ -158,5 +188,9 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   gestureRoot: { flex: 1 },
   root: { flex: 1 },
-  loadingOverlay: { alignItems: "center", justifyContent: "center", zIndex: 100 },
+  loadingOverlay: {
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+  },
 });

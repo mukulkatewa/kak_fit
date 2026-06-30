@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -22,6 +22,12 @@ export default function ExercisesTab() {
   const [search, setSearch] = useState("");
   const [muscleId, setMuscleId] = useState<string | null>(null);
   const [customOnly, setCustomOnly] = useState(false);
+
+  const utils = trpc.useUtils();
+
+  useEffect(() => {
+    void utils.exercise.muscles.prefetch();
+  }, [utils]);
 
   const { data: muscles, isPending: musclesPending } = trpc.exercise.muscles.useQuery();
   const {

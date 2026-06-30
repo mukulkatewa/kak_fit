@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { getToken, getTokenSync, refreshToken } from "./auth";
 import { notifySessionExpired } from "./auth-session-events";
 import { apiHeaders } from "./api-client";
@@ -42,7 +43,15 @@ function createTimeoutSignal(ms: number, parent?: AbortSignal | null): AbortSign
 export async function authHeaders(): Promise<Record<string, string>> {
   const token = getTokenSync() ?? (await getToken());
   const isRealToken = token && !token.startsWith("cookie_session_");
-  return apiHeaders(isRealToken ? { Authorization: `Bearer ${token}` } : {});
+
+  const headers = apiHeaders(isRealToken ? { Authorization: `Bearer ${token}` } : {});
+
+  // Cookie sessions on web: omit Bearer marker token; hint server to use cookies.
+  if (Platform.OS === "web" && token?.startsWith("cookie_session_")) {
+    headers["X-Auth-Mode"] = "cookie";
+  }
+
+  return headers;
 }
 
 async function fetchWithAuthRetry(

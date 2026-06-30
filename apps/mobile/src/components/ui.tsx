@@ -36,10 +36,9 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
 import { SPRING_CONFIG } from "../lib/animations";
-import { useTabBarBottomInset, useTabScreenTopInset } from "../lib/layout-constants";
+import { useScreenBottomInset, useScreenTopInset, type ScreenLayoutVariant } from "../lib/layout-constants";
 import {
   radius,
   spacing,
@@ -74,7 +73,7 @@ export function Screen({
   padded = true,
   refreshControl,
   scrollViewRef,
-  tabBarInset = false,
+  variant = "stack",
 }: {
   children: React.ReactNode;
   scroll?: boolean;
@@ -82,13 +81,12 @@ export function Screen({
   padded?: boolean;
   refreshControl?: ScrollViewProps["refreshControl"];
   scrollViewRef?: React.RefObject<ScrollView | null>;
-  /** Reserve space above the floating tab bar so last items stay visible. */
-  tabBarInset?: boolean;
+  /** Layout context — tab screens skip tab-bar height in bottom padding. */
+  variant?: ScreenLayoutVariant;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const topInset = useTabScreenTopInset();
-  const tabBottomInset = useTabBarBottomInset();
-  const bottomPad = tabBarInset ? tabBottomInset : spacing.xxl;
+  const topInset = useScreenTopInset(variant);
+  const bottomPad = useScreenBottomInset(variant);
   const internalScrollRef = useRef<ScrollView>(null);
   const resolvedScrollRef = scrollViewRef ?? internalScrollRef;
 

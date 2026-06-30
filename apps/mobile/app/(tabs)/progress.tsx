@@ -285,6 +285,7 @@ export default function ProgressScreen() {
   return (
     <Screen
       scroll
+      variant="tab"
       scrollViewRef={scrollViewRef}
       refreshControl={
         <RefreshControl

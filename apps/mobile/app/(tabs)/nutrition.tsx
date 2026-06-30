@@ -421,7 +421,7 @@ export default function NutritionScreen() {
   );
 
   return (
-    <Screen scroll padded={false} style={{ backgroundColor: colors.bg }}>
+    <Screen scroll padded={false} variant="tab" style={{ backgroundColor: colors.bg }}>
       <LinearGradient
         colors={gradientColors}
         start={{ x: 0, y: 0 }}

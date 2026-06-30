@@ -237,7 +237,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <Screen scroll padded={false}>
+    <Screen scroll padded={false} variant="tab">
       <View style={styles.pad}>
         <Animated.View entering={entranceDown(100)}>
           <HevyTopBar

@@ -1,9 +1,8 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
-import { ThemedDialog, useToast } from "../../src/components/ui";
+import { Screen, ThemedDialog, useToast } from "../../src/components/ui";
 import { WorkoutHistoryList } from "../../src/components/workout-history-list";
 import {
   flattenFinishedWorkouts,
@@ -11,12 +10,10 @@ import {
 } from "../../src/lib/workout-history-query";
 import { trpc } from "../../src/lib/trpc";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+import { spacing, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 export default function WorkoutHistoryScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const utils = trpc.useUtils();
   const { showToast } = useToast();
@@ -57,7 +54,7 @@ export default function WorkoutHistoryScreen() {
   });
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + spacing.sm, backgroundColor: colors.bg }]}>
+    <Screen variant="stack" padded={false}>
       <View style={styles.headerPad}>
         <HevyStackHeader title="Workout History" onBack={() => router.back()} />
       </View>
@@ -105,12 +102,11 @@ export default function WorkoutHistoryScreen() {
           },
         ]}
       />
-    </View>
+    </Screen>
   );
 }
 
 const makeStyles = (_colors: Palette) =>
   StyleSheet.create({
-    screen: { flex: 1 },
     headerPad: { paddingHorizontal: spacing.lg },
   });

@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Avatar } from "../src/components/ui";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { Avatar, Screen } from "../src/components/ui";
 import { HevyModalHeader } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
@@ -15,8 +15,6 @@ export default function ProfileEditScreen() {
 
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
-  // Only initialize from server data once — don't overwrite mid-edit when the
-  // query re-fetches after invalidation.
   const initialized = useRef(false);
   useEffect(() => {
     if (user && !initialized.current) {
@@ -35,7 +33,7 @@ export default function ProfileEditScreen() {
   });
 
   return (
-    <View style={styles.screen}>
+    <Screen scroll variant="modal" padded={false}>
       <View style={styles.headerPad}>
         <HevyModalHeader
           title="Edit Profile"
@@ -45,7 +43,8 @@ export default function ProfileEditScreen() {
           saveLoading={save.isPending}
         />
       </View>
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+
+      <View style={styles.body}>
         <View style={styles.avatarWrap}>
           <Avatar name={name || user?.name} size={88} />
         </View>
@@ -70,16 +69,15 @@ export default function ProfileEditScreen() {
           maxLength={280}
         />
         <Text style={styles.counter}>{bio.length}/280</Text>
-      </ScrollView>
-    </View>
+      </View>
+    </Screen>
   );
 }
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg },
-    headerPad: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl },
-    body: { padding: spacing.lg, gap: spacing.sm },
+    headerPad: { paddingHorizontal: spacing.lg },
+    body: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.lg },
     avatarWrap: { alignItems: "center", paddingVertical: spacing.md },
     label: { fontSize: 13, fontWeight: "600", color: colors.textMuted, marginTop: spacing.md },
     input: {

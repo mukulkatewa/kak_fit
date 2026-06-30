@@ -224,7 +224,7 @@ export default function MyRoutinesScreen() {
 
   return (
     <Screen scroll padded={false}>
-      <View style={[styles.pad, { paddingBottom: insets.bottom + spacing.xxl }]}>
+      <View style={styles.pad}>
         <HevyStackHeader
           title="My Routines"
           onBack={() => router.back()}

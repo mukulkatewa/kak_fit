@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HevyButton, ListGroup, ListRow, Screen, ThemedDialog } from "../../../src/components/ui";
 import { HevyProgramCard, HevyStackHeader } from "../../../src/components/hevy-ui";
 import { getProgram, type ProgramRoutineTemplate } from "../../../src/lib/explore-data";
@@ -27,7 +26,6 @@ export default function ProgramDetailScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const program = getProgram(id ?? "");
   const { data: savedRoutines } = trpc.routine.list.useQuery();
@@ -226,7 +224,7 @@ export default function ProgramDetailScreen() {
 
   return (
     <Screen scroll padded={false}>
-      <View style={[styles.pad, { paddingBottom: insets.bottom + spacing.xxl }]}>
+      <View style={styles.pad}>
         <HevyStackHeader title="Program" onBack={() => router.back()} />
 
         <View pointerEvents="none">

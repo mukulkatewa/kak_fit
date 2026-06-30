@@ -472,7 +472,7 @@ function DashboardScreen() {
   ];
 
   return (
-    <Screen scroll padded={false}>
+    <Screen scroll padded={false} variant="tab">
       <View style={styles.pad}>
         {/* Greeting header + stats */}
         <View style={styles.headerBlock}>

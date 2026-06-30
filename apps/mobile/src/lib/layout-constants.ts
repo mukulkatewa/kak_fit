@@ -2,22 +2,39 @@ import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing } from "./theme";
 
-export const TAB_BAR_HEIGHT = 84;
-export const TAB_BAR_PADDING_BOTTOM = 28;
+/** Icon + label area of the bottom tab bar (excluding safe-area padding). */
+export const TAB_BAR_CONTENT_HEIGHT = 56;
+export const TAB_BAR_HEIGHT = TAB_BAR_CONTENT_HEIGHT + 8;
+export const TAB_BAR_PADDING_BOTTOM = Platform.OS === "web" ? spacing.sm : 28;
 
-/** Bottom inset so scroll content clears the tab bar. */
-export function useTabBarBottomInset(): number {
-  const insets = useSafeAreaInsets();
-  return TAB_BAR_HEIGHT + Math.max(insets.bottom, TAB_BAR_PADDING_BOTTOM) + spacing.lg;
-}
+export type ScreenLayoutVariant = "tab" | "stack" | "modal";
 
-/** Top inset for tab screen content below status / browser chrome. */
-export function useTabScreenTopInset(): number {
+/** Top padding below status bar / browser chrome. */
+export function useScreenTopInset(variant: ScreenLayoutVariant = "stack"): number {
   const insets = useSafeAreaInsets();
   if (Platform.OS === "web") {
-    return Math.max(insets.top, spacing.md);
+    return variant === "modal" ? spacing.xs : spacing.sm;
   }
-  return insets.top + spacing.sm;
+  return insets.top + (variant === "modal" ? spacing.xs : spacing.sm);
+}
+
+/** Bottom scroll padding — tab screens omit tab bar height (bar is in layout flow). */
+export function useScreenBottomInset(variant: ScreenLayoutVariant = "stack"): number {
+  const insets = useSafeAreaInsets();
+  if (variant === "tab") {
+    return spacing.md;
+  }
+  return Math.max(insets.bottom, spacing.md) + spacing.sm;
+}
+
+/** @deprecated Use useScreenBottomInset("tab") */
+export function useTabBarBottomInset(): number {
+  return useScreenBottomInset("tab");
+}
+
+/** @deprecated Use useScreenTopInset("tab") */
+export function useTabScreenTopInset(): number {
+  return useScreenTopInset("tab");
 }
 
 /** Screens where the active-workout overlay may appear (tab roots + common drill-downs). */

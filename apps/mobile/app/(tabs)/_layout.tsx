@@ -12,7 +12,7 @@ import { Platform, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedTabIcon } from "../../src/components/animated-tab-icon";
 import { TAB_BAR_HEIGHT, TAB_BAR_PADDING_BOTTOM } from "../../src/lib/layout-constants";
-import { useTheme } from "../../src/lib/theme";
+import { spacing, useTheme } from "../../src/lib/theme";
 
 function makeTabIcon(
   IconOutline: FC<{ color?: string; size?: number }>,
@@ -43,16 +43,19 @@ function makeTabIcon(
 export default function TabsLayout() {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const tabBarBottomPad = Math.max(insets.bottom, TAB_BAR_PADDING_BOTTOM);
+  const tabBarBottomPad = Math.max(
+    Platform.OS === "web" ? spacing.sm : insets.bottom,
+    TAB_BAR_PADDING_BOTTOM,
+  );
   const tabBarStyle = {
     backgroundColor: isDark ? "rgba(0,0,0,0.85)" : "rgba(245,244,240,0.92)",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    height: TAB_BAR_HEIGHT + tabBarBottomPad,
-    paddingBottom: tabBarBottomPad,
     paddingTop: 8,
+    paddingBottom: tabBarBottomPad,
+    minHeight: TAB_BAR_HEIGHT + tabBarBottomPad,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -72,6 +75,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle,
+        sceneStyle: { flex: 1, backgroundColor: colors.bg },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textDim,
         tabBarLabelStyle: styles.tabLabel,

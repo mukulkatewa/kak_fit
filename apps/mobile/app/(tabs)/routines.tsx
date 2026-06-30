@@ -490,6 +490,7 @@ export default function WorkoutTabScreen() {
     <Screen
       scroll
       padded={false}
+      variant="tab"
       refreshControl={
         <RefreshControl
           refreshing={refreshing}

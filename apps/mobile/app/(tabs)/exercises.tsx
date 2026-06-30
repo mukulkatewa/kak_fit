@@ -47,7 +47,7 @@ export default function ExercisesTab() {
   const loading = (isPending && exercises === undefined) || (musclesPending && muscles === undefined);
 
   return (
-    <Screen scroll>
+    <Screen scroll variant="tab">
       <Header
         title="Exercises"
         subtitle={`${count?.count ?? 0} exercises`}

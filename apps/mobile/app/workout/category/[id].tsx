@@ -1,7 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HevyButton, ListGroup, ListRow, Screen, ThemedDialog } from "../../../src/components/ui";
 import { HevyStackHeader } from "../../../src/components/hevy-ui";
 import { getCategory } from "../../../src/lib/explore-data";
@@ -21,7 +20,6 @@ export default function CategoryDetailScreen() {
   const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const category = getCategory(id ?? "");
   const [saving, setSaving] = useState<string | null>(null);
@@ -123,7 +121,7 @@ export default function CategoryDetailScreen() {
 
   return (
     <Screen scroll padded={false}>
-      <View style={[styles.pad, { paddingBottom: insets.bottom + spacing.xxl }]}>
+      <View style={styles.pad}>
         <HevyStackHeader title={category.label} onBack={() => router.back()} />
 
         <View style={styles.hero}>

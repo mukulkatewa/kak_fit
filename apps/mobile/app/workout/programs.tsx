@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Screen } from "../../src/components/ui";
 import { HevyFilterBar, HevyProgramCard, HevyStackHeader } from "../../src/components/hevy-ui";
 import {
@@ -20,7 +19,6 @@ type FilterKey = "level" | "goal" | "equipment" | null;
 export default function AllProgramsScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [openFilter, setOpenFilter] = useState<FilterKey>(null);
   const [level, setLevel] = useState<ProgramLevel | null>(null);
   const [goal, setGoal] = useState<ProgramGoal | null>(null);
@@ -103,7 +101,7 @@ export default function AllProgramsScreen() {
 
   return (
     <Screen scroll padded={false}>
-      <View style={[styles.pad, { paddingBottom: insets.bottom + spacing.xxl }]}>
+      <View style={styles.pad}>
         <HevyStackHeader title="Programs" onBack={() => router.back()} />
         <HevyFilterBar chips={filterChips} />
         {renderFilterOptions()}

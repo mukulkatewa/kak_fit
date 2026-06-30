@@ -221,7 +221,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <Screen scroll>
+    <Screen scroll variant="modal">
       <HevyStackHeader title="Settings" onBack={() => router.back()} />
 
       <AnimatedSection sectionIndex={0}>

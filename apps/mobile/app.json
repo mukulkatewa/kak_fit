@@ -21,6 +21,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "permissions": [
+        "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -59,6 +60,12 @@
         "projectId": "9ca51544-16e6-4b85-983f-d6c6eefcd31b"
       }
     },
-    "owner": "mukul_katewa"
+    "owner": "mukul_katewa",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9ca51544-16e6-4b85-983f-d6c6eefcd31b"
+    }
   }
 }

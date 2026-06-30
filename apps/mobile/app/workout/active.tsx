@@ -131,6 +131,8 @@ export default function ActiveWorkoutScreen() {
     [workout?.exercises],
   );
 
+  const exercisesInWorkout = useMemo(() => new Set(exerciseIds), [exerciseIds]);
+
   const { data: previousMap } = trpc.workout.previousSets.useQuery(
     { exerciseIds },
     { enabled: exerciseIds.length > 0, staleTime: 60 * 1000 },
@@ -259,10 +261,13 @@ export default function ActiveWorkoutScreen() {
   };
 
   const addExercise = trpc.workout.addExercise.useMutation({
-    onSuccess: (newExercise) => {
-      closePicker();
+    onSuccess: (newExercise, variables) => {
       patchActiveWorkout((workout) => addExerciseToWorkout(workout, newExercise));
       utils.workout.previousSets.invalidate();
+
+      const exerciseName =
+        exercises?.find((e) => e.id === variables.exerciseId)?.name ?? "Exercise";
+      showToast(`${exerciseName} added`, "success");
     },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
@@ -271,7 +276,7 @@ export default function ActiveWorkoutScreen() {
       }
       await enqueueWorkoutMutation("addExercise", variables);
       setPendingOffline(await getQueuedWorkoutMutationCount());
-      closePicker();
+
       const meta = exercises?.find((item) => item.id === variables.exerciseId);
       patchActiveWorkout((workout) =>
         addExerciseToWorkout(
@@ -282,6 +287,7 @@ export default function ActiveWorkoutScreen() {
           }),
         ),
       );
+      showToast(`${meta?.name ?? "Exercise"} added (will sync later)`, "info");
     },
   });
 
@@ -655,7 +661,15 @@ export default function ActiveWorkoutScreen() {
     >
       <View style={[styles.pickerModal, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom }]}>
         <View style={styles.pickerHeader}>
-          <Text style={styles.pickerTitle}>Add Exercise</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.pickerTitle}>Add Exercise</Text>
+            {workout.exercises.length > 0 && (
+              <Text style={[styles.pickerSubtitle, { color: colors.textMuted }]}>
+                {workout.exercises.length} exercise{workout.exercises.length !== 1 ? "s" : ""} in
+                workout
+              </Text>
+            )}
+          </View>
           <Pressable onPress={closePicker} hitSlop={8}>
             <Ionicons name="close" size={24} color={colors.text} />
           </Pressable>
@@ -667,23 +681,55 @@ export default function ActiveWorkoutScreen() {
           style={styles.pickerList}
           contentContainerStyle={styles.pickerListContent}
           keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => (
-            <Pressable
-              style={styles.pickerItem}
-              onPress={() =>
-                addExercise.mutate({
-                  workoutId: workout.id,
-                  exerciseId: item.id,
-                  sets: [{ setNumber: 1, isCompleted: false }],
-                })
-              }
-            >
-              <Text style={styles.pickerText}>{item.name}</Text>
-              <Ionicons name="add-circle" size={22} color={colors.accent} />
-            </Pressable>
-          )}
+          renderItem={({ item }) => {
+            const isAlreadyAdded = exercisesInWorkout.has(item.id);
+            const isAdding =
+              addExercise.isPending && addExercise.variables?.exerciseId === item.id;
+
+            return (
+              <Pressable
+                style={[
+                  styles.pickerItem,
+                  isAlreadyAdded && { opacity: 0.5, backgroundColor: colors.bgElevated },
+                ]}
+                onPress={() => {
+                  if (isAlreadyAdded) {
+                    showToast(`${item.name} is already in this workout`, "info");
+                    return;
+                  }
+                  addExercise.mutate({
+                    workoutId: workout.id,
+                    exerciseId: item.id,
+                    sets: [{ setNumber: 1, isCompleted: false }],
+                  });
+                }}
+                disabled={isAdding}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pickerText}>{item.name}</Text>
+                  {isAlreadyAdded && (
+                    <Text style={[styles.pickerSubtitle, { color: colors.textMuted }]}>
+                      Already added
+                    </Text>
+                  )}
+                </View>
+                {isAdding ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : isAlreadyAdded ? (
+                  <Ionicons name="checkmark-circle" size={22} color={colors.accent} />
+                ) : (
+                  <Ionicons name="add-circle" size={22} color={colors.accent} />
+                )}
+              </Pressable>
+            );
+          }}
         />
-        <Button label="Close" variant="ghost" fullWidth onPress={closePicker} />
+        <Button
+          label={workout.exercises.length > 0 ? "Done" : "Close"}
+          variant="primary"
+          fullWidth
+          onPress={closePicker}
+        />
       </View>
     </Modal>
 
@@ -1330,6 +1376,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     justifyContent: "space-between",
   },
   pickerTitle: { fontSize: 20, fontWeight: "700", color: colors.text },
+  pickerSubtitle: { fontSize: 12, marginTop: 2 },
   pickerList: { flex: 1 },
   pickerListContent: { paddingBottom: spacing.md, gap: 6 },
   pickerItem: {

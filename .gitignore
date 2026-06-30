@@ -52,6 +52,7 @@ apps/web/public/
 # Hevy import tooling (ephemeral — not part of the app)
 packages/db/scripts/hevy/hevy-api-samples/
 packages/db/scripts/hevy/.hevy-sync-state.json
+packages/db/scripts/hevy/.hevy-import-checkpoint.json
 .env.vercel.production
 .env.vercel.*
 hevy-import-report.html

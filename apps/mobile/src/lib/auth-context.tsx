@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { Platform } from "react-native";
 import * as authLib from "./auth";
 import { queryClient } from "./query-client";
 
@@ -72,9 +73,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     const result = await authLib.signInWithGoogle();
-    setIsAuthenticated(true);
-    setIsLoading(false);
-    void queryClient.invalidateQueries();
+    // On web, signInWithGoogle returns a never-resolving promise because
+    // the page redirects to Google. This code only runs on native.
+    if (Platform.OS !== "web") {
+      setIsAuthenticated(true);
+      setIsLoading(false);
+      void queryClient.invalidateQueries();
+    }
     return result;
   }, []);
 

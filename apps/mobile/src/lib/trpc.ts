@@ -48,7 +48,14 @@ export function createTRPCClient() {
         transformer: superjson,
         async headers() {
           const token = getTokenSync() ?? (await getToken());
-          return apiHeaders(token ? { Authorization: `Bearer ${token}` } : {});
+          // On web, cookie_session_* markers are local-only flags — don't send
+          // them as bearer tokens. The browser will send session cookies instead.
+          const isRealToken = token && !token.startsWith("cookie_session_");
+          return apiHeaders(isRealToken ? { Authorization: `Bearer ${token}` } : {});
+        },
+        fetch(url, options) {
+          // Ensure cookies are sent for web (same-origin session auth)
+          return fetch(url, { ...options, credentials: "include" });
         },
       }),
     ],

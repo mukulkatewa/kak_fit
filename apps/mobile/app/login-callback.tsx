@@ -1,7 +1,7 @@
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import * as authLib from "../src/lib/auth";
 import { useAuth } from "../src/lib/auth-context";
 import { useThemedStyles, spacing, type Palette } from "../src/lib/theme";
@@ -12,20 +12,39 @@ export default function LoginCallbackScreen() {
   const { refresh } = useAuth();
   const styles = useThemedStyles(makeStyles);
   const callbackUrl = Linking.useURL();
+  const attemptedRef = useRef(false);
 
   useEffect(() => {
+    // Prevent double-execution in React strict mode
+    if (attemptedRef.current) return;
+    attemptedRef.current = true;
+
     let cancelled = false;
 
     async function finish() {
       try {
+        // On web, use the full page URL which contains the OAuth state
         const url =
-          callbackUrl ??
-          (typeof window !== "undefined" ? window.location.href : null);
+          Platform.OS === "web" && typeof window !== "undefined"
+            ? window.location.href
+            : callbackUrl;
 
         const result = await authLib.completeAuthSession(url);
         if (cancelled) return;
 
         if (!result) {
+          // Small delay before redirecting to login — gives cookie time to settle
+          if (Platform.OS === "web") {
+            await new Promise((r) => setTimeout(r, 500));
+            // Try once more on web
+            const retry = await authLib.completeAuthSession(url);
+            if (cancelled) return;
+            if (retry) {
+              await refresh();
+              router.replace("/(tabs)");
+              return;
+            }
+          }
           router.replace("/login");
           return;
         }

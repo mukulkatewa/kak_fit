@@ -126,9 +126,17 @@ async function readTokenFromAuthCookies(): Promise<string | null> {
   return null;
 }
 
+/** Small delay helper for retry logic. */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * After OAuth, Better Auth stores a cookie session. tRPC needs a bearer token —
  * pull it from get-session (body/header) or the stored auth cookie jar.
+ *
+ * On web, the session cookie may need a moment to propagate after the redirect,
+ * so we retry a few times before giving up.
  */
 export async function completeAuthSession(callbackUrl?: string | null): Promise<{
   token: string;
@@ -136,37 +144,69 @@ export async function completeAuthSession(callbackUrl?: string | null): Promise<
 } | null> {
   await persistOAuthCookieFromUrl(callbackUrl);
 
-  let headerToken: string | null = null;
-  const session = await authClient.getSession({
-    fetchOptions: {
-      credentials: "include",
-      onSuccess: (ctx) => {
-        headerToken = ctx.response.headers.get("set-auth-token");
+  const maxAttempts = Platform.OS === "web" ? 3 : 1;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      await delay(500 * attempt);
+    }
+
+    let headerToken: string | null = null;
+    const session = await authClient.getSession({
+      fetchOptions: {
+        credentials: "include",
+        onSuccess: (ctx) => {
+          headerToken = ctx.response.headers.get("set-auth-token");
+        },
       },
-    },
-  });
+    });
 
-  const data = session.data as SessionPayload | null;
-  if (!data?.user?.id) return null;
+    const data = session.data as SessionPayload | null;
+    if (!data?.user?.id) {
+      // On web, the session might not be ready yet — retry
+      if (Platform.OS === "web" && attempt < maxAttempts - 1) {
+        continue;
+      }
+      return null;
+    }
 
-  const cookieToken = await readTokenFromAuthCookies();
-  const bodyToken = data.session?.token ?? null;
-  const token = headerToken ?? bodyToken ?? cookieToken;
+    const cookieToken = await readTokenFromAuthCookies();
+    const bodyToken = data.session?.token ?? null;
+    const token = headerToken ?? bodyToken ?? cookieToken;
 
-  if (!token) {
-    throw new Error("Signed in but no API token was returned. Try again.");
+    if (!token) {
+      // On web, cookie-based auth is used and we might not get a bearer token.
+      // Generate one by calling the session endpoint with bearer plugin.
+      if (Platform.OS === "web") {
+        // The session exists but no bearer token — store a session marker
+        // so the app knows the user is authenticated via cookies.
+        const sessionMarker = `cookie_session_${data.user.id}`;
+        await setToken(sessionMarker);
+        return {
+          token: sessionMarker,
+          user: {
+            id: data.user.id,
+            name: data.user.name,
+            email: data.user.email,
+          },
+        };
+      }
+      throw new Error("Signed in but no API token was returned. Try again.");
+    }
+
+    await setToken(token);
+
+    return {
+      token,
+      user: {
+        id: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
+      },
+    };
   }
 
-  await setToken(token);
-
-  return {
-    token,
-    user: {
-      id: data.user.id,
-      name: data.user.name,
-      email: data.user.email,
-    },
-  };
+  return null;
 }
 
 /** On cold start: hydrate bearer token if Better Auth session exists but token file is empty. */
@@ -196,6 +236,15 @@ export async function signInWithGoogle() {
       throw new Error("Sign-in configuration error. Update the app and try again.");
     }
     throw new Error(error.message ?? "Google sign-in failed");
+  }
+
+  // On web, signIn.social() triggers a full-page redirect to Google.
+  // The browser navigates away — code after this point never executes.
+  // The /login-callback page handles session completion on return.
+  if (Platform.OS === "web") {
+    // Return a never-resolving promise so callers don't see a "cancelled" error
+    // while the page is being redirected.
+    return new Promise<{ token: string; user: AuthUser }>(() => {});
   }
 
   const result = await completeAuthSession();

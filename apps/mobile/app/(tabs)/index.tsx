@@ -141,7 +141,7 @@ export default function DashboardScreen() {
   });
 
   // Weekly progress — all workouts in the last 7 calendar days
-  const finished = (recent ?? []).filter((w) => w.finishedAt);
+  const finished = (recent?.items ?? []).filter((w) => w.finishedAt);
   const chartData = weeklyChart ?? [];
   const totalVolumeKg = chartData.reduce((sum, d) => sum + d.value, 0);
   const totalVolume = tonnageFromKg(totalVolumeKg, weightUnit);

@@ -181,7 +181,7 @@ export default function WorkoutTabScreen() {
 
   const previewPrograms = filteredPrograms.slice(0, PREVIEW_COUNT);
   const hasFilters = level !== null || goal !== null || equipment !== null;
-  const finishedRecent = (recent ?? []).filter((workout) => workout.finishedAt).slice(0, 3);
+  const finishedRecent = (recent?.items ?? []).filter((workout) => workout.finishedAt).slice(0, 3);
 
   const clearFilters = () => {
     setLevel(null);

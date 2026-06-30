@@ -162,20 +162,20 @@ export default function ProfileScreen() {
           />
         ) : isLoading ? (
           <ActivityIndicator color={colors.accent} />
-        ) : (workouts ?? []).length === 0 ? (
+        ) : (workouts?.items ?? []).length === 0 ? (
           <View style={styles.noDataCard}>
             <Ionicons name="barbell-outline" size={36} color={colors.textDim} />
             <Text style={styles.noDataText}>No workouts</Text>
           </View>
         ) : (
           <ListGroup>
-            {workouts?.map((item, index) => (
+            {workouts?.items.map((item, index) => (
               <ListRow
                 key={item.id}
                 title={item.name ?? "Workout"}
                 subtitle={`${Math.round(tonnageFromKg(item.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)} · ${item.finishedAt ? new Date(item.finishedAt).toLocaleDateString() : ""}`}
                 onPress={() => router.push(`/workout/${item.id}`)}
-                last={index === (workouts?.length ?? 0) - 1}
+                last={index === (workouts?.items.length ?? 0) - 1}
               />
             ))}
           </ListGroup>

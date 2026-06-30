@@ -2,8 +2,21 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getPreviousSetsBatch } from "../services/previous-values";
 import { recalculatePersonalRecordsForExercise, syncPersonalRecords } from "../services/personal-records";
+import {
+  getWorkoutWithDetails,
+  queryWorkoutHistoryPage,
+  workoutDetailInclude,
+} from "../services/workout-history";
 import { logWorkoutDeletion } from "../public-api/handlers";
 import { protectedProcedure, router } from "../trpc";
+
+const workoutHistoryInput = z
+  .object({
+    limit: z.number().min(1).max(50).default(20),
+    cursor: z.string().optional(),
+    includeDetails: z.boolean().default(false),
+  })
+  .optional();
 
 const workoutSetInput = z.object({
   setNumber: z.number().int().positive(),
@@ -22,16 +35,6 @@ const workoutExerciseInput = z.object({
   sets: z.array(workoutSetInput).min(1),
 });
 
-const workoutDetailInclude = {
-  exercises: {
-    orderBy: { order: "asc" as const },
-    include: {
-      exercise: { select: { id: true, name: true, imageUrl: true } },
-      sets: { orderBy: { setNumber: "asc" as const } },
-    },
-  },
-} as const;
-
 export const workoutRouter = router({
   active: protectedProcedure.query(async ({ ctx }) => {
     return ctx.prisma.workout.findFirst({
@@ -47,57 +50,34 @@ export const workoutRouter = router({
       return getPreviousSetsBatch(ctx.prisma, ctx.user.id, input.exerciseIds);
     }),
 
-  history: protectedProcedure
-    .input(
-      z
-        .object({
-          limit: z.number().min(1).max(50).default(20),
-          cursor: z.string().optional(),
-        })
-        .optional(),
-    )
-    .query(async ({ ctx, input }) => {
-      const workouts = await ctx.prisma.workout.findMany({
-        where: { userId: ctx.user.id, finishedAt: { not: null } },
-        include: {
-          exercises: {
-            include: {
-              exercise: { select: { name: true } },
-              sets: { where: { isCompleted: true } },
-            },
-          },
-        },
-        orderBy: { finishedAt: "desc" },
-        take: input?.limit ?? 20,
-        ...(input?.cursor ? { skip: 1, cursor: { id: input.cursor } } : {}),
-      });
+  history: protectedProcedure.input(workoutHistoryInput).query(async ({ ctx, input }) => {
+    return queryWorkoutHistoryPage(ctx.prisma, ctx.user.id, input);
+  }),
 
-      return workouts.map((workout) => ({
-        id: workout.id,
-        name: workout.name,
-        startedAt: workout.startedAt,
-        finishedAt: workout.finishedAt,
-        exerciseCount: workout.exercises.length,
-        setCount: workout.exercises.reduce((sum, ex) => sum + ex.sets.length, 0),
-        volume: workout.exercises.reduce(
-          (sum, ex) =>
-            sum +
-            ex.sets.reduce(
-              (s, set) => s + (set.weight ?? 0) * (set.reps ?? 0),
-              0,
-            ),
-          0,
-        ),
-      }));
-    }),
+  /** Lightweight paginated workout summaries (no nested exercises/sets). */
+  list: protectedProcedure.input(workoutHistoryInput).query(async ({ ctx, input }) => {
+    return queryWorkoutHistoryPage(ctx.prisma, ctx.user.id, {
+      ...input,
+      includeDetails: false,
+    });
+  }),
 
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      const workout = await ctx.prisma.workout.findFirst({
-        where: { id: input.id, userId: ctx.user.id },
-        include: workoutDetailInclude,
-      });
+      const workout = await getWorkoutWithDetails(ctx.prisma, ctx.user.id, input.id);
+
+      if (!workout) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
+      }
+
+      return workout;
+    }),
+
+  getWorkoutWithDetails: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const workout = await getWorkoutWithDetails(ctx.prisma, ctx.user.id, input.id);
 
       if (!workout) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });

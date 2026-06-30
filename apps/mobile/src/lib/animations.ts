@@ -1,6 +1,8 @@
 import { useEffect, useMemo } from "react";
+import { Platform } from "react-native";
 import type { ViewStyle } from "react-native";
 import {
+  FadeIn,
   FadeInDown,
   LinearTransition,
   useAnimatedStyle,
@@ -62,13 +64,23 @@ export function usePulse(): AnimatedStyle<ViewStyle> {
   }));
 }
 
+/** Web-safe entrance — FadeInDown can clip content above the viewport on web. */
+export function entranceDown(delay = 0): EntryOrExitLayoutType {
+  if (Platform.OS === "web") {
+    return delay > 0 ? FadeIn.delay(delay).duration(220) : FadeIn.duration(220);
+  }
+  return delay > 0
+    ? FadeInDown.delay(delay).springify().damping(16)
+    : FadeInDown.springify().damping(16);
+}
+
 /** Staggered list entrance — pass to `entering` on an Animated.View. */
 export function useStaggeredEntrance(
   index: number,
   baseDelay = 80,
 ): EntryOrExitLayoutType {
   return useMemo(
-    () => FadeInDown.delay(index * baseDelay).springify().damping(18),
+    () => entranceDown(index * baseDelay),
     [index, baseDelay],
   );
 }

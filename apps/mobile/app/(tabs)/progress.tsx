@@ -14,7 +14,6 @@ import { ArrowRightIcon } from "react-native-heroicons/outline";
 import { TrophyIcon } from "react-native-heroicons/solid";
 import Animated, {
   FadeIn,
-  FadeInDown,
   FadeInRight,
   FadeInUp,
   useAnimatedStyle,
@@ -23,7 +22,6 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { BarChart } from "../../src/components/charts";
 import { MuscleHeatmap } from "../../src/components/muscle-heatmap";
 import {
   Header,
@@ -33,6 +31,7 @@ import {
   SectionHeader,
   StatBlock,
 } from "../../src/components/ui";
+import { entranceDown } from "../../src/lib/animations";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { formatWeight, tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
@@ -196,7 +195,7 @@ export default function ProgressScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const params = useLocalSearchParams();
   const scrollViewRef = useRef<ScrollView>(null);
-  const prsScrollY = useRef(0);
+  const [prsSectionY, setPrsSectionY] = useState(0);
 
   const {
     data: volume,
@@ -257,20 +256,19 @@ export default function ProgressScreen() {
 
   const tabParam = Array.isArray(params.tab) ? params.tab[0] : params.tab;
 
+  const scrollToPrs = useCallback(() => {
+    if (!scrollViewRef.current || prsSectionY <= 0) return;
+    scrollViewRef.current.scrollTo({
+      y: Math.max(0, prsSectionY - 20),
+      animated: true,
+    });
+  }, [prsSectionY]);
+
   useEffect(() => {
-    if (tabParam !== "prs" || !scrollViewRef.current) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        y: Math.max(0, prsScrollY.current - 20),
-        animated: true,
-      });
-    }, 500);
-
+    if (tabParam !== "prs") return;
+    const timer = setTimeout(scrollToPrs, 100);
     return () => clearTimeout(timer);
-  }, [tabParam, prs]);
+  }, [tabParam, prsSectionY, prs, scrollToPrs]);
 
   const weekVolumeDisplay = dashboard
     ? tonnageFromKg(dashboard.weekVolume, weightUnit) / 1000
@@ -327,9 +325,12 @@ export default function ProgressScreen() {
       ) : (
         <Animated.View entering={FadeIn.delay(200).duration(500)}>
           <AnimatedVolumeChart
-            data={(volume ?? []).map((v) => ({ label: v.label, value: v.volume }))}
+            data={(volume ?? []).map((v) => ({
+              label: v.label,
+              value: tonnageFromKg(v.volume, weightUnit),
+            }))}
             color={colors.accent}
-            unit="kg"
+            unit={weightLabel(weightUnit)}
             mutedColor={colors.textMuted}
           />
         </Animated.View>
@@ -372,7 +373,7 @@ export default function ProgressScreen() {
           {topExercises?.map((ex, i) => (
             <Animated.View
               key={ex.id}
-              entering={FadeInDown.delay(i * 60).springify().damping(16)}
+              entering={entranceDown(i * 60)}
             >
               <ListRow
                 title={ex.name}
@@ -387,7 +388,7 @@ export default function ProgressScreen() {
 
       <View
         onLayout={(e) => {
-          prsScrollY.current = e.nativeEvent.layout.y;
+          setPrsSectionY(e.nativeEvent.layout.y);
         }}
       >
         <SectionHeader title="Recent PRs" />

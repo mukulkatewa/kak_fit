@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type FC } from "react";
 import { View } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-type TabIconComponent = React.FC<{ color?: string; size?: number }>;
+type TabIconComponent = FC<{ color?: string; size?: number }>;
 
 type AnimatedTabIconProps = {
   focused: boolean;

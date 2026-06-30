@@ -49,6 +49,7 @@ export default function WorkoutHistoryScreen() {
         utils.progress.dashboard.invalidate(),
         utils.progress.volumeHistory.invalidate(),
         utils.progress.muscleDistribution.invalidate(),
+        utils.personalRecord.list.invalidate(),
       ]);
       showToast("Workout deleted", "success");
     },

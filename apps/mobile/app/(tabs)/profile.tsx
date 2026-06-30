@@ -15,7 +15,6 @@ import {
 } from "react-native-heroicons/outline";
 import Animated, {
   FadeIn,
-  FadeInDown,
   FadeInRight,
   FadeInUp,
   ZoomIn,
@@ -44,7 +43,7 @@ import {
   HevyStatsRow,
   HevyTopBar,
 } from "../../src/components/hevy-ui";
-import { SPRING_CONFIG, useSpringPress } from "../../src/lib/animations";
+import { entranceDown, SPRING_CONFIG, useSpringPress } from "../../src/lib/animations";
 import { useAuth } from "../../src/lib/auth-context";
 import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
 import { tonnageFromKg, weightLabel } from "../../src/lib/units";
@@ -213,12 +212,12 @@ export default function ProfileScreen() {
       label: v.label,
       value:
         chartMode === "volume"
-          ? v.volume
+          ? tonnageFromKg(v.volume, weightUnit)
           : chartMode === "duration"
             ? v.durationMinutes
             : v.totalReps,
     }));
-  }, [volumeHistory, chartMode]);
+  }, [volumeHistory, chartMode, weightUnit]);
 
   const dashboardItems: DashboardItem[] = [
     { Icon: ChartBarIcon, label: "Statistics", onPress: () => router.push("/(tabs)/progress") },
@@ -240,7 +239,7 @@ export default function ProfileScreen() {
   return (
     <Screen scroll padded={false}>
       <View style={styles.pad}>
-        <Animated.View entering={FadeInDown.delay(100).springify().damping(16)}>
+        <Animated.View entering={entranceDown(100)}>
           <HevyTopBar
             title={username}
             right={
@@ -304,7 +303,13 @@ export default function ProfileScreen() {
             <BarChart
               data={chartData}
               color={colors.accent}
-              unit={chartMode === "volume" ? "kg" : chartMode === "duration" ? "m" : ""}
+              unit={
+                chartMode === "volume"
+                  ? weightLabel(weightUnit)
+                  : chartMode === "duration"
+                    ? "m"
+                    : ""
+              }
             />
           </Animated.View>
         )}
@@ -335,7 +340,7 @@ export default function ProfileScreen() {
               {workouts.map((item, index) => (
                 <Animated.View
                   key={item.id}
-                  entering={FadeInDown.delay(index * 60).springify().damping(16)}
+                  entering={entranceDown(index * 60)}
                 >
                   <ListRow
                     title={item.name ?? "Workout"}
@@ -372,7 +377,7 @@ export default function ProfileScreen() {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxxl },
+    pad: { paddingHorizontal: spacing.lg, gap: spacing.lg },
     profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.xl },
     statsWrap: { flex: 1 },
     bio: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },

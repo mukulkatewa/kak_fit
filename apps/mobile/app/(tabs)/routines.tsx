@@ -20,7 +20,6 @@ import {
   TrashIcon,
 } from "react-native-heroicons/outline";
 import Animated, {
-  FadeInDown,
   FadeInUp,
   SlideInDown,
 } from "react-native-reanimated";
@@ -41,7 +40,7 @@ import {
   type ProgramGoal,
   type ProgramLevel,
 } from "../../src/lib/explore-data";
-import { useSpringPress } from "../../src/lib/animations";
+import { entranceDown, useSpringPress } from "../../src/lib/animations";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
@@ -163,7 +162,7 @@ function AnimatedRecentWorkoutRow({
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 60).springify().damping(16)}
+      entering={entranceDown(index * 60)}
       style={[scale, disabled && { opacity: 0.5 }]}
     >
       <Pressable
@@ -250,7 +249,7 @@ function MenuActionRow({
   const styles = useThemedStyles(makeStyles);
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 60).springify().damping(16)}>
+    <Animated.View entering={entranceDown(index * 60)}>
       <Pressable style={styles.menuAction} onPress={onPress}>
         {icon}
         <Text style={[styles.menuActionText, danger && styles.menuActionDanger]}>{label}</Text>
@@ -393,6 +392,7 @@ export default function WorkoutTabScreen() {
         utils.progress.dashboard.invalidate(),
         utils.progress.volumeHistory.invalidate(),
         utils.progress.muscleDistribution.invalidate(),
+        utils.personalRecord.list.invalidate(),
       ]);
       showToast("Workout deleted", "success");
     },
@@ -499,8 +499,8 @@ export default function WorkoutTabScreen() {
         />
       }
     >
-      <View style={[styles.pad, { paddingBottom: insets.bottom + spacing.xxl }]}>
-        <Animated.View entering={FadeInDown.springify().damping(16)} style={styles.pageTitleRow}>
+      <View style={styles.pad}>
+        <Animated.View entering={entranceDown()} style={styles.pageTitleRow}>
           <Text style={styles.pageTitle}>Workout</Text>
           <FireIcon color={colors.accent} size={28} />
         </Animated.View>
@@ -573,7 +573,7 @@ export default function WorkoutTabScreen() {
               {routines!.slice(0, ROUTINE_PREVIEW).map((routine, index, arr) => (
                 <Animated.View
                   key={routine.id}
-                  entering={FadeInDown.delay(index * 70).springify().damping(16)}
+                  entering={entranceDown(index * 70)}
                 >
                   <RoutineExpandableRow
                     routine={routine}
@@ -690,7 +690,7 @@ export default function WorkoutTabScreen() {
                 });
               }}
             />
-            <Animated.View entering={FadeInDown.delay(180).springify().damping(16)}>
+            <Animated.View entering={entranceDown(180)}>
               <Pressable style={styles.menuCancel} onPress={() => setWorkoutMenu({ visible: false })}>
                 <Text style={styles.menuCancelText}>Cancel</Text>
               </Pressable>

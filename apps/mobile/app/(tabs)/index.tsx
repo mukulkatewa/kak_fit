@@ -13,7 +13,6 @@ import { BoltIcon } from "react-native-heroicons/solid";
 import { ClockIcon } from "react-native-heroicons/outline";
 import { PlusCircleIcon } from "react-native-heroicons/outline";
 import Animated, {
-  FadeInDown,
   FadeInLeft,
   SlideInRight,
   runOnJS,
@@ -36,7 +35,7 @@ import {
   ThemedDialog,
   useToast,
 } from "../../src/components/ui";
-import { usePulse, useSpringPress } from "../../src/lib/animations";
+import { entranceDown, usePulse, useSpringPress } from "../../src/lib/animations";
 import { useAuth } from "../../src/lib/auth-context";
 import {
   radius,
@@ -158,7 +157,7 @@ function WeeklyProgressHeroCard({
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(100).springify().damping(16)}
+      entering={entranceDown(100)}
       style={[scale, styles.heroCardOuter]}
     >
       <Animated.View style={[styles.heroCardGlow, glowStyle]} pointerEvents="none" />
@@ -275,7 +274,7 @@ function StartEmptyWorkoutButton({
   const { scale, onPressIn, onPressOut } = useSpringPress();
 
   return (
-    <Animated.View entering={FadeInDown.delay(200).springify().damping(16)} style={scale}>
+    <Animated.View entering={entranceDown(200)} style={scale}>
       <Pressable
         onPress={onPress}
         onPressIn={onPressIn}
@@ -438,6 +437,7 @@ function DashboardScreen() {
         utils.progress.dashboard.invalidate(),
         utils.progress.volumeHistory.invalidate(),
         utils.progress.muscleDistribution.invalidate(),
+        utils.personalRecord.list.invalidate(),
       ]);
     },
     onError: (e) => showToast(e.message, "error"),
@@ -477,7 +477,7 @@ function DashboardScreen() {
         {/* Greeting header + stats */}
         <View style={styles.headerBlock}>
           <Animated.View
-            entering={FadeInDown.springify().damping(16)}
+            entering={entranceDown()}
             style={styles.greetingRow}
           >
             <View style={styles.greetingText}>
@@ -504,7 +504,7 @@ function DashboardScreen() {
             {statItems.map((stat, index) => (
               <Animated.View
                 key={stat.label}
-                entering={FadeInDown.delay(index * 80).springify().damping(16)}
+                entering={entranceDown(index * 80)}
                 style={styles.statWrap}
               >
                 <Stat
@@ -632,9 +632,7 @@ function DashboardScreen() {
             {routines?.slice(0, 4).map((item, index) => (
               <Animated.View
                 key={item.id}
-                entering={FadeInDown.delay(400 + index * 80)
-                  .springify()
-                  .damping(16)}
+                entering={entranceDown(400 + index * 80)}
               >
                 <RoutineExpandableCard
                   routine={item}
@@ -761,7 +759,7 @@ function ActivityCard({
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(300 + index * 60).springify().damping(16)}
+      entering={entranceDown(300 + index * 60)}
       style={scale}
     >
       <Pressable
@@ -797,7 +795,6 @@ const makeStyles = (colors: Palette) =>
     pad: {
       paddingHorizontal: spacing.lg,
       gap: spacing.lg,
-      paddingBottom: spacing.xxl,
     },
 
     headerBlock: { gap: spacing.lg },

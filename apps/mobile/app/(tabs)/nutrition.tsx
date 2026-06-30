@@ -15,7 +15,6 @@ import {
 } from "react-native-heroicons/outline";
 import Animated, {
   FadeIn,
-  FadeInDown,
   FadeInRight,
   runOnJS,
   useAnimatedReaction,
@@ -35,7 +34,7 @@ import {
 } from "../../src/components/ui";
 import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
-import { useSpringPress } from "../../src/lib/animations";
+import { entranceDown, useSpringPress } from "../../src/lib/animations";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { radius, spacing, useTheme, type Palette, type ShadowSet } from "../../src/lib/theme";
 
@@ -112,7 +111,7 @@ function AnimatedCalorieRing({
   );
 
   return (
-    <Animated.View entering={FadeInDown.springify().damping(16)}>
+    <Animated.View entering={entranceDown()}>
       <ProgressRing
         size={size}
         progress={displayProgress}
@@ -152,7 +151,7 @@ function MealCard({
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 80).springify().damping(16)}
+      entering={entranceDown(index * 80)}
       style={scale}
     >
       <Pressable
@@ -299,8 +298,10 @@ export default function NutritionScreen() {
 
   const deleteMeal = trpc.nutrition.deleteMeal.useMutation({
     onSuccess: () => {
+      setDeleteMealDialog({ visible: false });
       utils.nutrition.dailySummary.invalidate();
       utils.nutrition.todayMeals.invalidate();
+      showToast("Food removed", "success");
     },
     onError: (err) => showToast(err.message, "error"),
   });
@@ -425,7 +426,7 @@ export default function NutritionScreen() {
         colors={gradientColors}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.headerGradient, { paddingTop: spacing.sm }]}
+        style={[styles.headerGradient, { paddingTop: 0 }]}
       >
         <View style={styles.headerInner}>
           <View style={styles.titleRow}>
@@ -548,7 +549,7 @@ export default function NutritionScreen() {
                 return (
                   <Animated.View
                     key={`${meal.id}-${item.id}`}
-                    entering={FadeInDown.delay(flatIndex * 60).springify().damping(16)}
+                    entering={entranceDown(flatIndex * 60)}
                   >
                     <ListRow
                       title={item.food.name}
@@ -763,7 +764,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       borderBottomRightRadius: isDark ? 0 : radius.xl,
     },
     headerInner: { paddingHorizontal: spacing.lg },
-    body: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl, paddingTop: spacing.lg },
+    body: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingTop: spacing.lg },
     titleRow: {
       flexDirection: "row" as const,
       alignItems: "center" as const,

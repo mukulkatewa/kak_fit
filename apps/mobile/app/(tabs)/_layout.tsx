@@ -9,6 +9,7 @@ import { FireIcon as FireSolid } from "react-native-heroicons/solid";
 import { HomeIcon as HomeSolid } from "react-native-heroicons/solid";
 import { UserCircleIcon as UserCircleSolid } from "react-native-heroicons/solid";
 import { Platform, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedTabIcon } from "../../src/components/animated-tab-icon";
 import { TAB_BAR_HEIGHT, TAB_BAR_PADDING_BOTTOM } from "../../src/lib/layout-constants";
 import { useTheme } from "../../src/lib/theme";
@@ -41,15 +42,17 @@ function makeTabIcon(
 /** Green & white tab bar: Home, Workout, Meals, Profile */
 export default function TabsLayout() {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const tabBarBottomPad = Math.max(insets.bottom, TAB_BAR_PADDING_BOTTOM);
   const tabBarStyle = {
-    position: "absolute" as const,
     backgroundColor: isDark ? "rgba(0,0,0,0.85)" : "rgba(245,244,240,0.92)",
-    borderTopWidth: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    height: TAB_BAR_HEIGHT,
-    paddingBottom: TAB_BAR_PADDING_BOTTOM,
-    paddingTop: 6,
+    height: TAB_BAR_HEIGHT + tabBarBottomPad,
+    paddingBottom: tabBarBottomPad,
+    paddingTop: 8,
     ...Platform.select({
       ios: {
         shadowColor: "#000",

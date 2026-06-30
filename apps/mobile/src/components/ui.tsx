@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useScrollToTop } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated as RNAnimated,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -37,6 +39,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
 import { SPRING_CONFIG } from "../lib/animations";
+import { useTabBarBottomInset, useTabScreenTopInset } from "../lib/layout-constants";
 import {
   radius,
   spacing,
@@ -71,6 +74,7 @@ export function Screen({
   padded = true,
   refreshControl,
   scrollViewRef,
+  tabBarInset = false,
 }: {
   children: React.ReactNode;
   scroll?: boolean;
@@ -78,20 +82,36 @@ export function Screen({
   padded?: boolean;
   refreshControl?: ScrollViewProps["refreshControl"];
   scrollViewRef?: React.RefObject<ScrollView | null>;
+  /** Reserve space above the floating tab bar so last items stay visible. */
+  tabBarInset?: boolean;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const insets = useSafeAreaInsets();
-  const content = (
-    <View style={[padded ? styles.screenInner : styles.screenInnerFlush, style]}>{children}</View>
-  );
+  const topInset = useTabScreenTopInset();
+  const tabBottomInset = useTabBarBottomInset();
+  const bottomPad = tabBarInset ? tabBottomInset : spacing.xxl;
+  const internalScrollRef = useRef<ScrollView>(null);
+  const resolvedScrollRef = scrollViewRef ?? internalScrollRef;
+
+  useScrollToTop(resolvedScrollRef);
+
+  const innerStyle = [
+    padded ? styles.screenInner : styles.screenInnerFlush,
+    !scroll && { paddingBottom: bottomPad },
+    style,
+  ];
+
+  const content = <View style={innerStyle}>{children}</View>;
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + spacing.sm }]}>
+    <View style={[styles.screen, { paddingTop: topInset }]}>
       {scroll ? (
         <ScrollView
-          ref={scrollViewRef}
+          ref={resolvedScrollRef}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: bottomPad },
+          ]}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           refreshControl={refreshControl}
@@ -810,13 +830,11 @@ const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bg },
     screenInner: {
-      flex: 1,
       paddingHorizontal: spacing.lg,
       gap: spacing.lg,
-      paddingBottom: spacing.xxl,
     },
-    screenInnerFlush: { flex: 1, gap: spacing.lg, paddingBottom: spacing.xxl },
-    scrollContent: { flexGrow: 1 },
+    screenInnerFlush: { gap: spacing.lg },
+    scrollContent: { flexGrow: Platform.OS === "web" ? 0 : 1 },
 
     header: {
       flexDirection: "row",

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HevyButton, ListGroup, ListRow, Screen, ThemedDialog } from "../../../src/components/ui";
 import { HevyProgramCard, HevyStackHeader } from "../../../src/components/hevy-ui";
@@ -13,8 +13,13 @@ import { spacing, useTheme, useThemedStyles, type Palette } from "../../../src/l
 
 type DialogButton = {
   label: string;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "destructive";
   onPress?: () => void;
+};
+
+type RoutineConfirm = {
+  routine: ProgramRoutineTemplate;
+  savedRoutineId?: string;
 };
 
 export default function ProgramDetailScreen() {
@@ -36,6 +41,7 @@ export default function ProgramDetailScreen() {
     message: string;
     buttons: DialogButton[];
   } | null>(null);
+  const [routineConfirm, setRoutineConfirm] = useState<RoutineConfirm | null>(null);
 
   const discardActive = trpc.workout.discardActive.useMutation();
 
@@ -187,24 +193,8 @@ export default function ProgramDetailScreen() {
 
   const handleRoutinePress = (routine: ProgramRoutineTemplate) => {
     if (busy) return;
-
     const saved = findSavedRoutine(routine.name);
-    if (saved) {
-      Alert.alert(`Start ${routine.name}?`, undefined, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Start", onPress: () => beginStart(saved.id) },
-      ]);
-      return;
-    }
-
-    Alert.alert(
-      "Save & Start?",
-      `Add "${routine.name}" to My Routines and start now?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Save to My Routines & Start", onPress: () => saveAndStartRoutine(routine) },
-      ],
-    );
+    setRoutineConfirm({ routine, savedRoutineId: saved?.id });
   };
 
   const isRoutineRowBusy = (routine: ProgramRoutineTemplate) => {
@@ -283,21 +273,25 @@ export default function ProgramDetailScreen() {
                     isRoutineRowBusy(routine) ? undefined : () => handleRoutinePress(routine)
                   }
                   right={
-                    <Pressable
-                      hitSlop={8}
-                      onPress={() =>
-                        setExpandedRoutine((current) =>
-                          current === routine.name ? null : routine.name,
-                        )
-                      }
-                      style={styles.expandBtn}
-                    >
-                      <Ionicons
-                        name={isExpanded ? "chevron-up" : "chevron-down"}
-                        size={18}
-                        color={colors.textDim}
-                      />
-                    </Pressable>
+                    isRoutineRowBusy(routine) ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : (
+                      <Pressable
+                        hitSlop={8}
+                        onPress={() =>
+                          setExpandedRoutine((current) =>
+                            current === routine.name ? null : routine.name,
+                          )
+                        }
+                        style={styles.expandBtn}
+                      >
+                        <Ionicons
+                          name={isExpanded ? "chevron-up" : "chevron-down"}
+                          size={18}
+                          color={colors.textDim}
+                        />
+                      </Pressable>
+                    )
                   }
                 />
                 {isExpanded ? (
@@ -315,6 +309,50 @@ export default function ProgramDetailScreen() {
           })}
         </ListGroup>
       </View>
+
+      <ThemedDialog
+        visible={routineConfirm !== null && !isStarting}
+        title={
+          routineConfirm?.savedRoutineId
+            ? `Start ${routineConfirm.routine.name}?`
+            : "Save & Start?"
+        }
+        message={
+          routineConfirm?.savedRoutineId
+            ? "Begin this workout now?"
+            : `Add "${routineConfirm?.routine.name ?? "this routine"}" to My Routines and start now?`
+        }
+        onDismiss={() => {
+          if (!isStarting) setRoutineConfirm(null);
+        }}
+        buttons={
+          routineConfirm?.savedRoutineId
+            ? [
+                { label: "Cancel" },
+                {
+                  label: startRoutine.isPending ? "Starting…" : "Start",
+                  variant: "primary",
+                  onPress: () => {
+                    const id = routineConfirm.savedRoutineId;
+                    setRoutineConfirm(null);
+                    if (id) beginStart(id);
+                  },
+                },
+              ]
+            : [
+                { label: "Cancel" },
+                {
+                  label: importProgram.isPending ? "Saving…" : "Save & Start",
+                  variant: "primary",
+                  onPress: () => {
+                    const routine = routineConfirm?.routine;
+                    setRoutineConfirm(null);
+                    if (routine) saveAndStartRoutine(routine);
+                  },
+                },
+              ]
+        }
+      />
 
       <ThemedDialog
         visible={dialog !== null && !isStarting}

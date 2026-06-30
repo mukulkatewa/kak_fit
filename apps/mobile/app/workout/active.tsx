@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
   Modal,
   Pressable,
   ScrollView,
@@ -1167,20 +1168,31 @@ function SetRow({
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const [weight, setWeight] = useState(
-    set.weight != null && set.weight > 0 ? String(fromKg(set.weight, weightUnit)) : "",
-  );
-  const [reps, setReps] = useState(set.reps != null && set.reps > 0 ? String(set.reps) : "");
+  const initialWeight =
+    set.weight != null && set.weight > 0 ? String(fromKg(set.weight, weightUnit)) : "";
+  const initialReps = set.reps != null && set.reps > 0 ? String(set.reps) : "";
+  const [weight, setWeight] = useState(initialWeight);
+  const [reps, setReps] = useState(initialReps);
+  const weightRef = useRef(initialWeight);
+  const repsRef = useRef(initialReps);
+  const weightInputRef = useRef<TextInput>(null);
+  const repsInputRef = useRef<TextInput>(null);
+  const completingRef = useRef(false);
   const typeLabel = SET_TYPE_LABEL[set.setType] || String(set.setNumber);
 
   useEffect(() => {
-    setWeight(set.weight != null && set.weight > 0 ? String(fromKg(set.weight, weightUnit)) : "");
-    setReps(set.reps != null && set.reps > 0 ? String(set.reps) : "");
+    const nextWeight =
+      set.weight != null && set.weight > 0 ? String(fromKg(set.weight, weightUnit)) : "";
+    const nextReps = set.reps != null && set.reps > 0 ? String(set.reps) : "";
+    weightRef.current = nextWeight;
+    repsRef.current = nextReps;
+    setWeight(nextWeight);
+    setReps(nextReps);
   }, [set.weight, set.reps, weightUnit]);
 
   const flushDraft = (useGhost = false) => {
-    const parsedWeight = parseOptionalNumber(weight);
-    const parsedReps = parseOptionalNumber(reps);
+    const parsedWeight = parseOptionalNumber(weightRef.current);
+    const parsedReps = parseOptionalNumber(repsRef.current);
 
     let weightKg: number | undefined;
     if (parsedWeight !== undefined) {
@@ -1199,8 +1211,25 @@ function SetRow({
     return { weight: weightKg, reps: repsValue };
   };
 
+  const dismissSetInputs = () => {
+    Keyboard.dismiss();
+    weightInputRef.current?.blur();
+    repsInputRef.current?.blur();
+  };
+
   const commit = () => {
+    if (completingRef.current) return;
     onUpdateSet(set.id, flushDraft());
+  };
+
+  const handleCompletePressIn = () => {
+    completingRef.current = true;
+    dismissSetInputs();
+  };
+
+  const handleCompletePress = () => {
+    onUpdateSet(set.id, { ...flushDraft(true), isCompleted: !set.isCompleted });
+    completingRef.current = false;
   };
 
   const weightPlaceholder = "0";
@@ -1241,18 +1270,26 @@ function SetRow({
         </View>
 
         <TextInput
+          ref={weightInputRef}
           style={[styles.setInput, set.isCompleted && styles.setInputDone]}
           value={weight}
-          onChangeText={setWeight}
+          onChangeText={(text) => {
+            weightRef.current = text;
+            setWeight(text);
+          }}
           onBlur={commit}
           keyboardType="decimal-pad"
           placeholder={weightPlaceholder}
           placeholderTextColor={colors.textDim}
         />
         <TextInput
+          ref={repsInputRef}
           style={[styles.setInput, set.isCompleted && styles.setInputDone]}
           value={reps}
-          onChangeText={setReps}
+          onChangeText={(text) => {
+            repsRef.current = text;
+            setReps(text);
+          }}
           onBlur={commit}
           keyboardType="number-pad"
           placeholder={repsPlaceholder}
@@ -1266,9 +1303,8 @@ function SetRow({
         </Pressable>
         <Pressable
           style={[styles.check, set.isCompleted && styles.checkDone]}
-          onPress={() =>
-            onUpdateSet(set.id, { ...flushDraft(true), isCompleted: !set.isCompleted })
-          }
+          onPressIn={handleCompletePressIn}
+          onPress={handleCompletePress}
         >
           {set.isCompleted ? (
             <Ionicons name="checkmark" size={18} color={colors.accent} />

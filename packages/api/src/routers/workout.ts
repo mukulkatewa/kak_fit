@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import type { PrismaClient } from "@kak-fit/db";
+import { Prisma, type PrismaClient } from "@kak-fit/db";
 import { getPreviousSetsBatch } from "../services/previous-values";
 import { recalculatePersonalRecordsForExercise, needsFullPersonalRecordRecalc, syncPersonalRecords, updatePersonalRecordsIncremental } from "../services/personal-records";
 import {
@@ -10,6 +10,28 @@ import {
 } from "../services/workout-history";
 import { logWorkoutDeletion } from "../public-api/handlers";
 import { protectedProcedure, router } from "../trpc";
+
+async function batchUpdateExerciseOrder(
+  tx: Pick<PrismaClient, "$executeRaw">,
+  workoutId: string,
+  workoutExerciseIds: string[],
+  orderOffset: number,
+) {
+  if (workoutExerciseIds.length === 0) return;
+
+  const caseClauses = workoutExerciseIds.map(
+    (id, i) => Prisma.sql`WHEN ${id} THEN ${orderOffset + i}`,
+  );
+
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE "WorkoutExercise"
+    SET "order" = CASE "id"
+      ${Prisma.join(caseClauses, " ")}
+    END
+    WHERE "workoutId" = ${workoutId}
+      AND "id" IN (${Prisma.join(workoutExerciseIds)})
+  `);
+}
 
 type WorkoutWithDetails = NonNullable<
   Awaited<ReturnType<PrismaClient["workout"]["findFirst"]>>
@@ -320,22 +342,9 @@ export const workoutRouter = router({
       }
 
       await ctx.prisma.$transaction(async (tx) => {
-        await Promise.all(
-          input.workoutExerciseIds.map((id, i) =>
-            tx.workoutExercise.update({
-              where: { id },
-              data: { order: 10_000 + i },
-            }),
-          ),
-        );
-        await Promise.all(
-          input.workoutExerciseIds.map((id, i) =>
-            tx.workoutExercise.update({
-              where: { id },
-              data: { order: i },
-            }),
-          ),
-        );
+        // Two-phase update avoids @@unique([workoutId, order]) collisions during reorder.
+        await batchUpdateExerciseOrder(tx, workout.id, input.workoutExerciseIds, 10_000);
+        await batchUpdateExerciseOrder(tx, workout.id, input.workoutExerciseIds, 0);
       });
 
       return ctx.prisma.workout.findFirstOrThrow({

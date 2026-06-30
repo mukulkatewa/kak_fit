@@ -49,7 +49,7 @@ export const progressRouter = router({
     const streakSince = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
     const startOfToday = startOfUserDay(now, input?.timezoneOffsetMinutes);
 
-    const [finishedWorkouts, totalWorkouts, weekWorkouts, monthPrs, nutrition] =
+    const [finishedWorkouts, totalWorkouts, weekStats, monthPrs, nutrition] =
       await Promise.all([
         // Streak only needs recent finished dates — not the full set graph.
         ctx.prisma.workout.findMany({
@@ -64,10 +64,19 @@ export const progressRouter = router({
         ctx.prisma.workout.count({
           where: { userId: ctx.user.id, finishedAt: { not: null } },
         }),
-        ctx.prisma.workout.findMany({
-          where: { userId: ctx.user.id, finishedAt: { gte: weekStart } },
-          include: { exercises: { include: { sets: { where: { isCompleted: true } } } } },
-        }),
+        ctx.prisma.$queryRaw<Array<{ weekWorkouts: bigint; weekVolume: number | bigint }>>(
+          Prisma.sql`
+            SELECT
+              COUNT(DISTINCT w.id) as "weekWorkouts",
+              COALESCE(SUM(COALESCE(ws.weight, 0) * COALESCE(ws.reps, 0)), 0) as "weekVolume"
+            FROM "Workout" w
+            LEFT JOIN "WorkoutExercise" we ON we."workoutId" = w.id
+            LEFT JOIN "WorkoutSet" ws ON ws."workoutExerciseId" = we.id AND ws."isCompleted" = true
+            WHERE w."userId" = ${ctx.user.id}
+              AND w."finishedAt" >= ${weekStart}
+              AND w."finishedAt" IS NOT NULL
+          `,
+        ),
         ctx.prisma.personalRecord.count({
           where: { userId: ctx.user.id, achievedAt: { gte: monthStart } },
         }),
@@ -79,16 +88,8 @@ export const progressRouter = router({
         }),
       ]);
 
-    const weekVolume = weekWorkouts.reduce((sum, w) => {
-      return (
-        sum +
-        w.exercises.reduce(
-          (es, ex) =>
-            es + ex.sets.reduce((ss, s) => ss + (s.weight ?? 0) * (s.reps ?? 0), 0),
-          0,
-        )
-      );
-    }, 0);
+    const weekWorkouts = toNumber(weekStats[0]?.weekWorkouts ?? 0);
+    const weekVolume = Math.round(toNumber(weekStats[0]?.weekVolume ?? 0));
 
     const finishedDates = finishedWorkouts
       .map((w) => w.finishedAt)
@@ -96,8 +97,8 @@ export const progressRouter = router({
 
     return {
       totalWorkouts,
-      weekWorkouts: weekWorkouts.length,
-      weekVolume: Math.round(weekVolume),
+      weekWorkouts,
+      weekVolume,
       streakWeeks: calcStreakWeeks(finishedDates),
       monthPrs,
       mealsLoggedToday: nutrition,

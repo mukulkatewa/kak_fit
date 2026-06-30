@@ -536,6 +536,11 @@ export default function CreateRoutineScreen() {
     updateExercise(index, { superLink: !exercises[index].superLink });
   };
 
+  const closePicker = () => {
+    setPickerOpen(false);
+    setSearch("");
+  };
+
   const addExercise = (exerciseId: string, exerciseName: string, exerciseImageUrl: string | null) => {
     if (exercises.some((e) => e.exerciseId === exerciseId)) return;
     setExercises((prev) => [
@@ -550,8 +555,7 @@ export default function CreateRoutineScreen() {
         sets: [makeDefaultSet(1)],
       },
     ]);
-    setPickerOpen(false);
-    setSearch("");
+    showToast("Exercise added", "success");
   };
 
   if (isEdit && editingLoading) {
@@ -730,10 +734,11 @@ export default function CreateRoutineScreen() {
           ]}
         >
           <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Add exercise</Text>
-            <Pressable onPress={() => setPickerOpen(false)}>
-              <Ionicons name="close" size={24} color={colors.text} />
-            </Pressable>
+            <HevyModalHeader
+              title="Add exercise"
+              onCancel={closePicker}
+              onSave={closePicker}
+            />
           </View>
           <SearchBar value={search} onChangeText={setSearch} placeholder="Search exercises" />
           {pickerLoading ? (

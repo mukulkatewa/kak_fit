@@ -36,6 +36,28 @@ const MEAL_ACCENT_LIGHT: Record<(typeof MEAL_TYPES)[number]["key"], string> = {
 
 type MealKey = (typeof MEAL_TYPES)[number]["key"];
 
+type FoodSearchItem = {
+  id: string | null;
+  fdcId: number;
+  name: string;
+  brand: string | null;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  source: "local" | "usda";
+};
+
+type FoodInputModalState = {
+  visible: boolean;
+  mealItemId?: string;
+  food?: FoodSearchItem;
+  foodName?: string;
+  quantity?: string;
+};
+
+const DEFAULT_FOOD_QUANTITY_G = 100;
+
 export default function NutritionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -49,18 +71,12 @@ export default function NutritionScreen() {
   const [search, setSearch] = useState("");
   const [mealType, setMealType] = useState<MealKey>("LUNCH");
   const [logging, setLogging] = useState(false);
-  const [loggingKey, setLoggingKey] = useState<string | null>(null);
   const [deleteMealDialog, setDeleteMealDialog] = useState<{
     visible: boolean;
     mealId?: string;
     label?: string;
   }>({ visible: false });
-  const [editMeal, setEditMeal] = useState<{
-    visible: boolean;
-    mealItemId?: string;
-    foodName?: string;
-    quantity?: string;
-  }>({ visible: false });
+  const [foodInputModal, setFoodInputModal] = useState<FoodInputModalState>({ visible: false });
   const utils = trpc.useUtils();
   const { showToast } = useToast();
 
@@ -126,13 +142,10 @@ export default function NutritionScreen() {
     onSuccess: () => {
       utils.nutrition.dailySummary.invalidate();
       utils.nutrition.todayMeals.invalidate();
-      setLoggingKey(null);
+      setFoodInputModal({ visible: false });
       showToast("Food added to your daily macros", "success");
     },
-    onError: (err) => {
-      setLoggingKey(null);
-      showToast(err.message, "error");
-    },
+    onError: (err) => showToast(err.message, "error"),
   });
 
   const deleteMeal = trpc.nutrition.deleteMeal.useMutation({
@@ -147,11 +160,15 @@ export default function NutritionScreen() {
     onSuccess: () => {
       utils.nutrition.dailySummary.invalidate();
       utils.nutrition.todayMeals.invalidate();
-      setEditMeal({ visible: false });
+      setFoodInputModal({ visible: false });
       showToast("Quantity updated", "success");
     },
     onError: (err) => showToast(err.message, "error"),
   });
+
+  const isAddingFood = foodInputModal.visible && foodInputModal.food != null;
+  const isEditingFood = foodInputModal.visible && foodInputModal.mealItemId != null;
+  const isSavingFood = logMeal.isPending || updateMeal.isPending;
 
   const mealTotals = useMemo(() => {
     const totals: Record<string, { cal: number; count: number }> = {};
@@ -167,24 +184,12 @@ export default function NutritionScreen() {
     return totals;
   }, [meals]);
 
-  const handleLogFood = (item: NonNullable<typeof foods>[number]) => {
-    const key = `${item.source}-${item.fdcId}-${item.name}`;
-    if (loggingKey === key || logMeal.isPending) return;
-    setLoggingKey(key);
-    logMeal.mutate({
-      mealType,
-      items: [
-        {
-          foodId: item.id ?? undefined,
-          fdcId: item.fdcId > 0 ? item.fdcId : undefined,
-          name: item.name,
-          calories: item.calories,
-          protein: item.protein,
-          carbs: item.carbs,
-          fat: item.fat,
-          quantity: 100,
-        },
-      ],
+  const handleLogFood = (item: FoodSearchItem) => {
+    setFoodInputModal({
+      visible: true,
+      food: item,
+      foodName: item.name,
+      quantity: String(DEFAULT_FOOD_QUANTITY_G),
     });
   };
 
@@ -192,8 +197,8 @@ export default function NutritionScreen() {
     setDeleteMealDialog({ visible: true, mealId, label });
   };
 
-  const openEditMeal = (mealItemId: string, foodName: string, quantity: number) => {
-    setEditMeal({
+  const openEditFood = (mealItemId: string, foodName: string, quantity: number) => {
+    setFoodInputModal({
       visible: true,
       mealItemId,
       foodName,
@@ -201,13 +206,41 @@ export default function NutritionScreen() {
     });
   };
 
-  const saveEditMeal = () => {
-    const qty = Number(editMeal.quantity);
-    if (!editMeal.mealItemId || !Number.isFinite(qty) || qty <= 0) {
+  const closeFoodInputModal = () => {
+    if (isSavingFood) return;
+    setFoodInputModal({ visible: false });
+  };
+
+  const saveFoodInput = () => {
+    const qty = Number(foodInputModal.quantity);
+    if (!Number.isFinite(qty) || qty <= 0) {
       showToast("Enter a positive number of grams", "error");
       return;
     }
-    updateMeal.mutate({ mealItemId: editMeal.mealItemId, quantity: qty });
+
+    if (foodInputModal.mealItemId) {
+      updateMeal.mutate({ mealItemId: foodInputModal.mealItemId, quantity: qty });
+      return;
+    }
+
+    const food = foodInputModal.food;
+    if (!food) return;
+
+    logMeal.mutate({
+      mealType,
+      items: [
+        {
+          foodId: food.id ?? undefined,
+          fdcId: food.fdcId > 0 ? food.fdcId : undefined,
+          name: food.name,
+          calories: food.calories,
+          protein: food.protein,
+          carbs: food.carbs,
+          fat: food.fat,
+          quantity: qty,
+        },
+      ],
+    });
   };
 
   const openLogger = (key: MealKey) => {
@@ -376,7 +409,7 @@ export default function NutritionScreen() {
                         <View style={styles.mealRowActions}>
                           <Pressable
                             hitSlop={8}
-                            onPress={() => openEditMeal(item.id, item.food.name, item.quantity)}
+                            onPress={() => openEditFood(item.id, item.food.name, item.quantity)}
                           >
                             <Ionicons name="pencil-outline" size={18} color={colors.accent} />
                           </Pressable>
@@ -438,24 +471,19 @@ export default function NutritionScreen() {
                   <Text style={styles.usdaLoadingHint}>Loading more results from USDA…</Text>
                 ) : null}
                 <ListGroup>
-                {foods?.map((item, index) => {
-                  const key = `${item.source}-${item.fdcId}-${item.name}`;
-                  return (
+                {foods?.map((item, index) => (
                     <ListRow
-                      key={key}
+                      key={`${item.source}-${item.fdcId}-${item.name}`}
                       title={item.name}
                       subtitle={`${Math.round(item.calories)} cal · P${Math.round(item.protein)} C${Math.round(item.carbs)} F${Math.round(item.fat)} · ${item.source}`}
                       icon="restaurant-outline"
-                      onPress={loggingKey === key ? undefined : () => handleLogFood(item)}
+                      onPress={() => handleLogFood(item)}
                       right={
-                        <Text style={styles.addLabel}>
-                          {loggingKey === key ? "…" : "+100g"}
-                        </Text>
+                        <Ionicons name="add-circle-outline" size={22} color={colors.accent} />
                       }
                       last={index === (foods?.length ?? 0) - 1}
                     />
-                  );
-                })}
+                  ))}
                 </ListGroup>
               </>
             )}
@@ -487,31 +515,40 @@ export default function NutritionScreen() {
       />
 
       <Modal
-        visible={editMeal.visible}
+        visible={foodInputModal.visible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setEditMeal({ visible: false })}
+        onRequestClose={closeFoodInputModal}
       >
         <View style={[styles.editModal, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom }]}>
           <View style={styles.editModalHeader}>
-            <Text style={styles.editModalTitle}>Edit quantity</Text>
-            <Pressable hitSlop={8} onPress={() => setEditMeal({ visible: false })}>
+            <Text style={styles.editModalTitle}>
+              {isEditingFood ? "Edit quantity" : "Add food"}
+            </Text>
+            <Pressable hitSlop={8} onPress={closeFoodInputModal} disabled={isSavingFood}>
               <Ionicons name="close" size={24} color={colors.text} />
             </Pressable>
           </View>
-          <Text style={styles.editFoodName}>{editMeal.foodName}</Text>
+          <Text style={styles.editFoodName}>{foodInputModal.foodName}</Text>
+          {isAddingFood && foodInputModal.food ? (
+            <Text style={styles.foodMacroHint}>
+              {Math.round(foodInputModal.food.calories)} cal per {DEFAULT_FOOD_QUANTITY_G}g · P
+              {Math.round(foodInputModal.food.protein)} C{Math.round(foodInputModal.food.carbs)} F
+              {Math.round(foodInputModal.food.fat)}
+            </Text>
+          ) : null}
           <Input
             placeholder="Quantity (g)"
-            value={editMeal.quantity ?? ""}
-            onChangeText={(quantity) => setEditMeal((prev) => ({ ...prev, quantity }))}
+            value={foodInputModal.quantity ?? ""}
+            onChangeText={(quantity) => setFoodInputModal((prev) => ({ ...prev, quantity }))}
             keyboardType="decimal-pad"
             autoFocus
           />
           <Button
-            label="Save"
+            label={isEditingFood ? "Save" : "Add to meal"}
             fullWidth
-            onPress={saveEditMeal}
-            loading={updateMeal.isPending}
+            onPress={saveFoodInput}
+            loading={isSavingFood}
           />
         </View>
       </Modal>
@@ -691,11 +728,11 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
     },
     editModalTitle: { fontSize: 20, fontWeight: "800" as const, color: colors.text },
     editFoodName: { fontSize: 16, fontWeight: "600" as const, color: colors.textMuted },
+    foodMacroHint: { fontSize: 13, color: colors.textDim, marginTop: -spacing.sm },
 
     loggerSection: { gap: spacing.md },
     loggerHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
     doneLink: { fontSize: 15, fontWeight: "700" as const, color: colors.accent },
-    addLabel: { color: colors.accent, fontWeight: "700" as const, fontSize: 14 },
     usdaLoadingHint: { fontSize: 13, color: colors.textMuted, fontStyle: "italic" as const },
     errorBox: {
       backgroundColor: colors.dangerMuted,

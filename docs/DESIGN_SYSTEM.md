@@ -4,7 +4,7 @@
 
 ## Philosophy
 
-Dark mode first. Fast. Premium. Every screen should feel like it belongs in a $50M fitness app — but load in under 2 seconds.
+Dark mode first. Fast. Premium. Every screen should feel like it belongs in a $50M fitness app — but load in under 2 seconds. Login stays logo-first and ambient; active workout logging uses full-width exercise sections instead of nested cards so set entry stays dense and direct.
 
 ---
 
@@ -80,8 +80,9 @@ Letter-spacing: `0.5` on badges, `2` on brand marks.
 
 | # | Screen | Route | Status |
 |---|--------|-------|--------|
+| 0 | Login | `/login` | ✅ Ambient auth redesign |
 | 1 | Dashboard | `/(tabs)` | ✅ Premium redesign |
-| 2 | Workout Logger | `/workout/active` | ✅ Premium redesign |
+| 2 | Workout Logger | `/workout/active` | ✅ Full-width active logger |
 | 3 | Exercise Library | `/(tabs)/exercises` | ✅ Premium redesign |
 | 4 | Exercise Details | `/exercise/[id]` | Phase 2 |
 | 5 | Routine Builder | `/(tabs)/routines` + `/routine/create` | ✅ Premium redesign |
@@ -98,7 +99,7 @@ Letter-spacing: `0.5` on badges, `2` on brand marks.
 1. **Log a set in <2s** — Previous values pre-filled, large tap targets
 2. **PRs are celebrated** — Gold flash + haptic on new PR
 3. **Stats at a glance** — Dashboard shows streak, volume, fitness score
-4. **No clutter** — One primary action per screen
+4. **No clutter** — One primary action per screen; active workout keeps Add Exercise primary and Settings/Discard secondary
 5. **Motion** — Subtle press states; full animations in Phase 2 (Reanimated)
 
 ---

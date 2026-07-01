@@ -436,6 +436,12 @@ function ActiveWorkoutScreen() {
     );
   }, [workout]);
 
+  const restTimerLabel = isRunning
+    ? formatRestTime(secondsLeft)
+    : defaultRestSeconds === 0
+      ? "OFF"
+      : formatRestTime(defaultRestSeconds);
+
   useEffect(() => {
     if (!workout) {
       if (mounted.current) {
@@ -661,35 +667,32 @@ function ActiveWorkoutScreen() {
                   name: exercise.exercise.name,
                 })
               }
+              restTimerLabel={restTimerLabel}
               weightUnit={weightUnit}
             />
           ))
         )}
-      </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
-        <Pressable
-          onPress={openDiscardConfirm}
-          hitSlop={8}
-          style={({ pressed }) => [styles.footerSide, pressed && { opacity: 0.6 }]}
-        >
-          <Text style={styles.discardText}>Discard Workout</Text>
-        </Pressable>
         {!reorderMode ? (
-          <Button
-            label="Add Exercise"
-            icon="add"
-            variant="secondary"
-            size="sm"
-            onPress={() => setPickerOpen(true)}
-          />
-        ) : (
-          <View style={styles.footerSide} />
-        )}
-        <Pressable onPress={() => setSettingsOpen(true)} hitSlop={8} style={[styles.footerSide, styles.footerSideEnd]}>
-          <Text style={styles.settingsText}>Settings</Text>
-        </Pressable>
-      </View>
+          <View style={styles.workoutActions}>
+            <Button
+              label="Add Exercise"
+              icon="add"
+              variant="primary"
+              fullWidth
+              onPress={() => setPickerOpen(true)}
+            />
+            <View style={styles.secondaryActionsRow}>
+              <Pressable onPress={() => setSettingsOpen(true)} hitSlop={8} style={styles.secondaryActionBtn}>
+                <Text style={styles.settingsText}>Settings</Text>
+              </Pressable>
+              <Pressable onPress={openDiscardConfirm} hitSlop={8} style={styles.secondaryActionBtn}>
+                <Text style={styles.discardText}>Discard Workout</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
       </View>
     </Screen>
 
@@ -1007,7 +1010,7 @@ function StatsItem({ label, value }: { label: string; value: string }) {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.statsItem}>
-      <Text style={styles.statsValue} numberOfLines={1}>
+      <Text style={styles.statsValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
         {value}
       </Text>
       <Text style={styles.statsLabel}>{label}</Text>
@@ -1038,6 +1041,7 @@ function ExerciseBlock({
   onRequestDeleteSet,
   onUpdateNotes,
   onRequestDeleteExercise,
+  restTimerLabel,
   weightUnit,
 }: {
   name: string;
@@ -1063,20 +1067,19 @@ function ExerciseBlock({
   onRequestDeleteSet: (setId: string, hasData: boolean) => void;
   onUpdateNotes: (notes: string | null) => void;
   onRequestDeleteExercise: () => void;
+  restTimerLabel: string;
   weightUnit: "KG" | "LBS";
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const [notesOpen, setNotesOpen] = useState(Boolean(notes));
   const [draftNotes, setDraftNotes] = useState(notes ?? "");
 
   useEffect(() => {
     setDraftNotes(notes ?? "");
-    setNotesOpen(Boolean(notes));
   }, [notes, workoutExerciseId]);
 
   return (
-    <Card>
+    <View style={styles.exerciseBlock}>
       {supersetGroup != null ? (
         <View style={styles.supersetBadge}>
           <Ionicons name="git-merge" size={12} color={colors.accent} />
@@ -1085,30 +1088,29 @@ function ExerciseBlock({
       ) : null}
       <View style={styles.exerciseHeader}>
         <Pressable onLongPress={onRequestDeleteExercise} style={styles.exerciseHeaderMain}>
-          <ExerciseAvatar name={name} imageUrl={imageUrl} size={36} />
+          <ExerciseAvatar name={name} imageUrl={imageUrl} size={48} />
           <Text style={styles.exerciseName} numberOfLines={1}>
             {name}
           </Text>
         </Pressable>
-        <Pressable onPress={() => setNotesOpen((open) => !open)} hitSlop={8} style={styles.iconBtn}>
-          <Ionicons name={notesOpen ? "document-text" : "document-text-outline"} size={17} color={colors.accent} />
-        </Pressable>
-        <Pressable onPress={onRequestDeleteExercise} hitSlop={8} style={styles.iconBtn}>
-          <Ionicons name="trash-outline" size={17} color={colors.danger} />
+        <Pressable onPress={onRequestDeleteExercise} hitSlop={10} style={styles.iconBtn}>
+          <Ionicons name="trash-outline" size={24} color={colors.danger} />
         </Pressable>
       </View>
 
-      {notesOpen ? (
-        <TextInput
-          style={styles.exerciseNotesInput}
-          value={draftNotes}
-          onChangeText={setDraftNotes}
-          onBlur={() => onUpdateNotes(draftNotes.trim() || null)}
-          placeholder="Exercise notes"
-          placeholderTextColor={colors.textDim}
-          multiline
-        />
-      ) : null}
+      <TextInput
+        style={styles.exerciseNotesInput}
+        value={draftNotes}
+        onChangeText={setDraftNotes}
+        onBlur={() => onUpdateNotes(draftNotes.trim() || null)}
+        placeholder="Add notes here..."
+        placeholderTextColor={colors.textMuted}
+      />
+
+      <View style={styles.exerciseRestRow}>
+        <Ionicons name="timer-outline" size={20} color={colors.accent} />
+        <Text style={styles.exerciseRestText}>Rest Timer: {restTimerLabel}</Text>
+      </View>
 
       {previous?.finishedAt ? (
         <Text style={styles.prevMeta}>
@@ -1121,7 +1123,7 @@ function ExerciseBlock({
         <Text style={[styles.setCol, styles.setColNarrow]}>SET</Text>
         <Text style={[styles.setCol, styles.setColPrev]}>PREVIOUS</Text>
         <View style={styles.setColKgHeader}>
-          <Ionicons name="flash-outline" size={11} color={colors.textDim} />
+          <Ionicons name="barbell" size={13} color={colors.textDim} />
           <Text style={styles.setColKgHeaderText}>{weightLabel(weightUnit).toUpperCase()}</Text>
         </View>
         <Text style={styles.setCol}>REPS</Text>
@@ -1139,10 +1141,10 @@ function ExerciseBlock({
         />
       ))}
       <Pressable onPress={onAddSet} style={styles.addSetBtn}>
-        <Ionicons name="add" size={16} color={colors.accent} />
+        <Ionicons name="add" size={24} color={colors.text} />
         <Text style={styles.addSet}>Add Set</Text>
       </Pressable>
-    </Card>
+    </View>
   );
 }
 
@@ -1237,7 +1239,7 @@ function SetRow({
   };
 
   const weightPlaceholder = "0";
-  const repsPlaceholder = "—";
+  const repsPlaceholder = "0";
 
   const prevDisplay = (() => {
     const w = previousValues?.weight != null ? fromKg(previousValues.weight, weightUnit) : null;
@@ -1245,11 +1247,11 @@ function SetRow({
     if (w != null && r != null) return `${w}×${r}`;
     if (w != null) return `${w}`;
     if (r != null) return `×${r}`;
-    return "—";
+    return "-";
   })();
 
   const confirmDelete = () => {
-    const hasData = set.weight != null || set.reps != null || set.isCompleted;
+    const hasData = set.weight != null || set.reps != null || set.rpe != null || set.isCompleted;
     onRequestDeleteSet(set.id, hasData);
   };
 
@@ -1311,7 +1313,7 @@ function SetRow({
           onPress={handleCompletePress}
         >
           {set.isCompleted ? (
-            <Ionicons name="checkmark" size={18} color={colors.accent} />
+            <Ionicons name="checkmark" size={24} color={colors.onAccent} />
           ) : null}
         </Pressable>
       </View>
@@ -1323,45 +1325,44 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   backBtn: { padding: 4 },
   header: {
+    minHeight: 64,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  headerSide: { flex: 1, justifyContent: "center" },
-  headerTitle: {
-    flex: 2,
-    textAlign: "center",
-    fontSize: 17,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  headerActions: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: spacing.xs,
-  },
-  headerIconBtn: { padding: 2 },
-  statsBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 44,
     backgroundColor: colors.bgElevated,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.separator,
   },
-  statsItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 1 },
-  statsIconCell: { flex: 1, alignItems: "center", justifyContent: "center", gap: 1 },
-  statsValue: { fontSize: 13, fontWeight: "800", color: colors.text },
-  statsLabel: { fontSize: 10, fontWeight: "600", color: colors.textMuted },
-  statsDivider: {
-    width: StyleSheet.hairlineWidth,
-    alignSelf: "stretch",
-    backgroundColor: colors.separator,
+  headerSide: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  headerTitle: {
+    flex: 1,
+    textAlign: "left",
+    fontSize: 20,
+    fontWeight: "500",
+    color: colors.text,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: spacing.md,
+  },
+  headerIconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  statsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 110,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.bg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.separator,
+  },
+  statsItem: { flex: 1, minWidth: 0, alignItems: "flex-start", justifyContent: "center", gap: 6 },
+  statsIconCell: { width: 52, alignItems: "center", justifyContent: "center" },
+  statsValue: { width: "100%", fontSize: 24, fontWeight: "400", color: colors.text, lineHeight: 30 },
+  statsLabel: { fontSize: 15, fontWeight: "400", color: colors.textMuted },
+  statsDivider: { display: "none" },
   offlineMeta: {
     color: colors.textMuted,
     fontSize: 12,
@@ -1404,7 +1405,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-  contentPad: { paddingHorizontal: spacing.lg },
+  contentPad: { paddingHorizontal: 0 },
   mainColumn: { flex: 1, minHeight: 0 },
   workoutTitle: { fontSize: 28, fontWeight: "700", color: colors.text },
   meta: { color: colors.textMuted, fontSize: 15, marginTop: 2 },
@@ -1430,72 +1431,77 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   restAdjustText: { fontSize: 14, fontWeight: "600", color: colors.accent },
   scroll: { flex: 1, minHeight: 0 },
-  scrollContent: { gap: spacing.md, paddingBottom: spacing.xl },
-  exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
-  exerciseHeaderMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  exerciseName: { flex: 1, minWidth: 0, color: colors.text, fontSize: 17, fontWeight: "600" },
-  iconBtn: { padding: 2 },
+  scrollContent: { paddingBottom: spacing.xxl },
+  exerciseBlock: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.separator,
+    backgroundColor: colors.bg,
+  },
+  exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
+  exerciseHeaderMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  exerciseName: { flex: 1, minWidth: 0, color: colors.accent, fontSize: 28, lineHeight: 34, fontWeight: "500" },
+  iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   supersetBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginBottom: 4 },
   supersetBadgeText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
-  prevMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  prevMeta: { color: colors.textDim, fontSize: 13, marginTop: spacing.sm },
   exerciseNotesInput: {
-    backgroundColor: colors.surfaceHover,
-    borderRadius: radius.md,
-    color: colors.text,
-    fontSize: 14,
-    minHeight: 64,
-    padding: spacing.sm,
-    textAlignVertical: "top",
+    color: colors.textMuted,
+    fontSize: 26,
+    lineHeight: 32,
+    paddingVertical: spacing.md,
+    paddingHorizontal: 0,
   },
-  setHeader: { flexDirection: "row", gap: spacing.xs, paddingHorizontal: 2, marginTop: spacing.sm },
-  setCol: { flex: 1, color: colors.textDim, fontSize: 11, fontWeight: "600", textAlign: "center" },
-  setColNarrow: { flex: 0, width: 28 },
-  setColRpe: { flex: 0, width: 36 },
-  setColPrev: { flex: 0, width: 70 },
-  setColKgHeader: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 },
-  setColKgHeaderText: { color: colors.textDim, fontSize: 11, fontWeight: "600" },
-  prevCol: { width: 70, alignItems: "center" as const, justifyContent: "center" as const },
-  prevColText: { color: colors.textMuted, fontSize: 13, textAlign: "center" as const },
+  exerciseRestRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.lg },
+  exerciseRestText: { color: colors.accent, fontSize: 24, lineHeight: 30, fontWeight: "400" },
+  setHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 6, marginBottom: spacing.sm },
+  setCol: { flex: 1, color: colors.textDim, fontSize: 18, fontWeight: "400", textAlign: "center" },
+  setColNarrow: { flex: 0, width: 48 },
+  setColRpe: { flex: 0, width: 56 },
+  setColPrev: { flex: 0, width: 112 },
+  setColKgHeader: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  setColKgHeaderText: { color: colors.textDim, fontSize: 18, fontWeight: "400" },
+  prevCol: { width: 112, alignItems: "center" as const, justifyContent: "center" as const },
+  prevColText: { color: colors.textMuted, fontSize: 24, textAlign: "center" as const },
   setRow: {
+    minHeight: 66,
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: colors.bgElevated,
+    paddingHorizontal: 6,
+    backgroundColor: colors.bg,
   },
-  setRowDone: { opacity: 0.85 },
-  setNumber: { fontSize: 14, fontWeight: "700", textAlign: "center" },
-  setTypeBtn: { width: 28, alignItems: "center" },
+  setRowDone: { backgroundColor: colors.successMuted },
+  setNumber: { fontSize: 26, fontWeight: "700", textAlign: "center" },
+  setTypeBtn: { width: 48, alignItems: "center", justifyContent: "center" },
   rpeCell: {
-    width: 36,
-    paddingVertical: 8,
+    width: 56,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surfaceHover,
-    borderRadius: radius.sm,
   },
-  rpeText: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
+  rpeText: { color: colors.text, fontSize: 24, fontWeight: "400", textAlign: "center" },
   setInput: {
     flex: 1,
-    backgroundColor: colors.surfaceHover,
-    borderRadius: radius.sm,
     color: colors.text,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    fontSize: 16,
-    fontWeight: "500",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 2,
+    fontSize: 26,
+    fontWeight: "400",
     textAlign: "center",
     minWidth: 0,
   },
-  setInputDone: { backgroundColor: colors.accentMuted },
+  setInputDone: { color: colors.text },
   check: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surfaceHover,
   },
-  checkDone: { backgroundColor: colors.accentMuted },
+  checkDone: { backgroundColor: colors.success },
   deleteAction: {
     backgroundColor: colors.danger,
     justifyContent: "center",
@@ -1506,8 +1512,17 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     width: 88,
   },
   deleteActionText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  addSetBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm },
-  addSet: { color: colors.accent, fontSize: 15, fontWeight: "600" },
+  addSetBtn: {
+    minHeight: 68,
+    marginTop: spacing.lg,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceHover,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  addSet: { color: colors.text, fontSize: 24, fontWeight: "500" },
   pickerModal: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -1565,7 +1580,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     fontWeight: "600",
-    marginBottom: -spacing.xs,
+    marginBottom: spacing.xs,
   },
   confirmBackdrop: {
     flex: 1,
@@ -1626,21 +1641,19 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     backgroundColor: colors.surfaceHover,
   },
   restPresetLabel: { fontSize: 18, fontWeight: "600", color: colors.text },
-  footer: {
-    flexDirection: "row",
+  workoutActions: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xl, gap: spacing.md },
+  secondaryActionsRow: { flexDirection: "row", gap: spacing.md },
+  secondaryActionBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceHover,
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.separator,
-    backgroundColor: colors.bg,
-    flexShrink: 0,
-    zIndex: 2,
+    justifyContent: "center",
   },
-  footerSide: { minWidth: 88 },
-  footerSideEnd: { alignItems: "flex-end" },
-  discardText: { color: colors.danger, fontSize: 14, fontWeight: "600" },
-  settingsText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
+  footer: { display: "none" },
+  footerSide: { display: "none" },
+  footerSideEnd: { display: "none" },
+  discardText: { color: colors.danger, fontSize: 15, fontWeight: "600" },
+  settingsText: { color: colors.text, fontSize: 15, fontWeight: "600" },
 });

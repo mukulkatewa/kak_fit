@@ -1,14 +1,14 @@
 # Kak Fit — Features, Bugs & Roadmap
 
 > Working doc for our dev sessions. Update this as we ship things.
-> _Last updated: June 24, 2026 · v0.2.0_
+> _Last updated: July 2, 2026 · v0.2.0_
 
 ---
 
 ## What We Have Right Now
 
 ### Auth & Account
-- Email sign-up / sign-in (Better Auth)
+- Google OAuth sign-in (Better Auth)
 - Bearer token sessions on mobile
 - Profile name + bio edit
 - Settings: theme (system/light/dark), weight unit (kg/lbs), default rest timer
@@ -20,7 +20,8 @@
 - Supersets
 - Sets with weight, reps, RPE (1–10), set type (Normal / Warmup / Drop / Failure)
 - Auto-fill previous values per exercise
-- Rest timer with notification + auto-start
+- Rest timer with notification + auto-start, shown inline in active exercise blocks
+- Always-visible active exercise notes
 - Finish workout (saves PR, fills previous-set cache)
 - Cancel or discard active workout
 - Edit completed workouts (change weight/reps/notes)

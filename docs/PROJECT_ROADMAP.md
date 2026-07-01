@@ -65,7 +65,7 @@ Sources: [Hevy Pro Help](https://help.hevyapp.com/hc/en-us/articles/351197789222
 | API server | **Next.js** (App Router) | API routes + optional web dashboard later |
 | API layer | **tRPC** | Type-safe mobile ↔ server communication |
 | Language | **TypeScript** | Shared types with mobile |
-| Auth | **Better Auth** (preferred) or NextAuth | Email + Google OAuth |
+| Auth | **Better Auth** (preferred) or NextAuth | Google OAuth |
 | ORM | **Prisma** | Migrations, type-safe queries |
 | Database | **PostgreSQL** | Hosted on Supabase, Neon, or Railway |
 | Storage | **Supabase Storage** | Profile pics, exercise videos, workout images |
@@ -198,8 +198,8 @@ Sources: [Hevy Features](https://www.hevyapp.com/features/), [2025 Features Guid
 | Previous workout values | Show last performance (global or per-routine) | **MVP P0** |
 | Copy previous set | Quick-fill from last set | **MVP P0** |
 | Add/delete sets | Swipe to delete | **MVP P0** |
-| Exercise notes | Per-exercise tips (routine vs session scope) | Phase 2 |
-| Rest timer | Auto-start on set complete, per-exercise override | **MVP P1** |
+| Exercise notes | Always-visible active workout notes per exercise | ✅ Shipped |
+| Rest timer | Auto-start on set complete, shown inline in active exercise blocks | **MVP P1** |
 | Plate calculator | Barbell plate math (Pro feature on Hevy) | Phase 3 |
 | Warm-up calculator | Auto-generate warm-up sets (Pro) | Phase 3 |
 | Live PR notifications | Instant PR popup on set complete | **MVP P1** |
@@ -338,8 +338,8 @@ These are the **minimum** to compete with Hevy at launch.
 
 ### 1. Authentication
 - [ ] Email signup / login
-- [ ] Google OAuth
-- [ ] Session persistence on mobile
+- [x] Google OAuth
+- [x] Session persistence on mobile
 - [ ] Profile creation (name, avatar, bio)
 
 ### 2. Exercise Library

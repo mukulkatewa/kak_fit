@@ -39,6 +39,7 @@ import {
 import { formatPreviousSet, pickPreviousForSet, type PreviousExerciseSession } from "../../src/lib/previous-set";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { parseOptionalNumber } from "../../src/lib/workout-errors";
+import { cycleRpe, formatRpe } from "../../src/lib/rpe";
 import { useUserPreferences } from "../../src/lib/use-preferences";
 import { fromKg, sumWorkoutSetVolume, toKg, tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { formatRestTime, useRestTimer } from "../../src/lib/rest-timer";
@@ -435,6 +436,12 @@ function ActiveWorkoutScreen() {
     );
   }, [workout]);
 
+  const restTimerLabel = isRunning
+    ? formatRestTime(secondsLeft)
+    : defaultRestSeconds === 0
+      ? "OFF"
+      : formatRestTime(defaultRestSeconds);
+
   useEffect(() => {
     if (!workout) {
       if (mounted.current) {
@@ -660,6 +667,7 @@ function ActiveWorkoutScreen() {
                   name: exercise.exercise.name,
                 })
               }
+              restTimerLabel={restTimerLabel}
               weightUnit={weightUnit}
             />
           ))
@@ -1033,6 +1041,7 @@ function ExerciseBlock({
   onRequestDeleteSet,
   onUpdateNotes,
   onRequestDeleteExercise,
+  restTimerLabel,
   weightUnit,
 }: {
   name: string;
@@ -1058,6 +1067,7 @@ function ExerciseBlock({
   onRequestDeleteSet: (setId: string, hasData: boolean) => void;
   onUpdateNotes: (notes: string | null) => void;
   onRequestDeleteExercise: () => void;
+  restTimerLabel: string;
   weightUnit: "KG" | "LBS";
 }) {
   const styles = useThemedStyles(makeStyles);
@@ -1084,7 +1094,7 @@ function ExerciseBlock({
           </Text>
         </Pressable>
         <Pressable onPress={onRequestDeleteExercise} hitSlop={10} style={styles.iconBtn}>
-          <Ionicons name="ellipsis-vertical" size={24} color={colors.text} />
+          <Ionicons name="trash-outline" size={24} color={colors.danger} />
         </Pressable>
       </View>
 
@@ -1099,7 +1109,7 @@ function ExerciseBlock({
 
       <View style={styles.exerciseRestRow}>
         <Ionicons name="timer-outline" size={20} color={colors.accent} />
-        <Text style={styles.exerciseRestText}>Rest Timer: OFF</Text>
+        <Text style={styles.exerciseRestText}>Rest Timer: {restTimerLabel}</Text>
       </View>
 
       {previous?.finishedAt ? (
@@ -1117,6 +1127,7 @@ function ExerciseBlock({
           <Text style={styles.setColKgHeaderText}>{weightLabel(weightUnit).toUpperCase()}</Text>
         </View>
         <Text style={styles.setCol}>REPS</Text>
+        <Text style={[styles.setCol, styles.setColRpe]}>RPE</Text>
         <Text style={[styles.setCol, styles.setColNarrow]}>✓</Text>
       </View>
       {sets.map((set) => (
@@ -1240,7 +1251,7 @@ function SetRow({
   })();
 
   const confirmDelete = () => {
-    const hasData = set.weight != null || set.reps != null || set.isCompleted;
+    const hasData = set.weight != null || set.reps != null || set.rpe != null || set.isCompleted;
     onRequestDeleteSet(set.id, hasData);
   };
 
@@ -1290,6 +1301,12 @@ function SetRow({
           placeholder={repsPlaceholder}
           placeholderTextColor={colors.textDim}
         />
+        <Pressable
+          onPress={() => onUpdateSet(set.id, { ...flushDraft(), rpe: cycleRpe(set.rpe) })}
+          style={styles.rpeCell}
+        >
+          <Text style={styles.rpeText}>{formatRpe(set.rpe)}</Text>
+        </Pressable>
         <Pressable
           style={[styles.check, set.isCompleted && styles.checkDone]}
           onPressIn={handleCompletePressIn}
@@ -1442,6 +1459,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   setHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 6, marginBottom: spacing.sm },
   setCol: { flex: 1, color: colors.textDim, fontSize: 18, fontWeight: "400", textAlign: "center" },
   setColNarrow: { flex: 0, width: 48 },
+  setColRpe: { flex: 0, width: 56 },
   setColPrev: { flex: 0, width: 112 },
   setColKgHeader: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   setColKgHeaderText: { color: colors.textDim, fontSize: 18, fontWeight: "400" },
@@ -1457,8 +1475,13 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   setRowDone: { backgroundColor: colors.successMuted },
   setNumber: { fontSize: 26, fontWeight: "700", textAlign: "center" },
   setTypeBtn: { width: 48, alignItems: "center", justifyContent: "center" },
-  rpeCell: { display: "none" },
-  rpeText: { display: "none" },
+  rpeCell: {
+    width: 56,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rpeText: { color: colors.text, fontSize: 24, fontWeight: "400", textAlign: "center" },
   setInput: {
     flex: 1,
     color: colors.text,

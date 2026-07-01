@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -39,7 +40,6 @@ import { entranceDown, usePulse, useSpringPress } from "../../src/lib/animations
 import { useAuth } from "../../src/lib/auth-context";
 import {
   radius,
-  shadows,
   spacing,
   useTheme,
   useThemedStyles,
@@ -790,8 +790,36 @@ function ActivityCard({
   );
 }
 
-const makeStyles = (colors: Palette) =>
-  StyleSheet.create({
+const makeStyles = (colors: Palette) => {
+  const cardShadow = Platform.select({
+    ios: {
+      shadowColor: "#000000",
+      shadowOpacity: colors.bg === "#000000" ? 0.42 : 0.08,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 6 },
+    },
+    android: { elevation: colors.bg === "#000000" ? 4 : 2 },
+    web: {
+      boxShadow:
+        colors.bg === "#000000"
+          ? "0 10px 28px rgba(0,0,0,0.42)"
+          : "0 6px 18px rgba(0,0,0,0.08)",
+    },
+    default: {},
+  });
+  const glowShadow = Platform.select({
+    ios: {
+      shadowColor: colors.accent,
+      shadowOpacity: 0.28,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 8 },
+    },
+    android: { elevation: 5 },
+    web: { boxShadow: `0 12px 30px ${colors.accentMuted}` },
+    default: {},
+  });
+
+  return StyleSheet.create({
     pad: {
       paddingHorizontal: spacing.lg,
       gap: spacing.lg,
@@ -809,7 +837,7 @@ const makeStyles = (colors: Palette) =>
       fontSize: 28,
       fontWeight: "800",
       color: colors.text,
-      letterSpacing: -0.4,
+      letterSpacing: 0,
     },
     greetingDate: {
       fontSize: 14,
@@ -852,7 +880,7 @@ const makeStyles = (colors: Palette) =>
       borderRadius: radius.xl,
       padding: spacing.xl,
       gap: spacing.lg,
-      ...shadows.glow,
+      ...glowShadow,
     },
     heroTopRow: {
       flexDirection: "row",
@@ -900,7 +928,7 @@ const makeStyles = (colors: Palette) =>
     heroLabels: {
       flexDirection: "row",
       justifyContent: "space-between",
-      marginTop: -spacing.sm,
+      marginTop: 0,
     },
     heroDay: {
       flex: 1,
@@ -933,7 +961,7 @@ const makeStyles = (colors: Palette) =>
       borderColor: colors.border,
       padding: spacing.lg,
       overflow: "hidden",
-      ...shadows.card,
+      ...cardShadow,
     },
     activeAccentBorder: {
       position: "absolute",
@@ -978,7 +1006,7 @@ const makeStyles = (colors: Palette) =>
       borderRadius: radius.lg,
       minHeight: 52,
       paddingHorizontal: spacing.xl,
-      ...shadows.glow,
+      ...glowShadow,
     },
     startEmptyLabel: {
       fontSize: 16,
@@ -1013,7 +1041,7 @@ const makeStyles = (colors: Palette) =>
       borderColor: colors.border,
       padding: spacing.md,
       overflow: "hidden",
-      ...shadows.card,
+      ...cardShadow,
     },
     activityAccentBorder: {
       position: "absolute",
@@ -1049,3 +1077,4 @@ const makeStyles = (colors: Palette) =>
       lineHeight: 20,
     },
   });
+};

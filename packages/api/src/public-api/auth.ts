@@ -6,6 +6,45 @@ export type ApiAuthContext = {
   apiKeyId: string;
 };
 
+const API_AUTH_CACHE_TTL_MS = Math.max(
+  0,
+  Number.parseInt(process.env.PUBLIC_API_AUTH_CACHE_TTL_MS ?? "30000", 10) || 30_000,
+);
+const API_AUTH_CACHE_MAX = Math.max(
+  1,
+  Number.parseInt(process.env.PUBLIC_API_AUTH_CACHE_MAX ?? "5000", 10) || 5_000,
+);
+
+type CachedApiAuth = ApiAuthContext & { expiresAt: number };
+
+const apiAuthCache = new Map<string, CachedApiAuth>();
+
+function getCachedApiAuth(keyHash: string): ApiAuthContext | null {
+  if (API_AUTH_CACHE_TTL_MS <= 0) return null;
+  const cached = apiAuthCache.get(keyHash);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    apiAuthCache.delete(keyHash);
+    return null;
+  }
+  apiAuthCache.delete(keyHash);
+  apiAuthCache.set(keyHash, cached);
+  return { user: cached.user, apiKeyId: cached.apiKeyId };
+}
+
+function setCachedApiAuth(keyHash: string, auth: ApiAuthContext) {
+  if (API_AUTH_CACHE_TTL_MS <= 0) return;
+  if (apiAuthCache.size >= API_AUTH_CACHE_MAX) {
+    const oldest = apiAuthCache.keys().next().value;
+    if (oldest) apiAuthCache.delete(oldest);
+  }
+  apiAuthCache.set(keyHash, { ...auth, expiresAt: Date.now() + API_AUTH_CACHE_TTL_MS });
+}
+
+export function invalidateApiAuthCache(keyHash: string) {
+  apiAuthCache.delete(keyHash);
+}
+
 export function hashApiKey(rawKey: string): string {
   return createHash("sha256").update(rawKey).digest("hex");
 }
@@ -55,6 +94,17 @@ export async function authenticateApiKey(
   }
 
   const keyHash = hashApiKey(rawKey);
+  const cached = getCachedApiAuth(keyHash);
+  if (cached) {
+    void prisma.apiKey
+      .update({
+        where: { id: cached.apiKeyId },
+        data: { lastUsedAt: new Date() },
+      })
+      .catch(() => undefined);
+    return cached;
+  }
+
   const record = await prisma.apiKey.findFirst({
     where: { keyHash, revokedAt: null },
     include: {
@@ -84,5 +134,8 @@ export async function authenticateApiKey(
     })
     .catch(() => undefined);
 
-  return { user: record.user, apiKeyId: record.id };
+  const auth = { user: record.user, apiKeyId: record.id };
+  setCachedApiAuth(keyHash, auth);
+
+  return auth;
 }

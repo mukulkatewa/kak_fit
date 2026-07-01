@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { generateApiKey } from "../public-api/auth";
+import { generateApiKey, invalidateApiAuthCache } from "../public-api/auth";
 import { resolvePublicApiBaseUrl } from "../lib/public-api-base-url";
 import { protectedProcedure, router } from "../trpc";
 
@@ -77,6 +77,7 @@ export const developerRouter = router({
         where: { id: key.id },
         data: { revokedAt: new Date() },
       });
+      invalidateApiAuthCache(key.keyHash);
       return { success: true };
     }),
 

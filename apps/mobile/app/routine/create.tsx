@@ -823,7 +823,7 @@ const makeStyles = (colors: Palette) =>
     errorText: { color: colors.textMuted, fontSize: 15, textAlign: "center", lineHeight: 22 },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.md },
-    nameErrorText: { color: colors.danger, fontSize: 13, fontWeight: "500", marginTop: -spacing.xs },
+    nameErrorText: { color: colors.danger, fontSize: 13, fontWeight: "500", marginTop: spacing.xs },
     nameSuggestions: { gap: spacing.sm, marginTop: spacing.xs },
     nameSuggestionsLabel: { color: colors.textDim, fontSize: 12, fontWeight: "600" },
     nameSuggestionChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },

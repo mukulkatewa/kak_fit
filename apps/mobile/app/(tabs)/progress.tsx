@@ -490,5 +490,5 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: spacing.lg,
     },
     measureLinkText: { color: colors.accent, fontSize: 16, fontWeight: "600" },
-    sectionSub: { fontSize: 13, color: colors.textMuted, marginTop: -8, marginBottom: spacing.sm },
+    sectionSub: { fontSize: 13, color: colors.textMuted, marginTop: 0, marginBottom: spacing.sm },
   });

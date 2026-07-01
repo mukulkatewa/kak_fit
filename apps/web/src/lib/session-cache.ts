@@ -74,6 +74,7 @@ export function deleteCachedSessionUser(token: string) {
 
 function logCacheStats() {
   sessionCache.purgeStale();
+  if (process.env.NODE_ENV !== "development") return;
   console.log(
     `[SessionCache] Size: ${sessionCache.size}/${maxEntries}, Stats: ${JSON.stringify(getSessionCacheStats())}`,
   );

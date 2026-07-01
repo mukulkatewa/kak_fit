@@ -237,7 +237,7 @@ const makeStyles = (colors: Palette) =>
     center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
     pad: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, gap: spacing.md },
     title: { fontSize: 24, fontWeight: "800", color: colors.text },
-    hint: { fontSize: 13, color: colors.textMuted, marginTop: -spacing.xs },
+    hint: { fontSize: 13, color: colors.textMuted, marginTop: spacing.xs },
     exerciseCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,

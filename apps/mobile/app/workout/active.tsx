@@ -1407,7 +1407,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   contentPad: { paddingHorizontal: spacing.lg },
   mainColumn: { flex: 1, minHeight: 0 },
   workoutTitle: { fontSize: 28, fontWeight: "700", color: colors.text },
-  meta: { color: colors.textMuted, fontSize: 15, marginTop: -4 },
+  meta: { color: colors.textMuted, fontSize: 15, marginTop: 2 },
   restBar: {
     backgroundColor: colors.accentMuted,
     borderRadius: radius.lg,
@@ -1437,7 +1437,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   iconBtn: { padding: 2 },
   supersetBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginBottom: 4 },
   supersetBadgeText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
-  prevMeta: { color: colors.textDim, fontSize: 12, marginTop: -4 },
+  prevMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   exerciseNotesInput: {
     backgroundColor: colors.surfaceHover,
     borderRadius: radius.md,

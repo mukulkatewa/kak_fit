@@ -787,7 +787,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
 
     calHero: { alignItems: "center" as const, paddingVertical: spacing.sm },
     calValue: { fontSize: 26, fontWeight: "800" as const },
-    calTarget: { fontSize: 12, marginTop: -1 },
+    calTarget: { fontSize: 12, marginTop: 0 },
     calUnit: { fontSize: 11, fontWeight: "600" as const },
 
     macroBlock: {
@@ -875,7 +875,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
     },
     editModalTitle: { fontSize: 20, fontWeight: "800" as const, color: colors.text },
     editFoodName: { fontSize: 16, fontWeight: "600" as const, color: colors.textMuted },
-    foodMacroHint: { fontSize: 13, color: colors.textDim, marginTop: -spacing.sm },
+    foodMacroHint: { fontSize: 13, color: colors.textDim, marginTop: 0 },
 
     loggerSection: { gap: spacing.md },
     loggerHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },

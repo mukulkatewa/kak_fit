@@ -420,7 +420,7 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: 10,
     },
     saveChipText: { color: colors.onAccent, fontWeight: "700", fontSize: 15 },
-    date: { fontSize: 14, color: colors.textMuted, marginTop: -spacing.xs },
+    date: { fontSize: 14, color: colors.textMuted, marginTop: spacing.xs },
     statsRow: {
       flexDirection: "row",
       backgroundColor: colors.surface,

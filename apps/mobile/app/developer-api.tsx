@@ -497,8 +497,8 @@ const makeStyles = (colors: Palette) =>
     setupCardMeta: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
     revokeIconBtn: {
       padding: spacing.xs,
-      marginTop: -spacing.xs,
-      marginRight: -spacing.xs,
+      marginTop: 0,
+      marginRight: 0,
     },
     fieldBlock: { gap: spacing.xs },
     fieldLabel: {

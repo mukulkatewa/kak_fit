@@ -1010,7 +1010,7 @@ function StatsItem({ label, value }: { label: string; value: string }) {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.statsItem}>
-      <Text style={styles.statsValue} numberOfLines={1}>
+      <Text style={styles.statsValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
         {value}
       </Text>
       <Text style={styles.statsLabel}>{label}</Text>
@@ -1358,10 +1358,10 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.separator,
   },
-  statsItem: { flex: 1, alignItems: "flex-start", justifyContent: "center", gap: 6 },
-  statsIconCell: { width: 96, alignItems: "center", justifyContent: "center" },
-  statsValue: { fontSize: 28, fontWeight: "400", color: colors.text, lineHeight: 34 },
-  statsLabel: { fontSize: 17, fontWeight: "400", color: colors.textMuted },
+  statsItem: { flex: 1, minWidth: 0, alignItems: "flex-start", justifyContent: "center", gap: 6 },
+  statsIconCell: { width: 52, alignItems: "center", justifyContent: "center" },
+  statsValue: { width: "100%", fontSize: 24, fontWeight: "400", color: colors.text, lineHeight: 30 },
+  statsLabel: { fontSize: 15, fontWeight: "400", color: colors.textMuted },
   statsDivider: { display: "none" },
   offlineMeta: {
     color: colors.textMuted,

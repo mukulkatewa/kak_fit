@@ -113,7 +113,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg }]}> 
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <Animated.View entering={FadeIn.duration(320)} style={StyleSheet.absoluteFill}>
         <LinearGradient
           colors={[...(isDark ? DARK_BG : LIGHT_BG)]}
@@ -169,7 +169,7 @@ export default function LoginScreen() {
         <View style={styles.bottomBlock}>
           <GoogleButton loading={loading} onPress={handleGoogleSignIn} />
           {error ? (
-            <Animated.View entering={FadeIn.duration(180)} style={[styles.errorBox, { backgroundColor: colors.dangerMuted }]}> 
+            <Animated.View entering={FadeIn.duration(180)} style={[styles.errorBox, { backgroundColor: colors.dangerMuted }]}>
               <Ionicons name="alert-circle" size={17} color={colors.danger} />
               <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
             </Animated.View>

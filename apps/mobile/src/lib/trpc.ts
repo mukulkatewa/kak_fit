@@ -1,4 +1,3 @@
-import { Platform } from "react-native";
 import { httpBatchLink, loggerLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import type { AppRouter } from "@kak-fit/api/router";
@@ -63,8 +62,7 @@ export function createTRPCClient() {
       httpBatchLink({
         url: `${getApiUrl()}/api/trpc`,
         transformer: superjson,
-        // Long GET batch URLs break on some mobile browsers (ERR_SSL_PROTOCOL_ERROR).
-        maxURLLength: Platform.OS === "web" ? 0 : TRPC_BATCH_MAX_URL_LENGTH,
+        maxURLLength: TRPC_BATCH_MAX_URL_LENGTH,
         maxItems: TRPC_BATCH_MAX_ITEMS,
         headers: authHeaders,
         fetch: trpcFetch,

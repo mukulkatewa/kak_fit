@@ -1,9 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { NextRequest } from "next/server";
 
 /** Serve the Expo web SPA (same UI as mobile) for all non-API routes. */
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const indexPath = join(process.cwd(), "public", "index.html");
   if (!existsSync(indexPath)) {
     return new Response(

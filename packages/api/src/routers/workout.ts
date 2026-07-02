@@ -240,7 +240,18 @@ export const workoutRouter = router({
           sets: { create: input.sets },
         },
         include: {
-          exercise: true,
+          exercise: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true,
+              media: {
+                take: 1,
+                orderBy: { displayOrder: "asc" },
+                select: { storageUrl: true, thumbnailUrl: true },
+              },
+            },
+          },
           sets: { orderBy: { setNumber: "asc" } },
         },
       });

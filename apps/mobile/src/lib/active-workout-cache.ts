@@ -136,6 +136,7 @@ export function createOptimisticExercise(
       id: input.exerciseId,
       name: meta?.name ?? "Exercise",
       imageUrl: meta?.imageUrl ?? null,
+      media: [],
     },
     sets: input.sets.map((set, index) => ({
       id: `offline-set-${Date.now()}-${index}`,

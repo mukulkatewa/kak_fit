@@ -88,22 +88,8 @@ function metricUnit(metric: MetricKey, unit: WeightUnit): string {
 
 function buildMediaList(exercise: {
   media?: ExerciseHeroMedia[];
-  imageUrl?: string | null;
-  videoUrl?: string | null;
 }): ExerciseHeroMedia[] {
-  if (exercise.media && exercise.media.length > 0) return exercise.media;
-  if (exercise.videoUrl) {
-    return [{
-      id: "legacy-video",
-      type: "VIDEO",
-      storageUrl: exercise.videoUrl,
-      thumbnailUrl: exercise.imageUrl,
-    }];
-  }
-  if (exercise.imageUrl) {
-    return [{ id: "legacy-image", type: "IMAGE", storageUrl: exercise.imageUrl }];
-  }
-  return [];
+  return exercise.media ?? [];
 }
 
 function ExerciseMediaHero({ media, colors, styles }: {

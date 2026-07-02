@@ -4,7 +4,7 @@ export const workoutDetailInclude = {
   exercises: {
     orderBy: { order: "asc" as const },
     include: {
-      exercise: { select: { id: true, name: true, imageUrl: true } },
+      exercise: { select: { id: true, name: true, imageUrl: true, media: { take: 1, orderBy: { displayOrder: "asc" as const }, select: { storageUrl: true, thumbnailUrl: true } } } },
       sets: { orderBy: { setNumber: "asc" as const } },
     },
   },

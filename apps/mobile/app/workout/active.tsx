@@ -55,6 +55,7 @@ import { formatElapsedDuration } from "../../src/lib/format-duration";
 import { useWorkoutSetMutationQueue } from "../../src/lib/workout-mutation-queue";
 import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
 import { openExerciseDetail } from "../../src/lib/exercise-navigation";
+import { getExerciseMediaUrl } from "../../src/lib/exercise-media";
 import {
   WORKOUT_HISTORY_PAGE_SIZE,
   workoutHistoryInfiniteOptions,
@@ -178,7 +179,7 @@ function ActiveWorkoutScreen() {
   useEffect(() => {
     if (!workout?.exercises.length) return;
     const urls = workout.exercises
-      .map((e) => e.exercise.imageUrl)
+      .map((e) => getExerciseMediaUrl(e.exercise))
       .filter((url): url is string => Boolean(url));
     if (urls.length > 0) {
       void Image.prefetch(urls, "memory-disk");
@@ -678,7 +679,7 @@ function ActiveWorkoutScreen() {
             <ExerciseBlock
               key={exercise.id}
               name={exercise.exercise.name}
-              imageUrl={exercise.exercise.imageUrl ?? null}
+              imageUrl={getExerciseMediaUrl(exercise.exercise)}
               supersetGroup={exercise.supersetGroup ?? null}
               workoutExerciseId={exercise.id}
               sets={exercise.sets}

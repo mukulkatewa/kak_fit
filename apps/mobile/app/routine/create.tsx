@@ -23,6 +23,7 @@ import { parseOptionalNumber } from "../../src/lib/workout-errors";
 import { ExerciseAvatar } from "../../src/components/exercise-avatar";
 import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
 import { openExerciseDetail } from "../../src/lib/exercise-navigation";
+import { getExerciseMediaUrl } from "../../src/lib/exercise-media";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ type RoutineExerciseLocal = {
   exerciseId: string;
   name: string;
   imageUrl: string | null;
+  media?: Array<{ storageUrl: string; thumbnailUrl: string | null }>;
   sets: RoutineSet[];
   restSeconds: number | null;
   notes: string;
@@ -259,7 +261,7 @@ function ExerciseCard({
         {/* Header row */}
         <View style={styles.cardHeader}>
           <Pressable onPress={onOpenExercise} style={styles.exerciseTitleTap}>
-            <ExerciseAvatar name={exercise.name} imageUrl={exercise.imageUrl} size={36} />
+            <ExerciseAvatar name={exercise.name} imageUrl={getExerciseMediaUrl(exercise)} size={36} />
             <Text style={styles.exerciseName} numberOfLines={1}>{exercise.name}</Text>
           </Pressable>
           <Pressable
@@ -398,7 +400,8 @@ export default function CreateRoutineScreen() {
         editing.exercises.map((ex, i) => ({
           exerciseId: ex.exercise.id,
           name: ex.exercise.name,
-          imageUrl: ex.exercise.imageUrl ?? null,
+          imageUrl: getExerciseMediaUrl(ex.exercise),
+          media: ex.exercise.media,
           notes: ex.notes ?? "",
           restSeconds: ex.restSeconds ?? null,
           superLink:
@@ -453,7 +456,7 @@ export default function CreateRoutineScreen() {
           exercises: input.exercises.map((ex, index) => ({
             id: `optimistic-ex-${index}`,
             order: ex.order,
-            exercise: { id: ex.exerciseId, name: "Saving…", imageUrl: null },
+            exercise: { id: ex.exerciseId, name: "Saving…", imageUrl: null, media: [] },
           })),
         },
         ...(old ?? []),
@@ -759,7 +762,7 @@ export default function CreateRoutineScreen() {
               renderItem={({ item }) => (
                 <Pressable
                   style={styles.pickerRow}
-                  onPress={() => addExercise(item.id, item.name, item.imageUrl ?? null)}
+                  onPress={() => addExercise(item.id, item.name, getExerciseMediaUrl(item))}
                 >
                   <Text style={styles.pickerName}>{item.name}</Text>
                   <Pressable

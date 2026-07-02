@@ -197,35 +197,30 @@ export const progressRouter = router({
   exerciseChart: protectedProcedure
     .input(z.object({ exerciseId: z.string(), limit: z.number().min(1).max(30).default(12) }))
     .query(async ({ ctx, input }) => {
-      const workouts = await ctx.prisma.workout.findMany({
-        where: {
-          userId: ctx.user.id,
-          finishedAt: { not: null },
-          exercises: { some: { exerciseId: input.exerciseId } },
-        },
-        include: {
-          exercises: {
-            where: { exerciseId: input.exerciseId },
-            include: { sets: { where: { isCompleted: true } } },
-          },
-        },
-        orderBy: { finishedAt: "desc" },
-        take: input.limit,
-      });
+      const rows = await ctx.prisma.$queryRaw<
+        Array<{ finishedAt: Date; maxWeight: number | bigint | null; volume: number | bigint | null }>
+      >(Prisma.sql`
+        SELECT
+          w."finishedAt" as "finishedAt",
+          COALESCE(MAX(COALESCE(ws.weight, 0)), 0) as "maxWeight",
+          COALESCE(SUM(COALESCE(ws.weight, 0) * COALESCE(ws.reps, 0)), 0) as volume
+        FROM "Workout" w
+        JOIN "WorkoutExercise" we ON we."workoutId" = w.id
+        LEFT JOIN "WorkoutSet" ws ON ws."workoutExerciseId" = we.id AND ws."isCompleted" = true
+        WHERE w."userId" = ${ctx.user.id}
+          AND w."finishedAt" IS NOT NULL
+          AND we."exerciseId" = ${input.exerciseId}
+        GROUP BY w.id, w."finishedAt"
+        ORDER BY w."finishedAt" DESC
+        LIMIT ${input.limit}
+      `);
 
-      return workouts
-        .reverse()
-        .map((w) => {
-          const sets = w.exercises[0]?.sets ?? [];
-          const maxWeight = sets.reduce((max, s) => Math.max(max, s.weight ?? 0), 0);
-          const totalVolume = sets.reduce((v, s) => v + (s.weight ?? 0) * (s.reps ?? 0), 0);
-          return {
-            date: w.finishedAt!.toISOString(),
-            label: w.finishedAt!.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-            maxWeight,
-            volume: Math.round(totalVolume),
-          };
-        });
+      return rows.reverse().map((row) => ({
+        date: row.finishedAt.toISOString(),
+        label: row.finishedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        maxWeight: toNumber(row.maxWeight),
+        volume: Math.round(toNumber(row.volume)),
+      }));
     }),
 
   muscleDistribution: protectedProcedure

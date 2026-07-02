@@ -5,6 +5,7 @@ import {
   formatRoutineExerciseDetail,
   type RoutineListItem,
 } from "../lib/routine-display";
+import { getExerciseMediaUrl } from "../lib/exercise-media";
 import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
 import { ExerciseAvatar } from "./exercise-avatar";
 
@@ -84,7 +85,7 @@ export function RoutineExpandableRow({
               <>
                 <ExerciseAvatar
                   name={exercise.exercise.name}
-                  imageUrl={exercise.exercise.imageUrl ?? null}
+                  imageUrl={getExerciseMediaUrl(exercise.exercise)}
                   size={28}
                 />
                 <Text style={styles.expandedLine} numberOfLines={2}>
@@ -234,7 +235,7 @@ export function RoutineExpandableCard({
               <>
                 <ExerciseAvatar
                   name={exercise.exercise.name}
-                  imageUrl={exercise.exercise.imageUrl ?? null}
+                  imageUrl={getExerciseMediaUrl(exercise.exercise)}
                   size={28}
                 />
                 <Text style={styles.expandedLine} numberOfLines={2}>

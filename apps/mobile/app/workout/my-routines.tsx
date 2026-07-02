@@ -29,6 +29,7 @@ import { useTheme, useThemedStyles, spacing, radius, typography, type Palette } 
 import { workoutTextStyles } from "../../src/lib/workout-common";
 import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
 import { openExerciseDetail } from "../../src/lib/exercise-navigation";
+import { getExerciseMediaUrl } from "../../src/lib/exercise-media";
 import type { RouterOutputs } from "@kak-fit/api/router";
 
 type RoutineItem = RouterOutputs["routine"]["list"][number];
@@ -363,7 +364,7 @@ export default function MyRoutinesScreen() {
                   >
                     <ExerciseAvatar
                       name={exercise.exercise.name}
-                      imageUrl={exercise.exercise.imageUrl ?? null}
+                      imageUrl={getExerciseMediaUrl(exercise.exercise)}
                       size={40}
                     />
                     <View style={styles.previewExerciseBody}>

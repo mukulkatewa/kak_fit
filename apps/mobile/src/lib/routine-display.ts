@@ -7,7 +7,7 @@ export type RoutineListItem = RoutineListBase & {
   exercises?: Array<{
     id: string;
     order: number;
-    exercise: { id: string; name: string; imageUrl: string | null };
+    exercise: { id: string; name: string; imageUrl: string | null; media?: Array<{ storageUrl: string; thumbnailUrl: string | null }> };
     sets?: Array<{
       id: string;
       setNumber: number;

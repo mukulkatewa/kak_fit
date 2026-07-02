@@ -16,6 +16,7 @@ type RoutineExpandableRowProps = {
   disabled?: boolean;
   loading?: boolean;
   last?: boolean;
+  onOpenExercise?: (exerciseId: string) => void;
 };
 
 export function RoutineExpandableRow({
@@ -26,6 +27,7 @@ export function RoutineExpandableRow({
   disabled,
   loading,
   last,
+  onOpenExercise,
 }: RoutineExpandableRowProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -77,18 +79,34 @@ export function RoutineExpandableRow({
       </View>
       {expanded ? (
         <View style={styles.expanded}>
-          {(routine.exercises ?? []).map((exercise) => (
-            <View key={exercise.id} style={styles.expandedExRow}>
-              <ExerciseAvatar
-                name={exercise.exercise.name}
-                imageUrl={exercise.exercise.imageUrl ?? null}
-                size={28}
-              />
-              <Text style={styles.expandedLine} numberOfLines={2}>
-                {formatRoutineExerciseDetail(exercise)}
-              </Text>
-            </View>
-          ))}
+          {(routine.exercises ?? []).map((exercise) => {
+            const content = (
+              <>
+                <ExerciseAvatar
+                  name={exercise.exercise.name}
+                  imageUrl={exercise.exercise.imageUrl ?? null}
+                  size={28}
+                />
+                <Text style={styles.expandedLine} numberOfLines={2}>
+                  {formatRoutineExerciseDetail(exercise)}
+                </Text>
+              </>
+            );
+
+            return onOpenExercise ? (
+              <Pressable
+                key={exercise.id}
+                onPress={() => onOpenExercise(exercise.exercise.id)}
+                style={({ pressed }) => [styles.expandedExRow, pressed && styles.mainTapPressed]}
+              >
+                {content}
+              </Pressable>
+            ) : (
+              <View key={exercise.id} style={styles.expandedExRow}>
+                {content}
+              </View>
+            );
+          })}
         </View>
       ) : null}
     </View>
@@ -149,6 +167,7 @@ type RoutineExpandableCardProps = {
   onStart: () => void;
   disabled?: boolean;
   loading?: boolean;
+  onOpenExercise?: (exerciseId: string) => void;
 };
 
 export function RoutineExpandableCard({
@@ -158,6 +177,7 @@ export function RoutineExpandableCard({
   onStart,
   disabled,
   loading,
+  onOpenExercise,
 }: RoutineExpandableCardProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeCardStyles);
@@ -209,18 +229,34 @@ export function RoutineExpandableCard({
       </View>
       {expanded ? (
         <View style={styles.expanded}>
-          {(routine.exercises ?? []).map((exercise) => (
-            <View key={exercise.id} style={styles.expandedExRow}>
-              <ExerciseAvatar
-                name={exercise.exercise.name}
-                imageUrl={exercise.exercise.imageUrl ?? null}
-                size={28}
-              />
-              <Text style={styles.expandedLine} numberOfLines={2}>
-                {formatRoutineExerciseDetail(exercise)}
-              </Text>
-            </View>
-          ))}
+          {(routine.exercises ?? []).map((exercise) => {
+            const content = (
+              <>
+                <ExerciseAvatar
+                  name={exercise.exercise.name}
+                  imageUrl={exercise.exercise.imageUrl ?? null}
+                  size={28}
+                />
+                <Text style={styles.expandedLine} numberOfLines={2}>
+                  {formatRoutineExerciseDetail(exercise)}
+                </Text>
+              </>
+            );
+
+            return onOpenExercise ? (
+              <Pressable
+                key={exercise.id}
+                onPress={() => onOpenExercise(exercise.exercise.id)}
+                style={({ pressed }) => [styles.expandedExRow, pressed && styles.pressed]}
+              >
+                {content}
+              </Pressable>
+            ) : (
+              <View key={exercise.id} style={styles.expandedExRow}>
+                {content}
+              </View>
+            );
+          })}
         </View>
       ) : null}
     </View>

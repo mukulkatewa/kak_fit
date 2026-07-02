@@ -38,6 +38,7 @@ import {
 } from "../../src/components/ui";
 import { entranceDown, usePulse, useSpringPress } from "../../src/lib/animations";
 import { BUTTON_HEIGHT_PRIMARY, HIT_SLOP_LARGE, iconButtonStyle } from "../../src/lib/layout-constants";
+import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import { useResponsive } from "../../src/lib/responsive";
 import { useAuth } from "../../src/lib/auth-context";
 import {
@@ -656,6 +657,7 @@ function DashboardScreen() {
                   onStart={() =>
                     setStartConfirm({ id: item.id, name: item.name })
                   }
+                  onOpenExercise={(exerciseId) => openExerciseDetail(utils, router, exerciseId)}
                 />
               </Animated.View>
             ))}

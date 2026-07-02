@@ -54,6 +54,7 @@ import {
 import { formatElapsedDuration } from "../../src/lib/format-duration";
 import { useWorkoutSetMutationQueue } from "../../src/lib/workout-mutation-queue";
 import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
+import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import {
   WORKOUT_HISTORY_PAGE_SIZE,
   workoutHistoryInfiniteOptions,
@@ -694,6 +695,7 @@ function ActiveWorkoutScreen() {
                   name: exercise.exercise.name,
                 })
               }
+              onOpenExercise={() => openExerciseDetail(utils, router, exercise.exercise.id)}
               restTimerLabel={restTimerLabel}
               weightUnit={weightUnit}
             />
@@ -832,6 +834,17 @@ function ActiveWorkoutScreen() {
                     </Text>
                   )}
                 </View>
+                <Pressable
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    closePicker();
+                    openExerciseDetail(utils, router, item.id);
+                  }}
+                  hitSlop={8}
+                  style={styles.pickerInfoButton}
+                >
+                  <Ionicons name="information-circle-outline" size={22} color={colors.textMuted} />
+                </Pressable>
                 {isAdding ? (
                   <ActivityIndicator size="small" color={colors.accent} />
                 ) : isAlreadyAdded ? (
@@ -1122,6 +1135,7 @@ function ExerciseBlock({
   onRequestDeleteSet,
   onUpdateNotes,
   onRequestDeleteExercise,
+  onOpenExercise,
   restTimerLabel,
   weightUnit,
 }: {
@@ -1148,6 +1162,7 @@ function ExerciseBlock({
   onRequestDeleteSet: (setId: string, hasData: boolean) => void;
   onUpdateNotes: (notes: string | null) => void;
   onRequestDeleteExercise: () => void;
+  onOpenExercise: () => void;
   restTimerLabel: string;
   weightUnit: "KG" | "LBS";
 }) {
@@ -1168,7 +1183,7 @@ function ExerciseBlock({
         </View>
       ) : null}
       <View style={styles.exerciseHeader}>
-        <Pressable onLongPress={onRequestDeleteExercise} style={styles.exerciseHeaderMain}>
+        <Pressable onPress={onOpenExercise} onLongPress={onRequestDeleteExercise} style={styles.exerciseHeaderMain}>
           <ExerciseAvatar name={name} imageUrl={imageUrl} size={40} />
           <Text style={styles.exerciseName} numberOfLines={1}>
             {name}
@@ -1735,6 +1750,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderRadius: radius.md,
     marginBottom: 6,
   },
+  pickerInfoButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
   pickerText: { ...typography.body, color: colors.text, flex: 1 },
   summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   summaryItem: {

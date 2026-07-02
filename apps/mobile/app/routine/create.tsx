@@ -22,6 +22,7 @@ import { fromKg, toKg, weightLabel } from "../../src/lib/units";
 import { parseOptionalNumber } from "../../src/lib/workout-errors";
 import { ExerciseAvatar } from "../../src/components/exercise-avatar";
 import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
+import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -203,6 +204,7 @@ function ExerciseCard({
   onRemove,
   onUpdate,
   onToggleLink,
+  onOpenExercise,
 }: {
   exercise: RoutineExerciseLocal;
   index: number;
@@ -214,6 +216,7 @@ function ExerciseCard({
   onRemove: () => void;
   onUpdate: (patch: Partial<RoutineExerciseLocal>) => void;
   onToggleLink: () => void;
+  onOpenExercise: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
@@ -255,8 +258,10 @@ function ExerciseCard({
       <View style={[styles.card, exercise.superLink && styles.cardLinked]}>
         {/* Header row */}
         <View style={styles.cardHeader}>
-          <ExerciseAvatar name={exercise.name} imageUrl={exercise.imageUrl} size={36} />
-          <Text style={styles.exerciseName} numberOfLines={1}>{exercise.name}</Text>
+          <Pressable onPress={onOpenExercise} style={styles.exerciseTitleTap}>
+            <ExerciseAvatar name={exercise.name} imageUrl={exercise.imageUrl} size={36} />
+            <Text style={styles.exerciseName} numberOfLines={1}>{exercise.name}</Text>
+          </Pressable>
           <Pressable
             onPress={onMoveUp}
             disabled={isFirst}
@@ -712,6 +717,7 @@ export default function CreateRoutineScreen() {
                     }
                     onUpdate={(patch) => updateExercise(i, patch)}
                     onToggleLink={() => toggleLink(i)}
+                    onOpenExercise={() => openExerciseDetail(utils, router, ex.exerciseId)}
                   />
                 ))}
                 <Button
@@ -756,6 +762,17 @@ export default function CreateRoutineScreen() {
                   onPress={() => addExercise(item.id, item.name, item.imageUrl ?? null)}
                 >
                   <Text style={styles.pickerName}>{item.name}</Text>
+                  <Pressable
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      closePicker();
+                      openExerciseDetail(utils, router, item.id);
+                    }}
+                    hitSlop={8}
+                    style={styles.pickerInfoButton}
+                  >
+                    <Ionicons name="information-circle-outline" size={22} color={colors.textMuted} />
+                  </Pressable>
                   <Ionicons name="add-circle-outline" size={22} color={colors.accent} />
                 </Pressable>
               )}
@@ -891,6 +908,7 @@ const makeStyles = (colors: Palette) =>
     },
     cardLinked: { borderLeftWidth: 3, borderLeftColor: colors.accent },
     cardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    exerciseTitleTap: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm, minWidth: 0 },
     exerciseName: { flex: 1, minWidth: 0, ...typography.h3, color: colors.accent },
     dimmed: { opacity: 0.3 },
     notesInput: {
@@ -970,5 +988,6 @@ const makeStyles = (colors: Palette) =>
       borderBottomColor: colors.separator,
       gap: spacing.md,
     },
+    pickerInfoButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
     pickerName: { flex: 1, ...typography.h3, color: colors.text },
   });

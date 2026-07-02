@@ -14,6 +14,7 @@ import {
 import { ListSkeleton } from "../../src/components/skeleton";
 import { trpc } from "../../src/lib/trpc";
 import { iconButtonStyle, TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
+import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import { spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 export default function ExercisesTab() {
@@ -112,10 +113,7 @@ export default function ExercisesTab() {
                 subtitle={[primary, item.category?.name, item.isCustom ? "Custom" : null]
                   .filter(Boolean)
                   .join(" · ")}
-                onPress={() => {
-                  void utils.exercise.detailPage.prefetch({ id: item.id, chartLimit: 12 });
-                  router.push(`/exercise/${item.id}`);
-                }}
+                onPress={() => openExerciseDetail(utils, router, item.id)}
                 last={index === (exercises?.length ?? 0) - 1}
               />
             );

@@ -28,6 +28,7 @@ import { useUserPreferences } from "../../src/lib/use-preferences";
 import { useTheme, useThemedStyles, spacing, radius, typography, type Palette } from "../../src/lib/theme";
 import { workoutTextStyles } from "../../src/lib/workout-common";
 import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
+import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import type { RouterOutputs } from "@kak-fit/api/router";
 
 type RoutineItem = RouterOutputs["routine"]["list"][number];
@@ -202,6 +203,7 @@ export default function MyRoutinesScreen() {
             disabled={startingId === item.id}
             loading={startingId === item.id}
             onStart={() => setPreviewRoutineId(item.id)}
+            onOpenExercise={(exerciseId) => openExerciseDetail(utils, router, exerciseId)}
           />
         </ListGroup>
       </View>
@@ -351,7 +353,14 @@ export default function MyRoutinesScreen() {
                 showsVerticalScrollIndicator={false}
               >
                 {previewRoutine.data.exercises.map((exercise) => (
-                  <View key={exercise.id} style={styles.previewExerciseRow}>
+                  <Pressable
+                    key={exercise.id}
+                    style={styles.previewExerciseRow}
+                    onPress={() => {
+                      setPreviewRoutineId(null);
+                      openExerciseDetail(utils, router, exercise.exercise.id);
+                    }}
+                  >
                     <ExerciseAvatar
                       name={exercise.exercise.name}
                       imageUrl={exercise.exercise.imageUrl ?? null}
@@ -363,7 +372,7 @@ export default function MyRoutinesScreen() {
                         {formatRoutineExerciseDetail(exercise, weightUnit)}
                       </Text>
                     </View>
-                  </View>
+                  </Pressable>
                 ))}
               </ScrollView>
 

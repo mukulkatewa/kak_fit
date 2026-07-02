@@ -18,7 +18,7 @@ import { EmptyState, Screen } from "../../src/components/ui";
 import { flexFill, useScreenTopInset, webFlexScreen } from "../../src/lib/layout-constants";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { formatWeight, fromKg, weightLabel, type WeightUnit } from "../../src/lib/units";
+import { formatWeight, fromKg, tonnageFromKg, weightLabel, type WeightUnit } from "../../src/lib/units";
 import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type TabKey = "summary" | "history" | "howTo" | "records";
@@ -81,7 +81,7 @@ function formatRecordValue(type: string, value: number, unit: WeightUnit): strin
   if (type === "MAX_REPS") return `${Math.round(value)} reps`;
   if (type === "MAX_DURATION") return `${Math.round(value)} sec`;
   if (type === "MAX_VOLUME") {
-    return `${Math.round(value).toLocaleString()} ${weightLabel(unit)}`;
+    return `${Math.round(tonnageFromKg(value, unit)).toLocaleString()} ${weightLabel(unit)}`;
   }
   return `${formatWeight(value, unit)} ${weightLabel(unit)}`;
 }
@@ -89,31 +89,15 @@ function formatRecordValue(type: string, value: number, unit: WeightUnit): strin
 function metricValue(point: ChartPoint, metric: MetricKey, unit: WeightUnit): number {
   if (metric === "weight") return fromKg(point.maxWeight, unit);
   if (metric === "oneRm") return fromKg(point.maxOneRm, unit);
-  return point.volume;
+  return tonnageFromKg(point.volume, unit);
 }
 
 function metricUnit(metric: MetricKey, unit: WeightUnit): string {
   return metric === "volume" ? weightLabel(unit) : weightLabel(unit);
 }
 
-function buildMediaList(exercise: {
-  media?: ExerciseHeroMedia[];
-  imageUrl?: string | null;
-  videoUrl?: string | null;
-}): ExerciseHeroMedia[] {
-  if (exercise.media && exercise.media.length > 0) return exercise.media;
-  if (exercise.videoUrl) {
-    return [{
-      id: "legacy-video",
-      type: "VIDEO",
-      storageUrl: exercise.videoUrl,
-      thumbnailUrl: exercise.imageUrl,
-    }];
-  }
-  if (exercise.imageUrl) {
-    return [{ id: "legacy-image", type: "IMAGE", storageUrl: exercise.imageUrl }];
-  }
-  return [];
+function buildMediaList(exercise: { media?: ExerciseHeroMedia[] }): ExerciseHeroMedia[] {
+  return exercise.media ?? [];
 }
 
 function ExerciseMediaHero({ media, colors, styles }: {
@@ -367,7 +351,7 @@ export default function ExerciseDetailScreen() {
   const displayKg = hasChartData ? latestKgValue : (latestPr?.value ?? 0);
   const headlineText = displayKg > 0
     ? metric === "volume"
-      ? `${Math.round(displayKg).toLocaleString()} ${unitLabel}`
+      ? `${Math.round(tonnageFromKg(displayKg, weightUnit)).toLocaleString()} ${unitLabel}`
       : `${formatWeight(displayKg, weightUnit)} ${unitLabel}`
     : `— ${unitLabel}`;
   const headlineMeta = hasChartData

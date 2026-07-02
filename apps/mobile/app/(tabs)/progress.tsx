@@ -33,6 +33,7 @@ import {
 } from "../../src/components/ui";
 import { entranceDown } from "../../src/lib/animations";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
+import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import { formatWeight, tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
 import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../../src/lib/theme";
@@ -189,6 +190,7 @@ function ShimmerPRBadge({ label }: { label: string }) {
 
 export default function ProgressScreen() {
   const router = useRouter();
+  const utils = trpc.useUtils();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { weightUnit } = useUserPreferences();
@@ -379,7 +381,7 @@ export default function ProgressScreen() {
               <ListRow
                 title={ex.name}
                 subtitle={`${ex.count} sessions`}
-                onPress={() => router.push(`/exercise/${ex.id}`)}
+                onPress={() => openExerciseDetail(utils, router, ex.id)}
                 last={i === (topExercises?.length ?? 0) - 1}
               />
             </Animated.View>
@@ -411,7 +413,7 @@ export default function ProgressScreen() {
               >
                 <Pressable
                   style={styles.prRow}
-                  onPress={() => router.push(`/exercise/${pr.exercise.id}`)}
+                  onPress={() => openExerciseDetail(utils, router, pr.exercise.id)}
                 >
                   <ShimmerPRBadge label={pr.type.replace(/_/g, " ")} />
                   <Text style={styles.prName} numberOfLines={1}>

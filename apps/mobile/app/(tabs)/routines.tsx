@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { BUTTON_HEIGHT_PRIMARY, useBottomSheetInset } from "../../src/lib/layout-constants";
+import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import { useResponsive } from "../../src/lib/responsive";
 import { FireIcon } from "react-native-heroicons/solid";
 import {
@@ -593,6 +594,7 @@ export default function WorkoutTabScreen() {
                     last={index === arr.length - 1}
                     disabled={pendingRoutineId === routine.id}
                     onStart={() => setStartConfirm({ id: routine.id, name: routine.name })}
+                    onOpenExercise={(exerciseId) => openExerciseDetail(utils, router, exerciseId)}
                   />
                 </Animated.View>
               ))}

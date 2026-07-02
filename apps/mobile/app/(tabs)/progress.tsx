@@ -88,7 +88,7 @@ function AnimatedBar({
   }));
 
   return (
-    <View style={{ flex: 1, alignItems: "center", gap: 4 }}>
+    <View style={{ flex: 1, alignItems: "center", gap: spacing.xs }}>
       <Text style={{ fontSize: 10, color: mutedColor, fontWeight: "600" }} numberOfLines={1}>
         {value}
         {unit}
@@ -464,11 +464,11 @@ const makeStyles = (colors: Palette) =>
     prBadge: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
+      gap: spacing.xs,
       backgroundColor: colors.goldMuted,
       borderRadius: 999,
-      paddingVertical: 4,
-      paddingHorizontal: 8,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.sm,
     },
     prBadgeText: {
       fontSize: 10,
@@ -490,5 +490,5 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: spacing.lg,
     },
     measureLinkText: { color: colors.accent, fontSize: 16, fontWeight: "600" },
-    sectionSub: { fontSize: 13, color: colors.textMuted, marginTop: 0, marginBottom: spacing.sm },
+    sectionSub: { fontSize: 13, color: colors.textMuted, marginBottom: spacing.sm },
   });

@@ -90,14 +90,13 @@ function GoogleButton({ loading, onPress }: { loading: boolean; onPress: () => v
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { height, width } = useWindowDimensions();
+  const { height } = useWindowDimensions();
   const { signInWithGoogle } = useAuth();
   const { colors, isDark } = useTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const compact = height < 700;
-  const horizontalPadding = width < 380 ? spacing.lg : 28;
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -128,9 +127,9 @@ export default function LoginScreen() {
         style={[
           styles.content,
           {
-            paddingTop: insets.top + (compact ? spacing.lg : 42),
+            paddingTop: insets.top + (compact ? spacing.lg : spacing.xxxl),
             paddingBottom: insets.bottom + spacing.xl,
-            paddingHorizontal: horizontalPadding,
+            paddingHorizontal: spacing.lg,
           },
         ]}
       >

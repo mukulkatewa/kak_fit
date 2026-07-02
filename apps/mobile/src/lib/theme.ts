@@ -154,13 +154,62 @@ export const radius = {
 };
 
 export const typography = {
-  display: { fontSize: 34, fontWeight: "800" as const, letterSpacing: 0.2 },
-  h1: { fontSize: 22, fontWeight: "700" as const, letterSpacing: -0.2 },
-  h2: { fontSize: 17, fontWeight: "700" as const },
-  body: { fontSize: 15, fontWeight: "400" as const },
-  caption: { fontSize: 13, fontWeight: "400" as const },
-  label: { fontSize: 11, fontWeight: "500" as const, letterSpacing: 0 },
-  mono: { fontSize: 15, fontWeight: "600" as const, fontVariant: ["tabular-nums"] as const },
+  // Page-level titles
+  h1: {
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: "800" as const,
+    letterSpacing: 0,
+  },
+  // Section titles
+  h2: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "700" as const,
+    letterSpacing: 0,
+  },
+  // Card/component titles
+  h3: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "700" as const,
+    letterSpacing: 0,
+  },
+  // Body text
+  body: {
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "500" as const,
+    letterSpacing: 0,
+  },
+  // Secondary body text
+  bodySmall: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "500" as const,
+    letterSpacing: 0,
+  },
+  // Captions and metadata
+  caption: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500" as const,
+    letterSpacing: 0,
+  },
+  // Small labels
+  label: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600" as const,
+    letterSpacing: 0.3,
+  },
+  // Button text
+  button: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "700" as const,
+    letterSpacing: 0,
+  },
 };
 
 /** Soft elevations. RN-web maps shadow* to box-shadow. */

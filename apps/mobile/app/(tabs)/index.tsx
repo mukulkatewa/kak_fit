@@ -839,8 +839,7 @@ const makeStyles = (colors: Palette) => {
       color: colors.text,
     },
     greetingDate: {
-      fontSize: 14,
-      fontWeight: "500",
+      ...typography.bodySmall,
       color: colors.textMuted,
     },
     headerRight: {
@@ -860,8 +859,8 @@ const makeStyles = (colors: Palette) => {
     statWrap: { flex: 1 },
     statCol: { alignItems: "center", gap: spacing.xs },
     statValueRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-    statValue: { fontSize: 18, fontWeight: "800", color: colors.text },
-    statLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
+    statValue: { fontSize: 18, fontWeight: "800", color: colors.text }, // custom: dashboard stat emphasis
+    statLabel: { ...typography.label, color: colors.textMuted },
     gear: { padding: spacing.xs },
 
     heroCardOuter: {
@@ -887,7 +886,7 @@ const makeStyles = (colors: Palette) => {
       justifyContent: "space-between",
     },
     heroTitle: {
-      fontSize: 15,
+      ...typography.bodySmall,
       fontWeight: "700",
       color: colors.onAccentMuted,
       letterSpacing: 0.3,
@@ -899,20 +898,19 @@ const makeStyles = (colors: Palette) => {
       marginTop: spacing.xs,
     },
     heroBig: {
+      // custom: hero metric display number
       fontSize: 40,
       fontWeight: "800",
       color: colors.onAccent,
       lineHeight: 44,
     },
     heroUnit: {
-      fontSize: 16,
-      fontWeight: "700",
+      ...typography.h3,
       color: colors.onAccentMuted,
       marginBottom: spacing.sm,
     },
     heroSub: {
-      fontSize: 13,
-      fontWeight: "500",
+      ...typography.caption,
       color: colors.onAccentMuted,
       marginTop: spacing.xs,
     },
@@ -931,8 +929,7 @@ const makeStyles = (colors: Palette) => {
     heroDay: {
       flex: 1,
       textAlign: "center",
-      fontSize: 11,
-      fontWeight: "600",
+      ...typography.label,
       color: colors.onAccentFaint,
     },
     heroChartSkeleton: {
@@ -989,11 +986,10 @@ const makeStyles = (colors: Palette) => {
     },
     activeTitle: {
       flex: 1,
-      fontSize: 16,
-      fontWeight: "700",
+      ...typography.h3,
       color: colors.text,
     },
-    activeSub: { fontSize: 13, color: colors.textMuted, marginTop: spacing.xs },
+    activeSub: { ...typography.caption, color: colors.textMuted, marginTop: spacing.xs },
 
     startEmptyButton: {
       flexDirection: "row",
@@ -1007,13 +1003,12 @@ const makeStyles = (colors: Palette) => {
       ...glowShadow,
     },
     startEmptyLabel: {
-      fontSize: 16,
-      fontWeight: "700",
+      ...typography.button,
       color: "#fff",
     },
     buttonDisabled: { opacity: 0.6 },
 
-    sectionTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
+    sectionTitle: { ...typography.h2, color: colors.text },
     sectionTitleWrap: { gap: spacing.sm },
     sectionUnderline: {
       width: 32,
@@ -1026,7 +1021,7 @@ const makeStyles = (colors: Palette) => {
       alignItems: "center",
       justifyContent: "space-between",
     },
-    viewAll: { fontSize: 15, fontWeight: "700", color: colors.accent },
+    viewAll: { ...typography.body, fontWeight: "700", color: colors.accent },
 
     cardStack: { gap: spacing.md },
     activityCard: {
@@ -1056,8 +1051,8 @@ const makeStyles = (colors: Palette) => {
       alignItems: "center",
       justifyContent: "center",
     },
-    activityTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-    activitySub: { fontSize: 13, color: colors.textMuted, marginTop: spacing.xs },
+    activityTitle: { ...typography.h3, color: colors.text },
+    activitySub: { ...typography.caption, color: colors.textMuted, marginTop: spacing.xs },
     pressed: { opacity: 0.7 },
 
     emptyCard: {
@@ -1067,12 +1062,11 @@ const makeStyles = (colors: Palette) => {
       alignItems: "center",
       gap: spacing.md,
     },
-    emptyTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
+    emptyTitle: { ...typography.h3, color: colors.text },
     emptyHint: {
+      ...typography.bodySmall,
       color: colors.textMuted,
-      fontSize: 14,
       textAlign: "center",
-      lineHeight: 20,
     },
   });
 };

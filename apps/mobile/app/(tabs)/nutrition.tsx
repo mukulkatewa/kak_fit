@@ -752,9 +752,9 @@ function MacroRingRow({
 function makeMacroStyles(colors: Palette, isDark: boolean) {
   return {
     macroRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
-    macroPct: { fontSize: 11, fontWeight: "800" as const },
-    macroLabel: { fontSize: 15, fontWeight: "700" as const, color: colors.text },
-    macroValue: { fontSize: 13, color: colors.textMuted },
+    macroPct: { ...typography.label, fontWeight: "800" as const },
+    macroLabel: { ...typography.body, fontWeight: "700" as const, color: colors.text },
+    macroValue: { ...typography.caption, color: colors.textMuted },
   };
 }
 
@@ -785,12 +785,12 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
     },
-    goalsBtnText: { fontSize: 14, fontWeight: "700" as const },
+    goalsBtnText: { ...typography.bodySmall, fontWeight: "700" as const },
 
     calHero: { alignItems: "center" as const, paddingVertical: spacing.sm },
-    calValue: { fontSize: 22, fontWeight: "800" as const },
-    calTarget: { fontSize: 12 },
-    calUnit: { fontSize: 11, fontWeight: "600" as const },
+    calValue: { fontSize: 22, fontWeight: "800" as const }, // custom: calorie hero number
+    calTarget: { ...typography.label },
+    calUnit: { ...typography.label },
 
     macroBlock: {
       flexDirection: "row" as const,
@@ -813,19 +813,17 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       alignItems: "center" as const,
       ...shadows.card,
     },
-    goalsCtaTitle: { fontSize: 18, fontWeight: "800" as const, color: colors.text, textAlign: "center" as const },
+    goalsCtaTitle: { ...typography.h2, color: colors.text, textAlign: "center" as const },
     goalsCtaText: {
-      fontSize: 14,
+      ...typography.bodySmall,
       color: colors.textMuted,
       textAlign: "center" as const,
-      lineHeight: 20,
     },
 
     sectionTitle: isDark
-      ? { fontSize: 20, fontWeight: "800" as const, color: colors.text }
+      ? { ...typography.h2, color: colors.text }
       : {
-          fontSize: 11,
-          fontWeight: "600" as const,
+          ...typography.label,
           letterSpacing: 1.2,
           textTransform: "uppercase" as const,
           color: colors.textMuted,
@@ -852,8 +850,8 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       alignItems: "center" as const,
       justifyContent: "center" as const,
     },
-    mealName: { fontSize: 16, fontWeight: "700" as const, color: colors.text },
-    mealSub: { fontSize: 13, color: colors.textMuted, marginTop: spacing.xs },
+    mealName: { ...typography.h3, color: colors.text },
+    mealSub: { ...typography.caption, color: colors.textMuted, marginTop: spacing.xs },
     addBtn: {
       width: 44,
       height: 44,
@@ -876,22 +874,22 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       alignItems: "center" as const,
       justifyContent: "space-between" as const,
     },
-    editModalTitle: { fontSize: 20, fontWeight: "800" as const, color: colors.text },
-    editFoodName: { fontSize: 16, fontWeight: "600" as const, color: colors.textMuted },
-    foodMacroHint: { fontSize: 13, color: colors.textDim },
+    editModalTitle: { ...typography.h2, color: colors.text },
+    editFoodName: { ...typography.h3, fontWeight: "600" as const, color: colors.textMuted },
+    foodMacroHint: { ...typography.caption, color: colors.textDim },
 
     loggerSection: { gap: spacing.md },
     loggerHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
-    doneLink: { fontSize: 15, fontWeight: "700" as const, color: colors.accent },
-    usdaLoadingHint: { fontSize: 13, color: colors.textMuted, fontStyle: "italic" as const },
+    doneLink: { ...typography.body, fontWeight: "700" as const, color: colors.accent },
+    usdaLoadingHint: { ...typography.caption, color: colors.textMuted, fontStyle: "italic" as const },
     errorBox: {
       backgroundColor: colors.dangerMuted,
       borderRadius: radius.lg,
       padding: spacing.lg,
       gap: spacing.sm,
     },
-    errorTitle: { color: colors.danger, fontWeight: "700" as const, fontSize: 16 },
-    errorMsg: { color: colors.text, fontSize: 14, lineHeight: 20 },
-    errorHint: { color: colors.accent, fontSize: 14, fontWeight: "700" as const, marginTop: spacing.sm },
+    errorTitle: { ...typography.h3, color: colors.danger },
+    errorMsg: { ...typography.bodySmall, color: colors.text },
+    errorHint: { ...typography.bodySmall, color: colors.accent, fontWeight: "700" as const, marginTop: spacing.sm },
   };
 }

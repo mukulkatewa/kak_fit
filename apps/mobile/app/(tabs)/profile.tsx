@@ -48,7 +48,7 @@ import { useAuth } from "../../src/lib/auth-context";
 import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
 import { tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type ChartMode = "duration" | "volume" | "reps";
 type GridIcon = FC<{ color?: string; size?: number }>;
@@ -380,7 +380,7 @@ const makeStyles = (colors: Palette) =>
     pad: { paddingHorizontal: spacing.lg, gap: spacing.lg },
     profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.xl },
     statsWrap: { flex: 1 },
-    bio: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
+    bio: { ...typography.bodySmall, color: colors.textMuted },
     segmented: {
       flexDirection: "row",
       backgroundColor: colors.surface,
@@ -403,7 +403,7 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       zIndex: 1,
     },
-    segmentText: { fontSize: 14, fontWeight: "600", color: colors.textMuted },
+    segmentText: { ...typography.bodySmall, fontWeight: "600", color: colors.textMuted },
     segmentTextActive: { color: "#fff" },
     noDataCard: {
       backgroundColor: colors.surface,
@@ -412,8 +412,8 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       gap: spacing.sm,
     },
-    noDataText: { color: colors.textMuted, fontSize: 15 },
-    sectionLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "500", marginTop: spacing.sm },
+    noDataText: { ...typography.body, color: colors.textMuted },
+    sectionLabel: { ...typography.caption, color: colors.textMuted, marginTop: spacing.sm },
     grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     gridItemWrap: { width: "48%" },
     gridItem: {
@@ -425,7 +425,7 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.md,
       minHeight: 56,
     },
-    gridLabel: { fontSize: 16, fontWeight: "500", color: colors.text },
+    gridLabel: { ...typography.body, color: colors.text },
     signOutBtn: {
       flexDirection: "row",
       alignItems: "center",
@@ -433,5 +433,5 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.sm,
       paddingVertical: spacing.lg,
     },
-    signOutText: { fontSize: 16, fontWeight: "600", color: colors.textMuted },
+    signOutText: { ...typography.button, color: colors.textMuted },
   });

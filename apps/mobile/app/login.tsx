@@ -24,7 +24,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSpringPress } from "../src/lib/animations";
 import { useAuth } from "../src/lib/auth-context";
-import { spacing, useTheme } from "../src/lib/theme";
+import { spacing, typography, useTheme } from "../src/lib/theme";
 
 const DARK_BG = ["#05070B", "#07111C", "#020304"] as const;
 const LIGHT_BG = ["#F8FAF6", "#ECF6EE", "#F8FAF6"] as const;
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  brandText: { fontSize: 22, fontWeight: "800", letterSpacing: 0 },
+  brandText: { fontSize: 24, lineHeight: 30, fontWeight: "800", letterSpacing: 0 }, // custom: compact brand lockup
   centerBlock: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
   logoOrb: {
     width: 116,
@@ -223,8 +223,8 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  title: { fontSize: 44, lineHeight: 50, fontWeight: "900", letterSpacing: 0, textAlign: "center" },
-  subtitle: { fontSize: 17, fontWeight: "700", textAlign: "center" },
+  title: { fontSize: 44, lineHeight: 50, fontWeight: "900", letterSpacing: 0, textAlign: "center" }, // custom: hero title
+  subtitle: { ...typography.body, fontWeight: "700", textAlign: "center" },
   bottomBlock: { gap: spacing.md },
   googleButton: {
     minHeight: 60,
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.65 },
   googleIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
-  googleText: { fontSize: 16, fontWeight: "800" },
+  googleText: { ...typography.button },
   errorBox: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start", borderRadius: 14, padding: spacing.md },
-  errorText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: "600" },
+  errorText: { flex: 1, ...typography.caption, fontWeight: "600" },
 });

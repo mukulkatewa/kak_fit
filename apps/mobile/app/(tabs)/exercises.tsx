@@ -13,7 +13,7 @@ import {
 } from "../../src/components/ui";
 import { ListSkeleton } from "../../src/components/skeleton";
 import { trpc } from "../../src/lib/trpc";
-import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+import { spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 export default function ExercisesTab() {
   const router = useRouter();
@@ -151,7 +151,7 @@ const makeStyles = (colors: Palette) =>
       borderColor: colors.border,
     },
     chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-    chipText: { color: colors.textMuted, fontSize: 13, fontWeight: "500" },
+    chipText: { ...typography.caption, color: colors.textMuted },
     chipTextActive: { color: colors.onAccent, fontWeight: "700" },
   });
 

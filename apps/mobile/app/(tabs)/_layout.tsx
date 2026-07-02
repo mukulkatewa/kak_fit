@@ -12,7 +12,7 @@ import { Platform, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedTabIcon } from "../../src/components/animated-tab-icon";
 import { TAB_BAR_HEIGHT, TAB_BAR_PADDING_BOTTOM } from "../../src/lib/layout-constants";
-import { spacing, useTheme } from "../../src/lib/theme";
+import { spacing, typography, useTheme } from "../../src/lib/theme";
 
 function makeTabIcon(
   IconOutline: FC<{ color?: string; size?: number }>,
@@ -117,5 +117,5 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabLabel: { fontSize: 11, fontWeight: "600", marginTop: 2 },
+  tabLabel: { ...typography.label, marginTop: 2 },
 });

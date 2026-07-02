@@ -35,7 +35,7 @@ import { entranceDown } from "../../src/lib/animations";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { formatWeight, tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+import { spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 function AnimatedStatBlock({
   index,
@@ -89,7 +89,7 @@ function AnimatedBar({
 
   return (
     <View style={{ flex: 1, alignItems: "center", gap: spacing.xs }}>
-      <Text style={{ fontSize: 10, color: mutedColor, fontWeight: "600" }} numberOfLines={1}>
+      <Text style={{ ...typography.label, fontSize: 10, color: mutedColor }} numberOfLines={1}>
         {value}
         {unit}
       </Text>
@@ -103,7 +103,7 @@ function AnimatedBar({
           barStyle,
         ]}
       />
-      <Text style={{ fontSize: 11, color: mutedColor, fontWeight: "500" }} numberOfLines={1}>
+      <Text style={{ ...typography.label, fontSize: 11, fontWeight: "500", color: mutedColor }} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -471,17 +471,18 @@ const makeStyles = (colors: Palette) =>
       paddingHorizontal: spacing.sm,
     },
     prBadgeText: {
-      fontSize: 10,
+      ...typography.label,
+      fontSize: 10, // custom: compact PR badge
       fontWeight: "800",
       color: colors.gold,
       textTransform: "uppercase",
       letterSpacing: 0.4,
     },
-    prName: { flex: 1, color: colors.text, fontSize: 15 },
-    prVal: { color: colors.gold, fontWeight: "700", fontSize: 15 },
-    empty: { color: colors.textMuted, fontSize: 14, textAlign: "center", paddingVertical: spacing.lg },
+    prName: { flex: 1, color: colors.text, ...typography.body },
+    prVal: { color: colors.gold, ...typography.body, fontWeight: "700" },
+    empty: { ...typography.bodySmall, color: colors.textMuted, textAlign: "center", paddingVertical: spacing.lg },
     retryBlock: { alignItems: "center", gap: spacing.xs },
-    retry: { color: colors.accent, fontSize: 14, fontWeight: "600" },
+    retry: { ...typography.bodySmall, color: colors.accent, fontWeight: "600" },
     measureLink: {
       flexDirection: "row",
       alignItems: "center",
@@ -489,6 +490,6 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.sm,
       paddingVertical: spacing.lg,
     },
-    measureLinkText: { color: colors.accent, fontSize: 16, fontWeight: "600" },
-    sectionSub: { fontSize: 13, color: colors.textMuted, marginBottom: spacing.sm },
+    measureLinkText: { ...typography.button, color: colors.accent },
+    sectionSub: { ...typography.caption, color: colors.textMuted, marginBottom: spacing.sm },
   });

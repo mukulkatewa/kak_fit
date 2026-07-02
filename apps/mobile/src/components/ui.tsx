@@ -899,14 +899,14 @@ const makeStyles = (colors: Palette) =>
     },
     statPillAccent: {},
     statPillGold: {},
-    statValue: { fontSize: 22, fontWeight: "700", color: colors.text },
+    statValue: { fontSize: 22, fontWeight: "700", color: colors.text }, // custom: stat emphasis
     statValueAccent: { color: colors.accent },
     statValueGold: { color: colors.gold },
-    statLabel: { ...typography.caption, color: colors.textMuted, fontSize: 12 },
+    statLabel: { ...typography.label, color: colors.textMuted },
 
     statBlock: { flex: 1, alignItems: "center", gap: 2 },
-    statBlockValue: { fontSize: 20, fontWeight: "700", color: colors.text },
-    statBlockLabel: { fontSize: 12, color: colors.textMuted },
+    statBlockValue: { ...typography.h2, color: colors.text },
+    statBlockLabel: { ...typography.label, color: colors.textMuted },
 
     listGroup: {
       backgroundColor: colors.surface,
@@ -924,7 +924,7 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: 3,
       alignSelf: "flex-start",
     },
-    prBadgeText: { fontSize: 11, fontWeight: "600", color: colors.gold },
+    prBadgeText: { ...typography.label, color: colors.gold },
 
     streakBadge: {
       flexDirection: "row",
@@ -936,7 +936,7 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: spacing.sm,
       alignSelf: "flex-start",
     },
-    streakEmoji: { fontSize: 14 },
+    streakEmoji: { fontSize: 14 }, // emoji size
     streakText: { ...typography.caption, color: colors.textMuted },
 
     xpContainer: { gap: spacing.sm },
@@ -947,7 +947,7 @@ const makeStyles = (colors: Palette) =>
       paddingHorizontal: 8,
       paddingVertical: 3,
     },
-    xpLevel: { fontSize: 11, fontWeight: "600", color: colors.accent },
+    xpLevel: { ...typography.label, color: colors.accent },
     xpText: { ...typography.caption, color: colors.textMuted },
     xpTrack: {
       height: 4,
@@ -967,8 +967,8 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "center",
     },
     scoreRingInner: { alignItems: "center" },
-    scoreValue: { fontSize: 24, fontWeight: "700", color: colors.text },
-    scoreLabel: { fontSize: 9, fontWeight: "600", color: colors.textMuted },
+    scoreValue: { fontSize: 24, fontWeight: "700", color: colors.text }, // custom: ring score
+    scoreLabel: { ...typography.label, fontSize: 9, color: colors.textMuted }, // custom: compact ring label
 
     progressTrack: {
       height: 4,
@@ -983,7 +983,7 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { fontWeight: "600", color: colors.text },
+    avatarText: { ...typography.bodySmall, fontWeight: "600", color: colors.text },
 
     chip: {
       paddingHorizontal: spacing.md,
@@ -992,7 +992,7 @@ const makeStyles = (colors: Palette) =>
       backgroundColor: colors.surfaceHover,
     },
     chipActive: { backgroundColor: colors.accent },
-    chipText: { ...typography.caption, color: colors.textMuted, fontWeight: "500" },
+    chipText: { ...typography.caption, color: colors.textMuted },
     chipTextActive: { color: "#fff", fontWeight: "600" },
 
     brandMarkRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
@@ -1005,10 +1005,10 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "center",
     },
     brandIconLarge: { width: 64, height: 64, borderRadius: radius.lg },
-    brandMark: { fontSize: 17, fontWeight: "600", color: colors.text },
-    brandMarkLarge: { fontSize: 28, fontWeight: "700" },
+    brandMark: { ...typography.body, fontWeight: "600", color: colors.text },
+    brandMarkLarge: { fontSize: 28, fontWeight: "700" }, // custom: large brand mark
     title: { ...typography.h1, color: colors.text },
-    subtitle: { ...typography.body, color: colors.textMuted, lineHeight: 20 },
+    subtitle: { ...typography.bodySmall, color: colors.textMuted },
 
     button: {
       borderRadius: radius.md,
@@ -1027,8 +1027,8 @@ const makeStyles = (colors: Palette) =>
     buttonGold: { backgroundColor: colors.surfaceHover },
     buttonDisabled: { opacity: 0.5 },
     buttonInner: { flexDirection: "row", alignItems: "center", gap: 8 },
-    buttonText: { fontSize: 17, fontWeight: "600" },
-    buttonTextSm: { fontSize: 15, fontWeight: "600" },
+    buttonText: { ...typography.button },
+    buttonTextSm: { ...typography.body, fontWeight: "600" },
     pressed: { opacity: 0.7 },
 
     hevyButton: {
@@ -1043,8 +1043,7 @@ const makeStyles = (colors: Palette) =>
       backgroundColor: colors.surfaceHover,
     },
     hevyButtonText: {
-      fontSize: 17,
-      fontWeight: "600",
+      ...typography.button,
       color: "#ffffff",
     },
     hevyButtonTextSecondary: {
@@ -1076,14 +1075,14 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.sm,
       minHeight: 40,
     },
-    searchInput: { flex: 1, color: colors.text, fontSize: 15, paddingVertical: 8 },
+    searchInput: { flex: 1, color: colors.text, ...typography.body, paddingVertical: 8 },
     input: {
       backgroundColor: colors.surface,
       borderRadius: radius.md,
       paddingHorizontal: spacing.lg,
       paddingVertical: 14,
       color: colors.text,
-      fontSize: 17,
+      ...typography.body,
     },
 
     listRow: {
@@ -1109,8 +1108,8 @@ const makeStyles = (colors: Palette) =>
     },
     listRowIconGold: { backgroundColor: colors.goldMuted },
     listRowBody: { flex: 1, gap: 2 },
-    listRowTitle: { fontSize: 17, color: colors.text, fontWeight: "400" },
-    listRowSubtitle: { fontSize: 13, color: colors.textMuted },
+    listRowTitle: { ...typography.body, color: colors.text },
+    listRowSubtitle: { ...typography.caption, color: colors.textMuted },
 
     empty: { alignItems: "center", paddingVertical: spacing.xxxl, gap: spacing.md },
     emptyIcon: {
@@ -1140,9 +1139,9 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "center",
       backgroundColor: colors.surface,
     },
-    macroRingValue: { fontSize: 15, fontWeight: "700" },
+    macroRingValue: { ...typography.body, fontWeight: "700" },
     macroRingLabel: { ...typography.caption, color: colors.textMuted },
-    macroRingTarget: { fontSize: 11, color: colors.textDim },
+    macroRingTarget: { ...typography.label, color: colors.textDim },
 
     dialogBackdrop: {
       flex: 1,
@@ -1161,8 +1160,8 @@ const makeStyles = (colors: Palette) =>
       borderColor: colors.border,
       zIndex: 1,
     },
-    dialogTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
-    dialogMessage: { fontSize: 15, color: colors.textMuted, lineHeight: 22 },
+    dialogTitle: { ...typography.h2, color: colors.text },
+    dialogMessage: { ...typography.body, color: colors.textMuted },
     dialogActions: {
       flexDirection: "row",
       alignItems: "center",
@@ -1177,7 +1176,7 @@ const makeStyles = (colors: Palette) =>
     },
     dialogBtnPrimary: { backgroundColor: colors.accent },
     dialogBtnDestructive: { backgroundColor: colors.dangerMuted },
-    dialogBtnText: { fontSize: 15, fontWeight: "600", color: colors.textMuted },
+    dialogBtnText: { ...typography.body, fontWeight: "600", color: colors.textMuted },
     dialogBtnTextPrimary: { color: colors.onAccent },
     dialogBtnTextDestructive: { color: colors.danger, fontWeight: "700" },
   });

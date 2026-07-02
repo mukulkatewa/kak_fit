@@ -1,3 +1,4 @@
+import { Prisma } from "@kak-fit/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { normalizeExerciseName } from "../lib/exercise-name";
@@ -8,6 +9,75 @@ import {
 } from "../services/exercise-catalog";
 import { getPreviousExercisePerformance } from "../services/previous-values";
 import { protectedProcedure, router } from "../trpc";
+
+function toNumber(value: bigint | number | null | undefined): number {
+  if (value == null) return 0;
+  return typeof value === "bigint" ? Number(value) : Number(value);
+}
+
+async function getExerciseChart(ctx: { prisma: import("@kak-fit/db").PrismaClient; user: { id: string } }, exerciseId: string, limit: number) {
+  const rows = await ctx.prisma.$queryRaw<
+    Array<{ finishedAt: Date; maxWeight: number | bigint | null; volume: number | bigint | null; maxOneRm: number | bigint | null }>
+  >(Prisma.sql`
+    SELECT
+      w."finishedAt" as "finishedAt",
+      COALESCE(MAX(COALESCE(ws.weight, 0)), 0) as "maxWeight",
+      COALESCE(SUM(COALESCE(ws.weight, 0) * COALESCE(ws.reps, 0)), 0) as volume,
+      COALESCE(MAX(
+        CASE
+          WHEN COALESCE(ws.weight, 0) <= 0 OR COALESCE(ws.reps, 0) <= 0 THEN 0
+          WHEN COALESCE(ws.reps, 0) = 1 THEN COALESCE(ws.weight, 0)
+          ELSE COALESCE(ws.weight, 0) * (1 + COALESCE(ws.reps, 0) / 30.0)
+        END
+      ), 0) as "maxOneRm"
+    FROM "Workout" w
+    JOIN "WorkoutExercise" we ON we."workoutId" = w.id
+    LEFT JOIN "WorkoutSet" ws ON ws."workoutExerciseId" = we.id AND ws."isCompleted" = true
+    WHERE w."userId" = ${ctx.user.id}
+      AND w."finishedAt" IS NOT NULL
+      AND we."exerciseId" = ${exerciseId}
+    GROUP BY w.id, w."finishedAt"
+    ORDER BY w."finishedAt" DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.reverse().map((row) => ({
+    date: row.finishedAt.toISOString(),
+    label: row.finishedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    maxWeight: toNumber(row.maxWeight),
+    volume: Math.round(toNumber(row.volume)),
+    maxOneRm: Math.round(toNumber(row.maxOneRm) * 10) / 10,
+  }));
+}
+
+async function getExercisePersonalRecords(ctx: { prisma: import("@kak-fit/db").PrismaClient; user: { id: string } }, exerciseId: string) {
+  const bests = await ctx.prisma.personalRecord.groupBy({
+    by: ["type"],
+    where: { userId: ctx.user.id, exerciseId },
+    _max: { value: true },
+  });
+
+  if (bests.length === 0) return [];
+
+  const records = await ctx.prisma.personalRecord.findMany({
+    where: {
+      userId: ctx.user.id,
+      exerciseId,
+      OR: bests.map((row) => ({
+        type: row.type,
+        value: row._max.value ?? 0,
+      })),
+    },
+    orderBy: [{ type: "asc" }, { achievedAt: "desc" }],
+  });
+
+  const seen = new Set<string>();
+  return records.filter((record) => {
+    if (seen.has(record.type)) return false;
+    seen.add(record.type);
+    return true;
+  });
+}
 
 export const exerciseRouter = router({
   list: protectedProcedure
@@ -115,6 +185,30 @@ export const exerciseRouter = router({
       }
 
       return exercise;
+    }),
+
+  detailPage: protectedProcedure
+    .input(z.object({ id: z.string(), chartLimit: z.number().min(1).max(30).default(12) }))
+    .query(async ({ ctx, input }) => {
+      const exercisePromise = ctx.prisma.exercise.findFirst({
+        where: {
+          id: input.id,
+          ...globalExerciseWhere(ctx.user.id),
+        },
+        include: exerciseDetailInclude,
+      });
+
+      const [exercise, chart, personalRecords] = await Promise.all([
+        exercisePromise,
+        getExerciseChart(ctx, input.id, input.chartLimit),
+        getExercisePersonalRecords(ctx, input.id),
+      ]);
+
+      if (!exercise) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exercise not found" });
+      }
+
+      return { exercise, chart, personalRecords };
     }),
 
   muscles: protectedProcedure.query(async ({ ctx }) => {

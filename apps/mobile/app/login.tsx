@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -11,81 +10,22 @@ import {
   View,
 } from "react-native";
 import { BoltIcon } from "react-native-heroicons/solid";
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  FadeInUp,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from "react-native-reanimated";
+import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BUTTON_HEIGHT_PRIMARY } from "../src/lib/layout-constants";
 import { useSpringPress } from "../src/lib/animations";
 import { useAuth } from "../src/lib/auth-context";
 import { useResponsive } from "../src/lib/responsive";
-import { spacing, typography, useTheme } from "../src/lib/theme";
-
-const DARK_BG = ["#05070B", "#07111C", "#020304"] as const;
-const LIGHT_BG = ["#F8FAF6", "#ECF6EE", "#F8FAF6"] as const;
-
-function AmbientMark() {
-  const { ambientRingSize } = useResponsive();
-  const rotation = useSharedValue(0);
-  const opacity = useSharedValue(0.32);
-
-  useEffect(() => {
-    rotation.value = withRepeat(withTiming(360, { duration: 22000 }), -1, false);
-    opacity.value = withRepeat(
-      withSequence(withTiming(0.52, { duration: 1800 }), withTiming(0.26, { duration: 1800 })),
-      -1,
-      true,
-    );
-  }, [opacity, rotation]);
-
-  const ringStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.ambientRing,
-        {
-          width: ambientRingSize,
-          height: ambientRingSize,
-          borderRadius: ambientRingSize / 2,
-        },
-        ringStyle,
-      ]}
-    >
-      <View
-        style={[
-          styles.ambientCutout,
-          {
-            left: ambientRingSize * 0.133,
-            top: ambientRingSize * 0.133,
-            right: ambientRingSize * 0.133,
-            bottom: ambientRingSize * 0.133,
-            borderRadius: ambientRingSize * 0.367,
-          },
-        ]}
-      />
-    </Animated.View>
-  );
-}
+import { radius, spacing, typography, useTheme } from "../src/lib/theme";
 
 function GoogleButton({ loading, onPress }: { loading: boolean; onPress: () => void }) {
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
   const { scale, onPressIn, onPressOut } = useSpringPress();
-  const buttonBg = isDark ? "#FFFFFF" : "#111511";
-  const textColor = isDark ? "#0A0A0A" : "#FFFFFF";
+  const buttonBg = isDark ? colors.surface : colors.text;
+  const textColor = isDark ? colors.text : colors.bg;
 
   return (
-    <Animated.View entering={FadeInUp.delay(280).springify().damping(18)} style={scale}>
+    <Animated.View entering={FadeInUp.delay(120).duration(280)} style={scale}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Continue with Google"
@@ -93,15 +33,17 @@ function GoogleButton({ loading, onPress }: { loading: boolean; onPress: () => v
         onPress={onPress}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
-        style={[styles.googleButton, { backgroundColor: buttonBg }, loading && styles.disabled]}
+        style={[
+          styles.googleButton,
+          { backgroundColor: buttonBg, borderColor: colors.border },
+          loading && styles.disabled,
+        ]}
       >
         {loading ? (
           <ActivityIndicator color={textColor} size="small" />
         ) : (
           <>
-            <View style={styles.googleIcon}>
-              <Ionicons name="logo-google" size={21} color="#4285F4" />
-            </View>
+            <Ionicons name="logo-google" size={20} color="#4285F4" />
             <Text style={[styles.googleText, { color: textColor }]}>Continue with Google</Text>
           </>
         )}
@@ -113,16 +55,9 @@ function GoogleButton({ loading, onPress }: { loading: boolean; onPress: () => v
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const {
-    horizontalPadding,
-    isCompact,
-    loginTitleSize,
-    loginTitleLineHeight,
-    loginOrbSize,
-    ambientRingSize,
-  } = useResponsive();
+  const { horizontalPadding } = useResponsive();
   const { signInWithGoogle } = useAuth();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -141,81 +76,44 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <Animated.View entering={FadeIn.duration(320)} style={StyleSheet.absoluteFill}>
-        <LinearGradient
-          colors={[...(isDark ? DARK_BG : LIGHT_BG)]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-      </Animated.View>
-      <AmbientMark />
-
       <View
         style={[
-          styles.content,
+          styles.inner,
           {
-            paddingTop: insets.top + (isCompact ? spacing.lg : spacing.xl),
-            paddingBottom: insets.bottom + spacing.xl,
+            paddingTop: insets.top + spacing.xl,
+            paddingBottom: insets.bottom + spacing.lg,
             paddingHorizontal: horizontalPadding,
           },
         ]}
       >
-        <Animated.View entering={FadeInDown.delay(80).springify().damping(18)} style={styles.brandRow}>
-          <View
-            style={[
-              styles.brandIcon,
-              {
-                backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(61,181,74,0.12)",
-                borderColor: isDark ? "rgba(255,255,255,0.14)" : "rgba(61,181,74,0.18)",
-              },
-            ]}
-          >
-            <BoltIcon color={colors.accent} size={24} />
+        <Animated.View entering={FadeIn.duration(240)} style={styles.hero}>
+          <View style={[styles.logoMark, { backgroundColor: colors.accentMuted }]}>
+            <BoltIcon color={colors.accent} size={32} />
           </View>
-          <Text style={[styles.brandText, { color: colors.text }]}>Kak Fit</Text>
+          <Text style={[styles.appName, { color: colors.text }]}>Kak Fit</Text>
+          <Text style={[styles.tagline, { color: colors.textMuted }]}>
+            Track workouts, nutrition, and progress in one place.
+          </Text>
         </Animated.View>
 
-        <View style={styles.centerBlock}>
-          <Animated.View
-            entering={FadeInDown.delay(160).springify().damping(18)}
-            style={[
-              styles.logoOrb,
-              {
-                width: loginOrbSize,
-                height: loginOrbSize,
-                borderRadius: loginOrbSize * 0.29,
-                backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "#FFFFFF",
-                borderColor: isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.06)",
-              },
-            ]}
-          >
-            <BoltIcon color={colors.accent} size={loginOrbSize * 0.47} />
-          </Animated.View>
-          <Animated.Text
-            entering={FadeInDown.delay(210).springify().damping(18)}
-            style={[
-              styles.title,
-              {
-                color: colors.text,
-                fontSize: loginTitleSize,
-                lineHeight: loginTitleLineHeight,
-              },
-            ]}
-          >
-            Kak Fit
-          </Animated.Text>
-          <Animated.Text entering={FadeInDown.delay(250).springify().damping(18)} style={[styles.subtitle, { color: colors.textMuted }]}>Sign in</Animated.Text>
-        </View>
+        <View style={styles.footer}>
+          <Text style={[styles.heading, { color: colors.text }]}>Get started</Text>
+          <Text style={[styles.subheading, { color: colors.textMuted }]}>
+            Sign in or create an account with Google.
+          </Text>
 
-        <View style={styles.bottomBlock}>
           <GoogleButton loading={loading} onPress={handleGoogleSignIn} />
+
           {error ? (
-            <Animated.View entering={FadeIn.duration(180)} style={[styles.errorBox, { backgroundColor: colors.dangerMuted }]}>
-              <Ionicons name="alert-circle" size={17} color={colors.danger} />
+            <View style={[styles.errorBox, { backgroundColor: colors.dangerMuted }]}>
+              <Ionicons name="alert-circle" size={16} color={colors.danger} />
               <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
-            </Animated.View>
+            </View>
           ) : null}
+
+          <Text style={[styles.legal, { color: colors.textDim }]}>
+            By continuing, you agree to our Terms of Service and Privacy Policy.
+          </Text>
         </View>
       </View>
     </View>
@@ -223,57 +121,83 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1 },
-  ambientRing: {
-    position: "absolute",
-    top: "18%",
-    alignSelf: "center",
-    borderWidth: 1,
-    borderColor: "rgba(10,132,255,0.45)",
-  },
-  ambientCutout: {
-    position: "absolute",
-    borderWidth: 1,
-    borderColor: "rgba(48,209,88,0.22)",
-  },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  brandIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 15,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  brandText: { fontSize: 24, lineHeight: 30, fontWeight: "800", letterSpacing: 0 }, // custom: compact brand lockup
-  centerBlock: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
-  logoOrb: {
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
+  container: {
+    flex: 1,
     ...Platform.select({
-      ios: { shadowColor: "#0A84FF", shadowOpacity: 0.26, shadowRadius: 28, shadowOffset: { width: 0, height: 14 } },
-      android: { elevation: 10 },
-      web: { boxShadow: "0 22px 70px rgba(10,132,255,0.24)" },
-      default: {},
+      web: {
+        height: "100%",
+        overflow: "hidden",
+      },
     }),
   },
-  title: { fontWeight: "900", letterSpacing: 0, textAlign: "center" }, // fontSize via useResponsive()
-  subtitle: { ...typography.body, fontWeight: "700", textAlign: "center" },
-  bottomBlock: { gap: spacing.md },
+  inner: {
+    flex: 1,
+    justifyContent: "space-between",
+    maxWidth: 420,
+    width: "100%",
+    alignSelf: "center",
+  },
+  hero: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.xl,
+    minHeight: 0,
+  },
+  logoMark: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.sm,
+  },
+  appName: {
+    ...typography.h1,
+    textAlign: "center",
+  },
+  tagline: {
+    ...typography.body,
+    textAlign: "center",
+    maxWidth: 300,
+    lineHeight: 22,
+  },
+  footer: {
+    gap: spacing.md,
+    paddingTop: spacing.lg,
+  },
+  heading: {
+    ...typography.h2,
+  },
+  subheading: {
+    ...typography.bodySmall,
+    marginBottom: spacing.xs,
+  },
   googleButton: {
-    minHeight: 56,
-    borderRadius: 18,
+    minHeight: BUTTON_HEIGHT_PRIMARY,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   disabled: { opacity: 0.65 },
-  googleIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
   googleText: { ...typography.button },
-  errorBox: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start", borderRadius: 14, padding: spacing.md },
+  errorBox: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "flex-start",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
   errorText: { flex: 1, ...typography.caption, fontWeight: "600" },
+  legal: {
+    ...typography.caption,
+    textAlign: "center",
+    lineHeight: 18,
+    marginTop: spacing.xs,
+  },
 });

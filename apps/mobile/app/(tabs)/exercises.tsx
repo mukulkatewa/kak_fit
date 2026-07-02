@@ -112,7 +112,10 @@ export default function ExercisesTab() {
                 subtitle={[primary, item.category?.name, item.isCustom ? "Custom" : null]
                   .filter(Boolean)
                   .join(" · ")}
-                onPress={() => router.push(`/exercise/${item.id}`)}
+                onPress={() => {
+                  void utils.exercise.detailPage.prefetch({ id: item.id, chartLimit: 12 });
+                  router.push(`/exercise/${item.id}`);
+                }}
                 last={index === (exercises?.length ?? 0) - 1}
               />
             );

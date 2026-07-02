@@ -5,6 +5,18 @@ import { defaultQueryClientOptions, queryDedupStaleTime } from "./trpc";
 const mutationRetryDelay = (attemptIndex: number) =>
   Math.min(1000 * 2 ** attemptIndex, 30_000);
 
+const queryShouldRetry = (failureCount: number, error: unknown) => {
+  if (error instanceof TRPCClientError) {
+    const httpStatus = error.data?.httpStatus;
+    if (httpStatus && httpStatus >= 400 && httpStatus < 500) {
+      return false;
+    }
+  }
+  // Network / TLS failures won't self-heal on retry — avoids request storms.
+  if (error instanceof TypeError) return false;
+  return failureCount < 1;
+};
+
 const mutationShouldRetry = (failureCount: number, error: unknown) => {
   if (error instanceof TRPCClientError) {
     const httpStatus = error.data?.httpStatus;
@@ -25,6 +37,7 @@ export function createQueryClient() {
         staleTime: Math.max(queryDedupStaleTime, defaultQueryClientOptions.queries.staleTime),
         structuralSharing: true,
         queryKeyHashFn: (queryKey) => JSON.stringify(queryKey),
+        retry: queryShouldRetry,
       },
       mutations: {
         retry: mutationShouldRetry,

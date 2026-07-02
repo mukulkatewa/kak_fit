@@ -1,8 +1,21 @@
 import { Platform } from "react-native";
 
+function normalizeApiOrigin(url: string): string {
+  try {
+    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+    // Vercel only serves TLS — avoid baked-in http:// causing ERR_SSL_PROTOCOL_ERROR.
+    if (parsed.hostname.endsWith(".vercel.app")) {
+      parsed.protocol = "https:";
+    }
+    return parsed.origin;
+  } catch {
+    return url.replace(/\/$/, "");
+  }
+}
+
 /** API base URL — same origin on web when UI + API share one host (Vercel). */
 export function getApiUrl(): string {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+  const envUrl = normalizeApiOrigin(process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000");
   if (Platform.OS === "web" && typeof window !== "undefined") {
     const { hostname, origin } = window.location;
     if (hostname === "localhost" || hostname === "127.0.0.1") {

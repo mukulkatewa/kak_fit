@@ -406,6 +406,7 @@ function ActiveWorkoutScreen() {
       utils.progress.dashboard.invalidate();
       utils.progress.volumeHistory.invalidate();
       utils.progress.muscleDistribution.invalidate();
+      utils.progress.screen.invalidate();
       utils.auth.stats.invalidate();
       router.replace(`/workout/${result.workout.id}`);
     },

@@ -51,6 +51,7 @@ export default function EditWorkoutScreen() {
       refetch();
       utils.personalRecord.invalidate();
       utils.progress.volumeHistory.invalidate();
+      utils.progress.screen.invalidate();
     },
     onError: (e) => Alert.alert("Couldn't save set", e.message),
   });

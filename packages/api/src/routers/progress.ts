@@ -1,7 +1,7 @@
 import { Prisma } from "@kak-fit/db";
 import { z } from "zod";
 import { startOfUserDay } from "../lib/timezone";
-import { protectedProcedure, router } from "../trpc";
+import { protectedProcedure, router, type TRPCContext } from "../trpc";
 
 function toNumber(value: bigint | number | null | undefined): number {
   if (value == null) return 0;
@@ -39,119 +39,204 @@ function calcStreakWeeks(workoutDates: Date[]) {
   return streak;
 }
 
+type ProgressDb = TRPCContext["prisma"];
+type ProgressUserId = string;
+
+async function queryDashboard(
+  prisma: ProgressDb,
+  userId: ProgressUserId,
+  timezoneOffsetMinutes?: number,
+) {
+  const now = new Date();
+  const weekStart = startOfWeek(now);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const streakSince = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+  const startOfToday = startOfUserDay(now, timezoneOffsetMinutes);
+
+  const [finishedWorkouts, totalWorkouts, weekStats, monthPrs, nutrition] =
+    await Promise.all([
+      prisma.workout.findMany({
+        where: {
+          userId,
+          finishedAt: { not: null, gte: streakSince },
+        },
+        select: { finishedAt: true },
+        orderBy: { finishedAt: "desc" },
+        take: 730,
+      }),
+      prisma.workout.count({
+        where: { userId, finishedAt: { not: null } },
+      }),
+      prisma.$queryRaw<Array<{ weekWorkouts: bigint; weekVolume: number | bigint }>>(
+        Prisma.sql`
+          SELECT
+            COUNT(DISTINCT w.id) as "weekWorkouts",
+            COALESCE(SUM(COALESCE(ws.weight, 0) * COALESCE(ws.reps, 0)), 0) as "weekVolume"
+          FROM "Workout" w
+          LEFT JOIN "WorkoutExercise" we ON we."workoutId" = w.id
+          LEFT JOIN "WorkoutSet" ws ON ws."workoutExerciseId" = we.id AND ws."isCompleted" = true
+          WHERE w."userId" = ${userId}
+            AND w."finishedAt" >= ${weekStart}
+            AND w."finishedAt" IS NOT NULL
+        `,
+      ),
+      prisma.personalRecord.count({
+        where: { userId, achievedAt: { gte: monthStart } },
+      }),
+      prisma.mealLog.count({
+        where: {
+          userId,
+          date: { gte: startOfToday },
+        },
+      }),
+    ]);
+
+  const weekWorkouts = toNumber(weekStats[0]?.weekWorkouts ?? 0);
+  const weekVolume = Math.round(toNumber(weekStats[0]?.weekVolume ?? 0));
+  const finishedDates = finishedWorkouts
+    .map((w) => w.finishedAt)
+    .filter((d): d is Date => d !== null);
+
+  return {
+    totalWorkouts,
+    weekWorkouts,
+    weekVolume,
+    streakWeeks: calcStreakWeeks(finishedDates),
+    monthPrs,
+    mealsLoggedToday: nutrition,
+  };
+}
+
+async function queryVolumeHistory(prisma: ProgressDb, userId: ProgressUserId, limit: number) {
+  const rows = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      name: string | null;
+      finishedAt: Date;
+      volume: number | bigint;
+      totalReps: number | bigint;
+      durationMinutes: number | null;
+    }>
+  >(Prisma.sql`
+    SELECT w.id, w.name, w."finishedAt",
+      COALESCE(SUM(COALESCE(ws.weight, 0) * COALESCE(ws.reps, 0)), 0) as volume,
+      COALESCE(SUM(COALESCE(ws.reps, 0)), 0) as "totalReps",
+      EXTRACT(EPOCH FROM (w."finishedAt" - w."startedAt")) / 60 as "durationMinutes"
+    FROM "Workout" w
+    LEFT JOIN "WorkoutExercise" we ON we."workoutId" = w.id
+    LEFT JOIN "WorkoutSet" ws ON ws."workoutExerciseId" = we.id AND ws."isCompleted" = true
+    WHERE w."userId" = ${userId} AND w."finishedAt" IS NOT NULL
+    GROUP BY w.id
+    ORDER BY w."finishedAt" DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.reverse().map((w) => {
+    const finishedAt = w.finishedAt;
+    const durationMinutes =
+      w.durationMinutes != null ? Math.max(1, Math.round(toNumber(w.durationMinutes))) : 0;
+
+    return {
+      date: finishedAt.toISOString(),
+      label: finishedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      volume: Math.round(toNumber(w.volume)),
+      totalReps: toNumber(w.totalReps),
+      durationMinutes,
+      workoutId: w.id,
+      name: w.name,
+    };
+  });
+}
+
+async function queryMuscleDistribution(prisma: ProgressDb, userId: ProgressUserId, days: number) {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const rows = await prisma.$queryRaw<Array<{ muscle: string; volume: number | bigint }>>(
+    Prisma.sql`
+      SELECT m.name as muscle, SUM(COALESCE(ws.weight, 0) * COALESCE(ws.reps, 0)) as volume
+      FROM "WorkoutSet" ws
+      JOIN "WorkoutExercise" we ON ws."workoutExerciseId" = we.id
+      JOIN "Workout" w ON we."workoutId" = w.id
+      JOIN "ExerciseMuscle" em ON we."exerciseId" = em."exerciseId" AND em."isPrimary" = true
+      JOIN "Muscle" m ON em."muscleId" = m.id
+      WHERE w."userId" = ${userId}
+        AND w."finishedAt" >= ${since}
+        AND ws."isCompleted" = true
+      GROUP BY m.name
+      ORDER BY volume DESC
+    `,
+  );
+
+  const all = rows.map((row) => ({
+    muscle: row.muscle,
+    volume: Math.round(toNumber(row.volume)),
+  }));
+
+  const max = all[0]?.volume ?? 1;
+  const withIntensity = all.map((m) => ({
+    ...m,
+    pct: Math.round((m.volume / max) * 100),
+    intensity: Math.min(1, m.volume / max),
+  }));
+
+  return {
+    muscles: withIntensity.slice(0, 8),
+    heatmap: withIntensity,
+    totalVolume: Math.round(all.reduce((sum, m) => sum + m.volume, 0)),
+  };
+}
+
+async function queryTopExercises(
+  prisma: ProgressDb,
+  userId: ProgressUserId,
+  limit: number,
+) {
+  const since = new Date();
+  since.setDate(since.getDate() - 90);
+
+  const rows = await prisma.$queryRaw<Array<{ id: string; name: string; count: number | bigint }>>(
+    Prisma.sql`
+      SELECT e.id, e.name, COUNT(*) as count
+      FROM "WorkoutExercise" we
+      JOIN "Exercise" e ON we."exerciseId" = e.id
+      JOIN "Workout" w ON we."workoutId" = w.id
+      WHERE w."userId" = ${userId} AND w."finishedAt" >= ${since}
+      GROUP BY e.id, e.name
+      ORDER BY count DESC
+      LIMIT ${limit}
+    `,
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    count: toNumber(row.count),
+  }));
+}
+
+async function queryRecentPrs(prisma: ProgressDb, userId: ProgressUserId, limit: number) {
+  return prisma.personalRecord.findMany({
+    where: { userId },
+    include: {
+      exercise: { select: { id: true, name: true } },
+    },
+    orderBy: { achievedAt: "desc" },
+    take: limit,
+  });
+}
+
 export const progressRouter = router({
   dashboard: protectedProcedure
     .input(z.object({ timezoneOffsetMinutes: z.number().int().optional() }).optional())
     .query(async ({ ctx, input }) => {
-    const now = new Date();
-    const weekStart = startOfWeek(now);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const streakSince = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-    const startOfToday = startOfUserDay(now, input?.timezoneOffsetMinutes);
-
-    const [finishedWorkouts, totalWorkouts, weekStats, monthPrs, nutrition] =
-      await Promise.all([
-        // Streak only needs recent finished dates — not the full set graph.
-        ctx.prisma.workout.findMany({
-          where: {
-            userId: ctx.user.id,
-            finishedAt: { not: null, gte: streakSince },
-          },
-          select: { finishedAt: true },
-          orderBy: { finishedAt: "desc" },
-          take: 730,
-        }),
-        ctx.prisma.workout.count({
-          where: { userId: ctx.user.id, finishedAt: { not: null } },
-        }),
-        ctx.prisma.$queryRaw<Array<{ weekWorkouts: bigint; weekVolume: number | bigint }>>(
-          Prisma.sql`
-            SELECT
-              COUNT(DISTINCT w.id) as "weekWorkouts",
-              COALESCE(SUM(COALESCE(ws.weight, 0) * COALESCE(ws.reps, 0)), 0) as "weekVolume"
-            FROM "Workout" w
-            LEFT JOIN "WorkoutExercise" we ON we."workoutId" = w.id
-            LEFT JOIN "WorkoutSet" ws ON ws."workoutExerciseId" = we.id AND ws."isCompleted" = true
-            WHERE w."userId" = ${ctx.user.id}
-              AND w."finishedAt" >= ${weekStart}
-              AND w."finishedAt" IS NOT NULL
-          `,
-        ),
-        ctx.prisma.personalRecord.count({
-          where: { userId: ctx.user.id, achievedAt: { gte: monthStart } },
-        }),
-        ctx.prisma.mealLog.count({
-          where: {
-            userId: ctx.user.id,
-            date: { gte: startOfToday },
-          },
-        }),
-      ]);
-
-    const weekWorkouts = toNumber(weekStats[0]?.weekWorkouts ?? 0);
-    const weekVolume = Math.round(toNumber(weekStats[0]?.weekVolume ?? 0));
-
-    const finishedDates = finishedWorkouts
-      .map((w) => w.finishedAt)
-      .filter((d): d is Date => d !== null);
-
-    return {
-      totalWorkouts,
-      weekWorkouts,
-      weekVolume,
-      streakWeeks: calcStreakWeeks(finishedDates),
-      monthPrs,
-      mealsLoggedToday: nutrition,
-    };
-  }),
+      return queryDashboard(ctx.prisma, ctx.user.id, input?.timezoneOffsetMinutes);
+    }),
 
   volumeHistory: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(30).default(12) }).optional())
     .query(async ({ ctx, input }) => {
-      const limit = input?.limit ?? 12;
-
-      const rows = await ctx.prisma.$queryRaw<
-        Array<{
-          id: string;
-          name: string | null;
-          finishedAt: Date;
-          volume: number | bigint;
-          totalReps: number | bigint;
-          durationMinutes: number | null;
-        }>
-      >(Prisma.sql`
-        SELECT w.id, w.name, w."finishedAt",
-          COALESCE(SUM(COALESCE(ws.weight, 0) * COALESCE(ws.reps, 0)), 0) as volume,
-          COALESCE(SUM(COALESCE(ws.reps, 0)), 0) as "totalReps",
-          EXTRACT(EPOCH FROM (w."finishedAt" - w."startedAt")) / 60 as "durationMinutes"
-        FROM "Workout" w
-        LEFT JOIN "WorkoutExercise" we ON we."workoutId" = w.id
-        LEFT JOIN "WorkoutSet" ws ON ws."workoutExerciseId" = we.id AND ws."isCompleted" = true
-        WHERE w."userId" = ${ctx.user.id} AND w."finishedAt" IS NOT NULL
-        GROUP BY w.id
-        ORDER BY w."finishedAt" DESC
-        LIMIT ${limit}
-      `);
-
-      return rows
-        .reverse()
-        .map((w) => {
-          const finishedAt = w.finishedAt;
-          const durationMinutes =
-            w.durationMinutes != null
-              ? Math.max(1, Math.round(toNumber(w.durationMinutes)))
-              : 0;
-
-          return {
-            date: finishedAt.toISOString(),
-            label: finishedAt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-            volume: Math.round(toNumber(w.volume)),
-            totalReps: toNumber(w.totalReps),
-            durationMinutes,
-            workoutId: w.id,
-            name: w.name,
-          };
-        });
+      return queryVolumeHistory(ctx.prisma, ctx.user.id, input?.limit ?? 12);
     }),
 
   /** Volume per calendar day for the last 7 days (home dashboard chart). */
@@ -226,42 +311,7 @@ export const progressRouter = router({
   muscleDistribution: protectedProcedure
     .input(z.object({ days: z.number().min(7).max(365).default(30) }).optional())
     .query(async ({ ctx, input }) => {
-      const since = new Date();
-      since.setDate(since.getDate() - (input?.days ?? 30));
-
-      const rows = await ctx.prisma.$queryRaw<Array<{ muscle: string; volume: number | bigint }>>(
-        Prisma.sql`
-          SELECT m.name as muscle, SUM(COALESCE(ws.weight, 0) * COALESCE(ws.reps, 0)) as volume
-          FROM "WorkoutSet" ws
-          JOIN "WorkoutExercise" we ON ws."workoutExerciseId" = we.id
-          JOIN "Workout" w ON we."workoutId" = w.id
-          JOIN "ExerciseMuscle" em ON we."exerciseId" = em."exerciseId" AND em."isPrimary" = true
-          JOIN "Muscle" m ON em."muscleId" = m.id
-          WHERE w."userId" = ${ctx.user.id}
-            AND w."finishedAt" >= ${since}
-            AND ws."isCompleted" = true
-          GROUP BY m.name
-          ORDER BY volume DESC
-        `,
-      );
-
-      const all = rows.map((row) => ({
-        muscle: row.muscle,
-        volume: Math.round(toNumber(row.volume)),
-      }));
-
-      const max = all[0]?.volume ?? 1;
-      const withIntensity = all.map((m) => ({
-        ...m,
-        pct: Math.round((m.volume / max) * 100),
-        intensity: Math.min(1, m.volume / max),
-      }));
-
-      return {
-        muscles: withIntensity.slice(0, 8),
-        heatmap: withIntensity,
-        totalVolume: Math.round(all.reduce((sum, m) => sum + m.volume, 0)),
-      };
+      return queryMuscleDistribution(ctx.prisma, ctx.user.id, input?.days ?? 30);
     }),
 
   /** Finished-workout dates + ids for the calendar (last ~12 months). */
@@ -283,27 +333,36 @@ export const progressRouter = router({
   topExercises: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(20).default(8) }).optional())
     .query(async ({ ctx, input }) => {
-      const since = new Date();
-      since.setDate(since.getDate() - 90);
-      const limit = input?.limit ?? 8;
+      return queryTopExercises(ctx.prisma, ctx.user.id, input?.limit ?? 8);
+    }),
 
-      return ctx.prisma.$queryRaw<Array<{ id: string; name: string; count: number | bigint }>>(
-        Prisma.sql`
-          SELECT e.id, e.name, COUNT(*) as count
-          FROM "WorkoutExercise" we
-          JOIN "Exercise" e ON we."exerciseId" = e.id
-          JOIN "Workout" w ON we."workoutId" = w.id
-          WHERE w."userId" = ${ctx.user.id} AND w."finishedAt" >= ${since}
-          GROUP BY e.id, e.name
-          ORDER BY count DESC
-          LIMIT ${limit}
-        `,
-      ).then((rows) =>
-        rows.map((row) => ({
-          id: row.id,
-          name: row.name,
-          count: toNumber(row.count),
-        })),
-      );
+  /** Single round-trip for the Progress tab (dashboard, charts, PRs). */
+  screen: protectedProcedure
+    .input(
+      z
+        .object({
+          volumeLimit: z.number().min(1).max(30).default(10),
+          muscleDays: z.number().min(7).max(365).default(30),
+          topExerciseLimit: z.number().min(1).max(20).default(6),
+          prLimit: z.number().min(1).max(100).default(8),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.user.id;
+      const volumeLimit = input?.volumeLimit ?? 10;
+      const muscleDays = input?.muscleDays ?? 30;
+      const topExerciseLimit = input?.topExerciseLimit ?? 6;
+      const prLimit = input?.prLimit ?? 8;
+
+      const [dashboard, volume, muscle, topExercises, prs] = await Promise.all([
+        queryDashboard(ctx.prisma, userId),
+        queryVolumeHistory(ctx.prisma, userId, volumeLimit),
+        queryMuscleDistribution(ctx.prisma, userId, muscleDays),
+        queryTopExercises(ctx.prisma, userId, topExerciseLimit),
+        queryRecentPrs(ctx.prisma, userId, prLimit),
+      ]);
+
+      return { dashboard, volume, muscle, topExercises, prs };
     }),
 });

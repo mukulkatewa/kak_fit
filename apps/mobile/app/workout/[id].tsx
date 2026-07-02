@@ -111,6 +111,7 @@ function WorkoutDetailScreen() {
     onSuccess: () => {
       utils.workout.history.invalidate();
       utils.progress.volumeHistory.invalidate();
+      utils.progress.screen.invalidate();
       router.back();
     },
     onError: (e) => showToast(e.message, "error"),

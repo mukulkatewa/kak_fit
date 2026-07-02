@@ -33,6 +33,7 @@ import {
 } from "../../src/components/ui";
 import { entranceDown } from "../../src/lib/animations";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
+import { useAuth } from "../../src/lib/auth-context";
 import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import { formatWeight, tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
@@ -194,67 +195,43 @@ export default function ProgressScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { weightUnit } = useUserPreferences();
+  const { isAuthenticated } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const params = useLocalSearchParams();
   const scrollViewRef = useRef<ScrollView>(null);
   const [prsSectionY, setPrsSectionY] = useState(0);
 
   const {
-    data: volume,
-    isLoading: volLoading,
-    isError: volError,
-    refetch: refetchVolume,
-  } = trpc.progress.volumeHistory.useQuery(
-    { limit: 10 },
-    { staleTime: queryStaleTime.progress },
+    data: screen,
+    isLoading: screenLoading,
+    isError: screenError,
+    refetch: refetchScreen,
+  } = trpc.progress.screen.useQuery(
+    { volumeLimit: 10, muscleDays: 30, topExerciseLimit: 6, prLimit: 8 },
+    { staleTime: queryStaleTime.progress, enabled: isAuthenticated },
   );
-  const {
-    data: muscleData,
-    isLoading: muscleLoading,
-    isError: muscleError,
-    refetch: refetchMuscle,
-  } = trpc.progress.muscleDistribution.useQuery(
-    { days: 30 },
-    { staleTime: queryStaleTime.progress },
-  );
-  const {
-    data: topExercises,
-    isError: topExError,
-    refetch: refetchTopExercises,
-  } = trpc.progress.topExercises.useQuery(
-    { limit: 6 },
-    { staleTime: queryStaleTime.progress },
-  );
-  const {
-    data: prs,
-    isError: prsError,
-    refetch: refetchPrs,
-  } = trpc.personalRecord.list.useQuery(
-    { limit: 8 },
-    { staleTime: queryStaleTime.progress },
-  );
-  const {
-    data: dashboard,
-    isError: dashError,
-    refetch: refetchDashboard,
-  } = trpc.progress.dashboard.useQuery(undefined, {
-    staleTime: queryStaleTime.progressStreak,
-  });
+
+  const dashboard = screen?.dashboard;
+  const volume = screen?.volume;
+  const muscleData = screen?.muscle;
+  const topExercises = screen?.topExercises;
+  const prs = screen?.prs;
+  const volLoading = screenLoading;
+  const volError = screenError;
+  const muscleLoading = screenLoading;
+  const muscleError = screenError;
+  const topExError = screenError;
+  const prsError = screenError;
+  const dashError = screenError;
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
-        refetchVolume(),
-        refetchMuscle(),
-        refetchTopExercises(),
-        refetchPrs(),
-        refetchDashboard(),
-      ]);
+      await refetchScreen();
     } finally {
       setRefreshing(false);
     }
-  }, [refetchVolume, refetchMuscle, refetchTopExercises, refetchPrs, refetchDashboard]);
+  }, [refetchScreen]);
 
   const tabParam = Array.isArray(params.tab) ? params.tab[0] : params.tab;
 
@@ -351,7 +328,7 @@ export default function ProgressScreen() {
       ) : muscleError || !muscleData?.heatmap ? (
         <View style={styles.retryBlock}>
           <Text style={styles.empty}>Couldn't load muscle data.</Text>
-          <Pressable onPress={() => void refetchMuscle()} hitSlop={8}>
+          <Pressable onPress={() => void refetchScreen()} hitSlop={8}>
             <Text style={styles.retry}>Tap to retry</Text>
           </Pressable>
         </View>
@@ -365,7 +342,7 @@ export default function ProgressScreen() {
       {topExError ? (
         <View style={styles.retryBlock}>
           <Text style={styles.empty}>Couldn't load top exercises.</Text>
-          <Pressable onPress={() => void refetchTopExercises()} hitSlop={8}>
+          <Pressable onPress={() => void refetchScreen()} hitSlop={8}>
             <Text style={styles.retry}>Tap to retry</Text>
           </Pressable>
         </View>
@@ -399,7 +376,7 @@ export default function ProgressScreen() {
           {prsError ? (
             <View style={styles.retryBlock}>
               <Text style={styles.empty}>Couldn't load personal records.</Text>
-              <Pressable onPress={() => void refetchPrs()} hitSlop={8}>
+              <Pressable onPress={() => void refetchScreen()} hitSlop={8}>
                 <Text style={styles.retry}>Tap to retry</Text>
               </Pressable>
             </View>

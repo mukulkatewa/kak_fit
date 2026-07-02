@@ -444,6 +444,7 @@ function DashboardScreen() {
         utils.progress.dashboard.invalidate(),
         utils.progress.volumeHistory.invalidate(),
         utils.progress.muscleDistribution.invalidate(),
+        utils.progress.screen.invalidate(),
         utils.personalRecord.list.invalidate(),
       ]);
     },

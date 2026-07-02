@@ -51,7 +51,7 @@ import {
 } from "../../src/lib/workout-history-query";
 import { tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../../src/lib/theme";
 
 type FilterKey = "level" | "goal" | "equipment" | null;
 type FilterChip = {
@@ -758,7 +758,7 @@ export default function WorkoutTabScreen() {
   );
 }
 
-const makeStyles = (colors: Palette) =>
+const makeStyles = (colors: Palette, shadows: ShadowSet) =>
   StyleSheet.create({
     pad: { gap: spacing.lg, paddingTop: spacing.sm },
     pageTitleRow: {
@@ -829,6 +829,9 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       justifyContent: "space-between",
       minHeight: 64,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...shadows.sm,
     },
     categoryLabel: { ...typography.body, color: colors.text, flex: 1 },
     categoryIcon: { fontSize: 28 }, // emoji icon size, not typography
@@ -853,6 +856,7 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.xs,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
+      ...shadows.lg,
     },
     menuTitle: {
       ...typography.label,

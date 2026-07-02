@@ -47,6 +47,7 @@ import {
   useTheme,
   useThemedStyles,
   type Palette,
+  type ShadowSet,
 } from "../../src/lib/theme";
 import { authMeQueryOptions, queryStaleTime, trpc } from "../../src/lib/trpc";
 import { tonnageFromKg, weightLabel } from "../../src/lib/units";
@@ -802,35 +803,7 @@ function ActivityCard({
   );
 }
 
-const makeStyles = (colors: Palette) => {
-  const cardShadow = Platform.select({
-    ios: {
-      shadowColor: "#000000",
-      shadowOpacity: colors.bg === "#000000" ? 0.42 : 0.08,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 6 },
-    },
-    android: { elevation: colors.bg === "#000000" ? 4 : 2 },
-    web: {
-      boxShadow:
-        colors.bg === "#000000"
-          ? "0 10px 28px rgba(0,0,0,0.42)"
-          : "0 6px 18px rgba(0,0,0,0.08)",
-    },
-    default: {},
-  });
-  const glowShadow = Platform.select({
-    ios: {
-      shadowColor: colors.accent,
-      shadowOpacity: 0.28,
-      shadowRadius: 16,
-      shadowOffset: { width: 0, height: 8 },
-    },
-    android: { elevation: 5 },
-    web: { boxShadow: `0 12px 30px ${colors.accentMuted}` },
-    default: {},
-  });
-
+const makeStyles = (colors: Palette, shadows: ShadowSet) => {
   return StyleSheet.create({
     pad: {
       gap: spacing.lg,
@@ -889,7 +862,8 @@ const makeStyles = (colors: Palette) => {
       borderRadius: radius.xl,
       padding: spacing.xl,
       gap: spacing.lg,
-      ...glowShadow,
+      ...shadows.lg,
+      ...shadows.glow(colors.accent),
     },
     heroTopRow: {
       flexDirection: "row",
@@ -965,7 +939,7 @@ const makeStyles = (colors: Palette) => {
       borderColor: colors.border,
       padding: spacing.lg,
       overflow: "hidden",
-      ...cardShadow,
+      ...shadows.md,
     },
     activeAccentBorder: {
       position: "absolute",
@@ -1009,7 +983,7 @@ const makeStyles = (colors: Palette) => {
       borderRadius: radius.lg,
       minHeight: BUTTON_HEIGHT_PRIMARY,
       paddingHorizontal: spacing.xl,
-      ...glowShadow,
+      ...shadows.glow(colors.accent),
     },
     startEmptyLabel: {
       ...typography.button,
@@ -1044,7 +1018,7 @@ const makeStyles = (colors: Palette) => {
       padding: spacing.lg,
       minHeight: 64,
       overflow: "hidden",
-      ...cardShadow,
+      ...shadows.md,
     },
     activityAccentBorder: {
       position: "absolute",
@@ -1071,6 +1045,9 @@ const makeStyles = (colors: Palette) => {
       padding: spacing.lg,
       alignItems: "center",
       gap: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...shadows.sm,
     },
     emptyTitle: { ...typography.h3, color: colors.text },
     emptyHint: {

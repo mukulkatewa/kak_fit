@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { forwardRef } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
-import { radius, shadows, spacing, typography, useTheme, useThemedStyles, type Palette } from "../lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -348,7 +348,7 @@ export function HevyOutlineButton({ label, onPress }: { label: string; onPress: 
   );
 }
 
-const makeStyles = (colors: Palette) =>
+const makeStyles = (colors: Palette, shadows: ShadowSet) =>
   StyleSheet.create({
     topBar: {
       flexDirection: "row",
@@ -498,7 +498,7 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       borderWidth: 1,
       borderColor: colors.border,
-      ...shadows.card,
+      ...shadows.md,
     },
     trainerTitle: { fontSize: 20, fontWeight: "800", color: colors.text, textAlign: "center" },
     trainerSubtitle: { fontSize: 14, fontWeight: "500", color: colors.textMuted, textAlign: "center" },

@@ -802,7 +802,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       borderWidth: isDark ? 1 : 0,
       borderColor: colors.border,
       padding: spacing.md,
-      ...shadows.card,
+      ...shadows.md,
     },
     goalsCta: {
       backgroundColor: isDark ? colors.surface : colors.bgElevated,
@@ -812,7 +812,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       padding: spacing.lg,
       gap: spacing.md,
       alignItems: "center" as const,
-      ...shadows.card,
+      ...shadows.md,
     },
     goalsCtaTitle: { ...typography.h2, color: colors.text, textAlign: "center" as const },
     goalsCtaText: {
@@ -841,7 +841,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       borderColor: colors.border,
       padding: spacing.md,
       overflow: "hidden" as const,
-      ...shadows.card,
+      ...shadows.md,
     },
     mealIcon: {
       width: 44,

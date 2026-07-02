@@ -5,7 +5,7 @@ import {
   formatRoutineExerciseDetail,
   type RoutineListItem,
 } from "../lib/routine-display";
-import { spacing, shadows, useTheme, useThemedStyles, type Palette } from "../lib/theme";
+import { spacing, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
 import { ExerciseAvatar } from "./exercise-avatar";
 
 type RoutineExpandableRowProps = {
@@ -227,13 +227,13 @@ export function RoutineExpandableCard({
   );
 }
 
-const makeCardStyles = (colors: Palette) =>
+const makeCardStyles = (colors: Palette, shadows: ShadowSet) =>
   StyleSheet.create({
     card: {
       backgroundColor: colors.surface,
       borderRadius: 12,
       overflow: "hidden",
-      ...shadows.card,
+      ...shadows.md,
     },
     row: { flexDirection: "row", alignItems: "center" },
     mainTap: {

@@ -212,60 +212,86 @@ export const typography = {
   },
 };
 
-/** Soft elevations. RN-web maps shadow* to box-shadow. */
-const lightCardShadow = Platform.select<ViewStyle>({
-  web: { boxShadow: "0 4px 16px rgba(0, 0, 0, 0.07)" },
-  default: {
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-})!;
+/** Platform-aware elevation tokens — use sm/md/lg for hierarchy, glow() for accent CTAs. */
+export function createShadows(isDark: boolean) {
+  return {
+    sm: Platform.select<ViewStyle>({
+      ios: {
+        shadowColor: "#000000",
+        shadowOpacity: isDark ? 0.3 : 0.06,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+      },
+      android: {
+        elevation: isDark ? 2 : 1,
+      },
+      web: {
+        boxShadow: isDark
+          ? "0 2px 8px rgba(0,0,0,0.3)"
+          : "0 2px 8px rgba(0,0,0,0.06)",
+      },
+      default: {},
+    })!,
 
-const darkCardShadow = Platform.select<ViewStyle>({
-  web: { boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)" },
-  default: {
-    shadowColor: "#000000",
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-  },
-})!;
+    md: Platform.select<ViewStyle>({
+      ios: {
+        shadowColor: "#000000",
+        shadowOpacity: isDark ? 0.4 : 0.08,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: {
+        elevation: isDark ? 4 : 2,
+      },
+      web: {
+        boxShadow: isDark
+          ? "0 6px 18px rgba(0,0,0,0.4)"
+          : "0 6px 18px rgba(0,0,0,0.08)",
+      },
+      default: {},
+    })!,
 
-export const shadows = {
-  card: lightCardShadow,
-  glow: Platform.select<ViewStyle>({
-    web: { boxShadow: "0 10px 24px rgba(61, 181, 74, 0.28)" },
-    default: {
-      shadowColor: "#3DB54A",
-      shadowOpacity: 0.3,
-      shadowRadius: 16,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 5,
-    },
-  })!,
-  goldGlow: Platform.select<ViewStyle>({ web: {}, default: {} })!,
-};
+    lg: Platform.select<ViewStyle>({
+      ios: {
+        shadowColor: "#000000",
+        shadowOpacity: isDark ? 0.5 : 0.12,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 10 },
+      },
+      android: {
+        elevation: isDark ? 8 : 4,
+      },
+      web: {
+        boxShadow: isDark
+          ? "0 10px 28px rgba(0,0,0,0.5)"
+          : "0 10px 28px rgba(0,0,0,0.12)",
+      },
+      default: {},
+    })!,
 
-export const darkShadows = {
-  ...shadows,
-  card: darkCardShadow,
-  glow: Platform.select<ViewStyle>({
-    web: { boxShadow: "0 10px 24px rgba(10, 132, 255, 0.28)" },
-    default: {
-      shadowColor: "#0A84FF",
-      shadowOpacity: 0.3,
-      shadowRadius: 16,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 5,
-    },
-  })!,
-};
+    glow: (accentColor: string) =>
+      Platform.select<ViewStyle>({
+        ios: {
+          shadowColor: accentColor,
+          shadowOpacity: 0.28,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 8 },
+        },
+        android: {
+          elevation: 5,
+        },
+        web: {
+          boxShadow: `0 12px 30px ${accentColor}40`,
+        },
+        default: {},
+      })!,
+  };
+}
 
-export type ShadowSet = typeof shadows;
+export type ShadowSet = ReturnType<typeof createShadows>;
+
+/** @deprecated Use useTheme().shadows.md */
+export const shadows = createShadows(false);
 
 // ─── Theme context ────────────────────────────────────────────────────────────
 
@@ -284,7 +310,7 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue>({
   colors: lightColors,
-  shadows,
+  shadows: createShadows(false),
   mode: "system",
   isDark: false,
   setMode: () => {},
@@ -335,7 +361,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const isDark = mode === "system" ? systemScheme === "dark" : mode === "dark";
   const palette = isDark ? darkColors : lightColors;
-  const shadowSet = isDark ? darkShadows : shadows;
+  const shadowSet = createShadows(isDark);
 
   const toggle = useCallback(() => {
     setMode(isDark ? "light" : "dark");
@@ -353,8 +379,8 @@ export function useTheme(): ThemeContextValue {
   return useContext(ThemeContext);
 }
 
-/** Build a StyleSheet from the active palette, memoized per palette. */
-export function useThemedStyles<T>(factory: (c: Palette) => T): T {
-  const { colors: active } = useTheme();
-  return useMemo(() => factory(active), [active, factory]);
+/** Build a StyleSheet from the active palette and shadows, memoized per theme. */
+export function useThemedStyles<T>(factory: (c: Palette, shadows: ShadowSet) => T): T {
+  const { colors: active, shadows } = useTheme();
+  return useMemo(() => factory(active, shadows), [active, shadows, factory]);
 }

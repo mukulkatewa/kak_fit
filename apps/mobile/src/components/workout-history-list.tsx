@@ -13,7 +13,7 @@ import {
 import { EmptyState } from "./ui";
 import { flexFill } from "../lib/layout-constants";
 import type { WorkoutHistoryItem } from "../lib/workout-history-query";
-import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../lib/theme";
+import { radius, spacing, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
 import { tonnageFromKg, weightLabel } from "../lib/units";
 
 type WorkoutHistoryListProps = {
@@ -174,7 +174,7 @@ function LoadingFooter({ visible }: { visible: boolean }) {
   );
 }
 
-const makeStyles = (colors: Palette) =>
+const makeStyles = (colors: Palette, shadows: ShadowSet) =>
   StyleSheet.create({
     listContent: {
       paddingHorizontal: spacing.lg,
@@ -190,7 +190,7 @@ const makeStyles = (colors: Palette) =>
       borderWidth: 1,
       borderColor: colors.border,
       padding: spacing.md,
-      ...shadows.card,
+      ...shadows.md,
     },
     cardIcon: {
       width: 44,

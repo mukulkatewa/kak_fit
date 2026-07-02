@@ -47,6 +47,7 @@ import {
   useTheme,
   useThemedStyles,
   type Palette,
+  type ShadowSet,
 } from "../lib/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -180,8 +181,19 @@ export function Card({
   glow?: boolean;
   style?: ViewStyle;
 }) {
+  const { colors, shadows } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  return <View style={[styles.card, glow && styles.cardGlow, style]}>{children}</View>;
+  return (
+    <View
+      style={[
+        styles.card,
+        glow && shadows.glow(colors.accent),
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
 }
 
 export function GlassCard({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
@@ -848,7 +860,7 @@ export function MacroRing({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const makeStyles = (colors: Palette) =>
+const makeStyles = (colors: Palette, shadows: ShadowSet) =>
   StyleSheet.create({
     screen: {
       flex: 1,
@@ -890,8 +902,10 @@ const makeStyles = (colors: Palette) =>
       borderRadius: radius.lg,
       padding: spacing.lg,
       gap: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...shadows.md,
     },
-    cardGlow: {},
     glassCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
@@ -1314,7 +1328,7 @@ export function ToastContainer() {
         borderColor,
         paddingVertical: spacing.md,
         paddingHorizontal: spacing.lg,
-        ...shadows.card,
+        ...shadows.md,
       }}
     >
       <Text

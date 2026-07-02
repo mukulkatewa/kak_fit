@@ -85,13 +85,13 @@ const setTypeColor = (colors: Palette): Record<SetType, string> => ({
 
 const REST_PRESETS = [60, 90, 120, 180, 300] as const;
 
-/** Shared column widths — fixed sides, flexible value columns in the middle. */
+/** Shared column widths — fixed sides, flexible KG/REPS columns fill remaining width. */
 const SET_GRID = {
-  set: { width: 28, flexShrink: 0, flexGrow: 0 },
-  prev: { width: 46, flexShrink: 0, flexGrow: 0 },
-  value: { flex: 1, minWidth: 48, maxWidth: 76 },
-  rpe: { width: 34, flexShrink: 0, flexGrow: 0 },
-  done: { width: 36, flexShrink: 0, flexGrow: 0 },
+  set: { width: 32, flexShrink: 0, flexGrow: 0 },
+  prev: { width: 44, flexShrink: 0, flexGrow: 0 },
+  value: { flex: 1, minWidth: 0 },
+  rpe: { width: 36, flexShrink: 0, flexGrow: 0 },
+  done: { width: 44, flexShrink: 0, flexGrow: 0 },
 } as const;
 
 const headerTextWeb = (
@@ -1636,12 +1636,14 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   exerciseRestRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs, marginBottom: spacing.md },
   exerciseRestText: { ...typography.bodySmall, color: colors.accent, lineHeight: 18 },
-  setTable: { gap: 4 },
+  setTable: { gap: spacing.xs, width: "100%", alignSelf: "stretch" },
   setHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingBottom: 4,
+    gap: spacing.sm,
+    paddingBottom: spacing.xs,
+    width: "100%",
+    alignSelf: "stretch",
   },
   setHeaderLabel: {
     fontSize: 10, // Compact table header - intentional for data density
@@ -1663,7 +1665,9 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: spacing.sm,
+    width: "100%",
+    alignSelf: "stretch",
     backgroundColor: colors.bg,
     borderRadius: radius.sm,
   },
@@ -1671,7 +1675,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   setNumber: { ...typography.bodySmall, fontWeight: "700", textAlign: "center" },
   setTypeBtn: { alignItems: "center", justifyContent: "center" },
   rpeCell: {
-    minHeight: 40,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.sm,
@@ -1693,7 +1697,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   setInputDone: { color: colors.text, borderColor: "transparent" },
   check: {
-    minHeight: 40,
+    minHeight: 44,
     borderRadius: radius.sm,
     alignItems: "center",
     justifyContent: "center",

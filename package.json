@@ -35,7 +35,9 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "import:wger-media": "pnpm --filter @kak-fit/db import:wger-media",
-    "import:wger-media:dry": "pnpm --filter @kak-fit/db import:wger-media:dry"
+    "import:wger-media:dry": "pnpm --filter @kak-fit/db import:wger-media:dry",
+    "import:free-exercise-db-media": "pnpm --filter @kak-fit/db import:free-exercise-db-media",
+    "import:free-exercise-db-media:dry": "pnpm --filter @kak-fit/db import:free-exercise-db-media:dry"
   },
   "devDependencies": {
     "turbo": "^2.4.4",

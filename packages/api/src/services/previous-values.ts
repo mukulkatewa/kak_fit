@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@kak-fit/db";
+import { Prisma, type PrismaClient } from "@kak-fit/db";
 
 export type PreviousSetValues = {
   setNumber: number;
@@ -102,51 +102,75 @@ export async function getPreviousSetsBatch(
   userId: string,
   exerciseIds: string[],
 ) {
-  if (exerciseIds.length === 0) return {};
+  const uniqueExerciseIds = Array.from(new Set(exerciseIds));
+  if (uniqueExerciseIds.length === 0) return {};
 
-  const result = Object.fromEntries(exerciseIds.map((id) => [id, null])) as Record<
+  const result = Object.fromEntries(uniqueExerciseIds.map((id) => [id, null])) as Record<
     string,
     PreviousExerciseSession | null
   >;
 
-  const workoutExercises = await prisma.workoutExercise.findMany({
-    where: {
-      exerciseId: { in: exerciseIds },
-      workout: { userId, finishedAt: { not: null } },
-      sets: { some: { isCompleted: true } },
+  const latestRows = await prisma.$queryRaw<
+    Array<{
+      workoutExerciseId: string;
+      exerciseId: string;
+      workoutName: string | null;
+      finishedAt: Date;
+    }>
+  >(Prisma.sql`
+    SELECT DISTINCT ON (we."exerciseId")
+      we.id as "workoutExerciseId",
+      we."exerciseId" as "exerciseId",
+      w.name as "workoutName",
+      w."finishedAt" as "finishedAt"
+    FROM "WorkoutExercise" we
+    JOIN "Workout" w ON w.id = we."workoutId"
+    WHERE we."exerciseId" IN (${Prisma.join(uniqueExerciseIds)})
+      AND w."userId" = ${userId}
+      AND w."finishedAt" IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM "WorkoutSet" ws
+        WHERE ws."workoutExerciseId" = we.id
+          AND ws."isCompleted" = true
+      )
+    ORDER BY we."exerciseId", w."finishedAt" DESC, we."order" ASC
+  `);
+
+  if (latestRows.length === 0) return result;
+
+  const latestIds = latestRows.map((row) => row.workoutExerciseId);
+  const sets = await prisma.workoutSet.findMany({
+    where: { workoutExerciseId: { in: latestIds }, isCompleted: true },
+    orderBy: { setNumber: "asc" },
+    select: {
+      workoutExerciseId: true,
+      setNumber: true,
+      weight: true,
+      reps: true,
+      duration: true,
     },
-    include: {
-      sets: {
-        where: { isCompleted: true },
-        orderBy: { setNumber: "asc" },
-        select: {
-          setNumber: true,
-          weight: true,
-          reps: true,
-          duration: true,
-        },
-      },
-      workout: { select: { name: true, finishedAt: true } },
-    },
-    orderBy: { workout: { finishedAt: "desc" } },
   });
 
-  const filled = new Set<string>();
-  for (const entry of workoutExercises) {
-    if (filled.has(entry.exerciseId)) continue;
-    if (entry.sets.length === 0) continue;
+  const setsByWorkoutExercise = new Map<string, PreviousSetValues[]>();
+  for (const set of sets) {
+    const list = setsByWorkoutExercise.get(set.workoutExerciseId) ?? [];
+    list.push({
+      setNumber: set.setNumber,
+      weight: set.weight,
+      reps: set.reps,
+      duration: set.duration,
+    });
+    setsByWorkoutExercise.set(set.workoutExerciseId, list);
+  }
 
-    result[entry.exerciseId] = {
-      workoutName: entry.workout.name,
-      finishedAt: entry.workout.finishedAt,
-      sets: entry.sets.map((set) => ({
-        setNumber: set.setNumber,
-        weight: set.weight,
-        reps: set.reps,
-        duration: set.duration,
-      })),
+  for (const row of latestRows) {
+    const previousSets = setsByWorkoutExercise.get(row.workoutExerciseId) ?? [];
+    if (previousSets.length === 0) continue;
+    result[row.exerciseId] = {
+      workoutName: row.workoutName,
+      finishedAt: row.finishedAt,
+      sets: previousSets,
     };
-    filled.add(entry.exerciseId);
   }
 
   return result;

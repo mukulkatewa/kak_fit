@@ -21,6 +21,10 @@ export class MediaRepository {
     return Boolean(existing);
   }
 
+  async countImages(exerciseId: string): Promise<number> {
+    return this.prisma.exerciseMedia.count({ where: { exerciseId, type: "IMAGE" } });
+  }
+
   async upsertMedia(args: {
     exerciseId: string;
     item: WgerMediaItem;
@@ -28,6 +32,7 @@ export class MediaRepository {
     fileSize: number;
     mimeType?: string | null;
     force: boolean;
+    source?: string;
   }) {
     return this.prisma.exerciseMedia.upsert({
       where: { exerciseId_originalUrl: { exerciseId: args.exerciseId, originalUrl: args.item.originalUrl } },
@@ -43,7 +48,7 @@ export class MediaRepository {
         height: args.item.height ?? null,
         duration: intOrNull(args.item.duration),
         fileSize: args.fileSize,
-        source: "wger",
+        source: args.item.source ?? args.source ?? "wger",
       },
       update: args.force
         ? {
@@ -55,7 +60,7 @@ export class MediaRepository {
             height: args.item.height ?? null,
             duration: intOrNull(args.item.duration),
             fileSize: args.fileSize,
-            source: "wger",
+            source: args.item.source ?? args.source ?? "wger",
           }
         : {},
     });

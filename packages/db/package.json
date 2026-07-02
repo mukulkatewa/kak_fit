@@ -22,7 +22,9 @@
     "seed:demo": "dotenv -o -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/seed-demo.ts'",
     "count": "dotenv -o -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/count.ts'",
     "import:wger-media": "dotenv -o -e ../../.env -- tsx scripts/wger-media/import-wger-media.ts",
-    "import:wger-media:dry": "dotenv -o -e ../../.env -- tsx scripts/wger-media/import-wger-media.ts --dry-run"
+    "import:wger-media:dry": "dotenv -o -e ../../.env -- tsx scripts/wger-media/import-wger-media.ts --dry-run",
+    "import:free-exercise-db-media": "dotenv -o -e ../../.env -- tsx scripts/free-exercise-db-media/import-free-exercise-db-media.ts",
+    "import:free-exercise-db-media:dry": "dotenv -o -e ../../.env -- tsx scripts/free-exercise-db-media/import-free-exercise-db-media.ts --dry-run"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0",

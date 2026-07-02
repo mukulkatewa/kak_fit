@@ -20,12 +20,12 @@ export function createReport(): ImportReport {
   };
 }
 
-export async function writeReport(report: ImportReport, startedMs: number): Promise<string> {
+export async function writeReport(report: ImportReport, startedMs: number, prefix = "wger-media-import"): Promise<string> {
   report.finishedAt = new Date().toISOString();
   report.executionTimeMs = Date.now() - startedMs;
   const dir = resolve(process.cwd(), "../../results");
   await mkdir(dir, { recursive: true });
-  const path = resolve(dir, `wger-media-import-${Date.now()}.json`);
+  const path = resolve(dir, `${prefix}-${Date.now()}.json`);
   await writeFile(path, JSON.stringify(report, null, 2));
   return path;
 }

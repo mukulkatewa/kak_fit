@@ -363,6 +363,7 @@ model Workout {
   progressPhotos ProgressPhoto[]
 
   @@index([userId, finishedAt(sort: Desc)])
+  @@index([userId, finishedAt(sort: Desc), id(sort: Desc)])
   @@index([userId, startedAt])
   @@index([finishedAt])
 }

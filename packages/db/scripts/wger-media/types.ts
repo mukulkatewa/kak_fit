@@ -9,7 +9,7 @@ export type ImportOptions = {
 };
 
 export type WgerSourceExercise = {
-  id: number;
+  id: number | string;
   name: string;
   category?: string | null;
   primaryMuscles: string[];
@@ -27,6 +27,7 @@ export type WgerMediaItem = {
   height?: number | null;
   duration?: number | null;
   displayOrder: number;
+  source?: string;
 };
 
 export type MatchResult =

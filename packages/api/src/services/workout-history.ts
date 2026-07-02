@@ -67,12 +67,29 @@ export async function queryWorkoutHistoryPage(
   const limit = input?.limit ?? 20;
   const accelerated = prisma as unknown as AcceleratedPrisma;
 
+  const cursorWorkout = input?.cursor
+    ? await prisma.workout.findFirst({
+        where: { id: input.cursor, userId, finishedAt: { not: null } },
+        select: { id: true, finishedAt: true },
+      })
+    : null;
+
   const rows = await accelerated.workout.findMany({
-    where: { userId, finishedAt: { not: null } },
+    where: {
+      userId,
+      finishedAt: { not: null },
+      ...(cursorWorkout?.finishedAt
+        ? {
+            OR: [
+              { finishedAt: { lt: cursorWorkout.finishedAt } },
+              { finishedAt: cursorWorkout.finishedAt, id: { lt: cursorWorkout.id } },
+            ],
+          }
+        : {}),
+    },
     select: workoutSummarySelect,
     orderBy: [{ finishedAt: "desc" }, { id: "desc" }],
     take: limit + 1,
-    ...(input?.cursor ? { skip: 1, cursor: { id: input.cursor } } : {}),
     ...(options?.cache !== false
       ? { cacheStrategy: { ttl: 60, swr: 300 } }
       : {}),

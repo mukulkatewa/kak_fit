@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { resolve } from "node:path";
 
-config({ path: resolve(__dirname, "../../../.env") });
+config({ path: resolve(__dirname, "../../../../.env") });
 if (process.env.DIRECT_URL) process.env.DATABASE_URL = process.env.DIRECT_URL;
 
 import { prisma } from "../../src";

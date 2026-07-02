@@ -6,6 +6,7 @@ export type UploadInput = {
   originalUrl: string;
   contentType?: string | null;
   type: "IMAGE" | "VIDEO";
+  source?: string;
 };
 
 export type UploadResult = { storageUrl: string; path: string };
@@ -30,6 +31,10 @@ function authHeaders(key: string): Record<string, string> {
 
 function uploadTimeoutMs(): number {
   return Number(process.env.SUPABASE_MEDIA_UPLOAD_TIMEOUT_MS ?? "90000");
+}
+
+function storagePrefix(input: UploadInput): string {
+  return (input.source ?? "wger").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "media";
 }
 
 function extensionFrom(input: UploadInput): string {
@@ -68,7 +73,7 @@ export class StorageUploader {
     const hash = createHash("sha256").update(input.originalUrl).digest("hex").slice(0, 24);
     const ext = extensionFrom(input);
     const folder = input.type === "IMAGE" ? "images" : "videos";
-    const path = `wger/${folder}/${hash}.${ext}`;
+    const path = `${storagePrefix(input)}/${folder}/${hash}.${ext}`;
 
     const controller = new AbortController();
     const timeoutMs = uploadTimeoutMs();
@@ -82,7 +87,7 @@ export class StorageUploader {
           "Content-Type": input.contentType ?? "application/octet-stream",
           "x-upsert": "true",
         },
-        body: input.bytes,
+        body: input.bytes as unknown as BodyInit,
         signal: controller.signal,
       });
     } catch (error) {

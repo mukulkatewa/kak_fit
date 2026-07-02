@@ -777,17 +777,17 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
     goalsBtn: {
       flexDirection: "row" as const,
       alignItems: "center" as const,
-      gap: 4,
+      gap: spacing.xs,
       backgroundColor: isDark ? colors.accentMuted : "rgba(255,255,255,0.55)",
       borderRadius: radius.full,
-      paddingVertical: 6,
-      paddingHorizontal: 12,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
     },
     goalsBtnText: { fontSize: 14, fontWeight: "700" as const },
 
     calHero: { alignItems: "center" as const, paddingVertical: spacing.sm },
     calValue: { fontSize: 22, fontWeight: "800" as const },
-    calTarget: { fontSize: 12, marginTop: 0 },
+    calTarget: { fontSize: 12 },
     calUnit: { fontSize: 11, fontWeight: "600" as const },
 
     macroBlock: {
@@ -851,7 +851,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       justifyContent: "center" as const,
     },
     mealName: { fontSize: 16, fontWeight: "700" as const, color: colors.text },
-    mealSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+    mealSub: { fontSize: 13, color: colors.textMuted, marginTop: spacing.xs },
     addBtn: {
       width: 44,
       height: 44,
@@ -876,7 +876,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
     },
     editModalTitle: { fontSize: 20, fontWeight: "800" as const, color: colors.text },
     editFoodName: { fontSize: 16, fontWeight: "600" as const, color: colors.textMuted },
-    foodMacroHint: { fontSize: 13, color: colors.textDim, marginTop: 0 },
+    foodMacroHint: { fontSize: 13, color: colors.textDim },
 
     loggerSection: { gap: spacing.md },
     loggerHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },

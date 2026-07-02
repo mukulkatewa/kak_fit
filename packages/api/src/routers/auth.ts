@@ -12,6 +12,7 @@ const userSelect = {
   subscriptionTier: true,
   weightUnit: true,
   defaultRestSeconds: true,
+  exerciseReminderEnabled: true,
 } as const;
 
 export const authRouter = router({
@@ -51,6 +52,7 @@ export const authRouter = router({
       z.object({
         weightUnit: z.enum(["KG", "LBS"]).optional(),
         defaultRestSeconds: z.number().int().min(0).max(600).optional(),
+        exerciseReminderEnabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -60,6 +62,9 @@ export const authRouter = router({
           ...(input.weightUnit !== undefined ? { weightUnit: input.weightUnit } : {}),
           ...(input.defaultRestSeconds !== undefined
             ? { defaultRestSeconds: input.defaultRestSeconds }
+            : {}),
+          ...(input.exerciseReminderEnabled !== undefined
+            ? { exerciseReminderEnabled: input.exerciseReminderEnabled }
             : {}),
         },
         select: userSelect,

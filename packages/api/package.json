@@ -10,20 +10,29 @@
     "./public-api": "./src/public-api/index.ts",
     "./public-api/llm-tools": "./src/public-api/llm-tools.ts",
     "./public-api/openapi": "./src/public-api/openapi.ts",
-    "./lib/public-api-base-url": "./src/lib/public-api-base-url.ts"
+    "./lib/public-api-base-url": "./src/lib/public-api-base-url.ts",
+    "./services/daily-exercise-reminders": "./src/services/daily-exercise-reminders.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/services/**/*.test.ts"
+    "test": "tsx --test src/services/**/*.test.ts",
+    "send:daily-reminders": "dotenv -o -e ../../.env -- tsx scripts/send-daily-exercise-reminders.ts",
+    "send:daily-reminders:dry": "dotenv -o -e ../../.env -- tsx scripts/send-daily-exercise-reminders.ts --dry-run"
   },
   "dependencies": {
     "@kak-fit/db": "workspace:*",
+    "@react-email/components": "^1.0.12",
     "@trpc/server": "^11.0.2",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "resend": "^6.16.0",
     "superjson": "^2.2.2",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "typescript": "^5.8.2"
   }
 }

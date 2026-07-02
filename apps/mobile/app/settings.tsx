@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState, type FC, type ReactNode } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
   CalculatorIcon,
   CheckCircleIcon,
@@ -203,18 +203,26 @@ export default function SettingsScreen() {
 
   const [weightUnit, setWeightUnit] = useState<"KG" | "LBS">("KG");
   const [restSeconds, setRestSeconds] = useState(90);
+  const [exerciseReminderEnabled, setExerciseReminderEnabled] = useState(true);
 
   useEffect(() => {
     if (user?.weightUnit) setWeightUnit(user.weightUnit);
     if (user?.defaultRestSeconds) setRestSeconds(user.defaultRestSeconds);
-  }, [user?.weightUnit, user?.defaultRestSeconds]);
+    if (user?.exerciseReminderEnabled != null) {
+      setExerciseReminderEnabled(user.exerciseReminderEnabled);
+    }
+  }, [user?.weightUnit, user?.defaultRestSeconds, user?.exerciseReminderEnabled]);
 
   const savePrefs = trpc.auth.updatePreferences.useMutation({
     onSuccess: () => utils.auth.me.invalidate(),
     onError: (e) => alert(e.message),
   });
 
-  const persist = (patch: { weightUnit?: "KG" | "LBS"; defaultRestSeconds?: number }) => {
+  const persist = (patch: {
+    weightUnit?: "KG" | "LBS";
+    defaultRestSeconds?: number;
+    exerciseReminderEnabled?: boolean;
+  }) => {
     savePrefs.mutate(patch);
   };
 
@@ -290,6 +298,25 @@ export default function SettingsScreen() {
       </AnimatedSection>
 
       <AnimatedSection sectionIndex={3}>
+        <Text style={styles.sectionLabel}>Reminders</Text>
+        <View style={styles.group}>
+          <View style={styles.row}>
+            <Ionicons name="notifications-outline" size={20} color={colors.textMuted} />
+            <Text style={styles.rowLabel}>Daily workout reminders</Text>
+            <Switch
+              value={exerciseReminderEnabled}
+              onValueChange={(value) => {
+                setExerciseReminderEnabled(value);
+                persist({ exerciseReminderEnabled: value });
+              }}
+              trackColor={{ false: colors.border, true: colors.accentMuted }}
+              thumbColor={exerciseReminderEnabled ? colors.accent : colors.textMuted}
+            />
+          </View>
+        </View>
+      </AnimatedSection>
+
+      <AnimatedSection sectionIndex={4}>
         <Text style={styles.sectionLabel}>Tools</Text>
         <View style={styles.group}>
           <SpringRow bordered onPress={() => router.push("/tools")}>
@@ -305,7 +332,7 @@ export default function SettingsScreen() {
         </View>
       </AnimatedSection>
 
-      <AnimatedSection sectionIndex={4}>
+      <AnimatedSection sectionIndex={5}>
         <Text style={styles.sectionLabel}>Account</Text>
         <View style={styles.group}>
           <View style={[styles.row, styles.rowBorder]}>
@@ -321,7 +348,7 @@ export default function SettingsScreen() {
         </View>
       </AnimatedSection>
 
-      <AnimatedSection sectionIndex={5}>
+      <AnimatedSection sectionIndex={6}>
         <Text style={styles.sectionLabel}>About</Text>
         <View style={styles.group}>
           <View style={styles.row}>
@@ -332,7 +359,7 @@ export default function SettingsScreen() {
         </View>
       </AnimatedSection>
 
-      <AnimatedSection sectionIndex={6}>
+      <AnimatedSection sectionIndex={7}>
         <SignOutButton onPress={handleSignOut} />
       </AnimatedSection>
     </Screen>

@@ -37,7 +37,9 @@
     "import:wger-media": "pnpm --filter @kak-fit/db import:wger-media",
     "import:wger-media:dry": "pnpm --filter @kak-fit/db import:wger-media:dry",
     "import:free-exercise-db-media": "pnpm --filter @kak-fit/db import:free-exercise-db-media",
-    "import:free-exercise-db-media:dry": "pnpm --filter @kak-fit/db import:free-exercise-db-media:dry"
+    "import:free-exercise-db-media:dry": "pnpm --filter @kak-fit/db import:free-exercise-db-media:dry",
+    "send:daily-reminders": "pnpm --filter @kak-fit/api send:daily-reminders",
+    "send:daily-reminders:dry": "pnpm --filter @kak-fit/api send:daily-reminders:dry"
   },
   "devDependencies": {
     "turbo": "^2.4.4",

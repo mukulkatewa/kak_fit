@@ -86,7 +86,7 @@ export default function ExercisesTab() {
       {loading ? (
         <ListSkeleton rows={8} />
       ) : isError ? (
-        <View style={{ marginTop: 24, gap: 12, alignItems: "center" }}>
+        <View style={{ marginTop: spacing.xxl, gap: spacing.md, alignItems: "center" }}>
           <EmptyState
             icon="cloud-offline-outline"
             title="Could not load exercises"
@@ -145,8 +145,8 @@ const makeStyles = (colors: Palette) =>
     chip: {
       backgroundColor: colors.surface,
       borderRadius: radiusFull,
-      paddingVertical: 7,
-      paddingHorizontal: 14,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
       borderWidth: 1,
       borderColor: colors.border,
     },

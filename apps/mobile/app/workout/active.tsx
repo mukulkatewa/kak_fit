@@ -12,6 +12,7 @@ import {
   Text,
   TextInput,
   View,
+  type TextStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -37,7 +38,7 @@ import {
   ThemedDialog,
   useToast,
 } from "../../src/components/ui";
-import { formatPreviousSet, pickPreviousForSet, type PreviousExerciseSession } from "../../src/lib/previous-set";
+import { pickPreviousForSet, type PreviousExerciseSession } from "../../src/lib/previous-set";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { parseOptionalNumber } from "../../src/lib/workout-errors";
 import { cycleRpe, formatRpe } from "../../src/lib/rpe";
@@ -82,6 +83,19 @@ const setTypeColor = (colors: Palette): Record<SetType, string> => ({
 });
 
 const REST_PRESETS = [60, 90, 120, 180, 300] as const;
+
+/** Shared column widths — fixed sides, flexible value columns in the middle. */
+const SET_GRID = {
+  set: { width: 28, flexShrink: 0, flexGrow: 0 },
+  prev: { width: 46, flexShrink: 0, flexGrow: 0 },
+  value: { flex: 1, minWidth: 48, maxWidth: 76 },
+  rpe: { width: 34, flexShrink: 0, flexGrow: 0 },
+  done: { width: 36, flexShrink: 0, flexGrow: 0 },
+} as const;
+
+const headerTextWeb = (
+  Platform.OS === "web" ? { whiteSpace: "nowrap" } : undefined
+) as TextStyle | undefined;
 
 function exercisesToSuperLinks(exercises: ActiveWorkout["exercises"]): boolean[] {
   return exercises.map(
@@ -1118,34 +1132,52 @@ function ExerciseBlock({
 
       {previous?.finishedAt ? (
         <Text style={styles.prevMeta}>
-          Last: {formatPreviousSet(pickPreviousForSet(previous, 1))} ·{" "}
-          {new Date(previous.finishedAt).toLocaleDateString()}
+          Last session ·{" "}
+          {new Date(previous.finishedAt).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}
         </Text>
       ) : null}
 
-      <View style={styles.setHeader}>
-        <Text style={[styles.setCol, styles.setColNarrow]}>SET</Text>
-        <Text style={[styles.setCol, styles.setColPrev]}>PREVIOUS</Text>
-        <View style={styles.setColKgHeader}>
-          <Ionicons name="barbell" size={13} color={colors.textDim} />
-          <Text style={styles.setColKgHeaderText}>{weightLabel(weightUnit).toUpperCase()}</Text>
+      <View style={styles.setTable}>
+        <View style={styles.setHeader}>
+          <Text style={[styles.setHeaderLabel, SET_GRID.set, headerTextWeb]} numberOfLines={1}>
+            SET
+          </Text>
+          <Text style={[styles.setHeaderLabel, SET_GRID.prev, headerTextWeb]} numberOfLines={1}>
+            PREV
+          </Text>
+          <View style={[styles.setHeaderValue, SET_GRID.value]}>
+            <Ionicons name="barbell" size={12} color={colors.textDim} />
+            <Text style={[styles.setHeaderLabel, headerTextWeb]} numberOfLines={1}>
+              {weightLabel(weightUnit).toUpperCase()}
+            </Text>
+          </View>
+          <Text style={[styles.setHeaderLabel, SET_GRID.value, headerTextWeb]} numberOfLines={1}>
+            REPS
+          </Text>
+          <Text style={[styles.setHeaderLabel, SET_GRID.rpe, headerTextWeb]} numberOfLines={1}>
+            RPE
+          </Text>
+          <Text style={[styles.setHeaderLabel, SET_GRID.done, headerTextWeb]} numberOfLines={1}>
+            ✓
+          </Text>
         </View>
-        <Text style={styles.setCol}>REPS</Text>
-        <Text style={[styles.setCol, styles.setColRpe]}>RPE</Text>
-        <Text style={[styles.setCol, styles.setColNarrow]}>✓</Text>
+        {sets.map((set) => (
+          <SetRow
+            key={set.id}
+            set={set}
+            weightUnit={weightUnit}
+            previousValues={pickPreviousForSet(previous, set.setNumber)}
+            onUpdateSet={onUpdateSet}
+            onRequestDeleteSet={onRequestDeleteSet}
+          />
+        ))}
       </View>
-      {sets.map((set) => (
-        <SetRow
-          key={set.id}
-          set={set}
-          weightUnit={weightUnit}
-          previousValues={pickPreviousForSet(previous, set.setNumber)}
-          onUpdateSet={onUpdateSet}
-          onRequestDeleteSet={onRequestDeleteSet}
-        />
-      ))}
       <Pressable onPress={onAddSet} style={styles.addSetBtn}>
-        <Ionicons name="add" size={24} color={colors.text} />
+        <Ionicons name="add" size={20} color={colors.text} />
         <Text style={styles.addSet}>Add Set</Text>
       </Pressable>
     </View>
@@ -1270,18 +1302,22 @@ function SetRow({
       <View style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
         <Pressable
           onPress={() => onUpdateSet(set.id, { ...flushDraft(), setType: cycleSetType(set.setType) })}
-          style={styles.setTypeBtn}
+          style={[styles.setTypeBtn, SET_GRID.set]}
         >
-          <Text style={[styles.setNumber, { color: setTypeColor(colors)[set.setType] }]}>{typeLabel}</Text>
+          <Text style={[styles.setNumber, { color: setTypeColor(colors)[set.setType] }]} numberOfLines={1}>
+            {typeLabel}
+          </Text>
         </Pressable>
 
-        <View style={styles.prevCol}>
-          <Text style={styles.prevColText}>{prevDisplay}</Text>
+        <View style={[styles.prevCol, SET_GRID.prev]}>
+          <Text style={styles.prevColText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            {prevDisplay}
+          </Text>
         </View>
 
         <TextInput
           ref={weightInputRef}
-          style={[styles.setInput, set.isCompleted && styles.setInputDone]}
+          style={[styles.setInput, SET_GRID.value, set.isCompleted && styles.setInputDone]}
           value={weight}
           onChangeText={(text) => {
             weightRef.current = text;
@@ -1294,7 +1330,7 @@ function SetRow({
         />
         <TextInput
           ref={repsInputRef}
-          style={[styles.setInput, set.isCompleted && styles.setInputDone]}
+          style={[styles.setInput, SET_GRID.value, set.isCompleted && styles.setInputDone]}
           value={reps}
           onChangeText={(text) => {
             repsRef.current = text;
@@ -1307,17 +1343,19 @@ function SetRow({
         />
         <Pressable
           onPress={() => onUpdateSet(set.id, { ...flushDraft(), rpe: cycleRpe(set.rpe) })}
-          style={styles.rpeCell}
+          style={[styles.rpeCell, SET_GRID.rpe]}
         >
-          <Text style={styles.rpeText}>{formatRpe(set.rpe)}</Text>
+          <Text style={styles.rpeText} numberOfLines={1}>
+            {formatRpe(set.rpe)}
+          </Text>
         </Pressable>
         <Pressable
-          style={[styles.check, set.isCompleted && styles.checkDone]}
+          style={[styles.check, SET_GRID.done, set.isCompleted && styles.checkDone]}
           onPressIn={handleCompletePressIn}
           onPress={handleCompletePress}
         >
           {set.isCompleted ? (
-            <Ionicons name="checkmark" size={20} color={colors.onAccent} />
+            <Ionicons name="checkmark" size={18} color={colors.onAccent} />
           ) : null}
         </Pressable>
       </View>
@@ -1329,7 +1367,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   backBtn: { padding: 4 },
   header: {
-    minHeight: 64,
+    minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
@@ -1356,8 +1394,9 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   statsBar: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 72,
+    minHeight: 64,
     paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     backgroundColor: colors.bg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.separator,
@@ -1460,61 +1499,72 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   exerciseRestRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs, marginBottom: spacing.md },
   exerciseRestText: { color: colors.accent, fontSize: 14, lineHeight: 18, fontWeight: "500" },
+  setTable: { gap: 4 },
   setHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: 2,
-    marginBottom: spacing.sm,
+    gap: 6,
+    paddingBottom: 4,
   },
-  setCol: { flex: 1, minWidth: 0, color: colors.textDim, fontSize: 11, fontWeight: "600", textAlign: "center" },
-  setColNarrow: { flex: 0, width: 36 },
-  setColRpe: { flex: 0, width: 44 },
-  setColPrev: { flex: 0, width: 72 },
-  setColKgHeader: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
-  setColKgHeaderText: { color: colors.textDim, fontSize: 11, fontWeight: "600" },
-  prevCol: { width: 72, alignItems: "center" as const, justifyContent: "center" as const },
-  prevColText: { color: colors.textMuted, fontSize: 13, textAlign: "center" as const },
-  setRow: {
-    minHeight: 52,
+  setHeaderLabel: {
+    color: colors.textDim,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textAlign: "center",
+    textTransform: "uppercase",
+  },
+  setHeaderValue: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: 2,
+    justifyContent: "center",
+    gap: 3,
+  },
+  prevCol: { alignItems: "center", justifyContent: "center" },
+  prevColText: { color: colors.textMuted, fontSize: 12, fontWeight: "500", textAlign: "center" },
+  setRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     backgroundColor: colors.bg,
+    borderRadius: radius.sm,
   },
   setRowDone: { backgroundColor: colors.successMuted },
-  setNumber: { fontSize: 15, fontWeight: "700", textAlign: "center" },
-  setTypeBtn: { width: 36, alignItems: "center", justifyContent: "center" },
+  setNumber: { fontSize: 14, fontWeight: "700", textAlign: "center" },
+  setTypeBtn: { alignItems: "center", justifyContent: "center" },
   rpeCell: {
-    width: 44,
     minHeight: 40,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceHover,
   },
-  rpeText: { color: colors.text, fontSize: 14, fontWeight: "500", textAlign: "center" },
+  rpeText: { color: colors.text, fontSize: 13, fontWeight: "600", textAlign: "center" },
   setInput: {
-    flex: 1,
     minWidth: 0,
     color: colors.text,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 4,
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: "600",
     textAlign: "center",
     backgroundColor: colors.surfaceHover,
     borderRadius: radius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
   },
-  setInputDone: { color: colors.text },
+  setInputDone: { color: colors.text, borderColor: "transparent" },
   check: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    minHeight: 40,
+    borderRadius: radius.sm,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surfaceHover,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
   },
-  checkDone: { backgroundColor: colors.success },
+  checkDone: { backgroundColor: colors.success, borderColor: colors.success },
   deleteAction: {
     backgroundColor: colors.danger,
     justifyContent: "center",
@@ -1526,7 +1576,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   deleteActionText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   addSetBtn: {
-    minHeight: 48,
+    minHeight: 44,
     marginTop: spacing.md,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceHover,
@@ -1534,8 +1584,10 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
   },
-  addSet: { color: colors.text, fontSize: 16, fontWeight: "600" },
+  addSet: { color: colors.text, fontSize: 15, fontWeight: "600" },
   pickerModal: {
     flex: 1,
     ...webFlexScreen,

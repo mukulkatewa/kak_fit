@@ -4,7 +4,7 @@ import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBottomSheetInset } from "../../src/lib/layout-constants";
+import { TOUCH_TARGET_MIN, useBottomSheetInset } from "../../src/lib/layout-constants";
 import {
   FireIcon,
   MoonIcon,
@@ -782,8 +782,9 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       gap: spacing.xs,
       backgroundColor: isDark ? colors.accentMuted : "rgba(255,255,255,0.55)",
       borderRadius: radius.full,
-      paddingVertical: spacing.sm,
+      paddingVertical: spacing.md,
       paddingHorizontal: spacing.md,
+      minHeight: TOUCH_TARGET_MIN,
     },
     goalsBtnText: { ...typography.bodySmall, fontWeight: "700" as const },
 

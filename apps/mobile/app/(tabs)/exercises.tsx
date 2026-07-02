@@ -13,6 +13,7 @@ import {
 } from "../../src/components/ui";
 import { ListSkeleton } from "../../src/components/skeleton";
 import { trpc } from "../../src/lib/trpc";
+import { iconButtonStyle, TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
 import { spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 export default function ExercisesTab() {
@@ -134,19 +135,19 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     addBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      ...iconButtonStyle,
+      width: TOUCH_TARGET_MIN,
+      height: TOUCH_TARGET_MIN,
+      borderRadius: TOUCH_TARGET_MIN / 2,
       backgroundColor: colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
     },
     filterRow: { gap: spacing.sm, paddingVertical: spacing.xs, paddingRight: spacing.lg },
     chip: {
       backgroundColor: colors.surface,
       borderRadius: radiusFull,
-      paddingVertical: spacing.sm,
+      paddingVertical: spacing.md,
       paddingHorizontal: spacing.md,
+      minHeight: 44,
       borderWidth: 1,
       borderColor: colors.border,
     },

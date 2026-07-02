@@ -48,6 +48,7 @@ import { useAuth } from "../../src/lib/auth-context";
 import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
 import { tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
+import { TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
 import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type ChartMode = "duration" | "volume" | "reps";
@@ -399,6 +400,7 @@ const makeStyles = (colors: Palette) =>
     segment: {
       flex: 1,
       paddingVertical: spacing.md,
+      minHeight: TOUCH_TARGET_MIN,
       borderRadius: radius.full,
       alignItems: "center",
       zIndex: 1,

@@ -426,7 +426,8 @@ export function Button({
   label: string;
   onPress: () => void;
   variant?: "primary" | "secondary" | "ghost" | "danger" | "gold";
-  size?: "sm" | "md";
+  /** lg = 56px primary, md = 52px secondary, sm = 44px compact */
+  size?: "lg" | "md" | "sm";
   fullWidth?: boolean;
   disabled?: boolean;
   loading?: boolean;
@@ -435,6 +436,7 @@ export function Button({
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { style, onPressIn, onPressOut } = usePressScale(0.95);
+  const resolvedSize = size ?? (variant === "primary" ? "lg" : "md");
   const tint =
     variant === "primary"
       ? "#fff"
@@ -455,7 +457,11 @@ export function Button({
         disabled={disabled || loading}
         style={[
           styles.button,
-          size === "sm" ? styles.buttonSm : styles.buttonMd,
+          resolvedSize === "lg"
+            ? styles.buttonLg
+            : resolvedSize === "sm"
+              ? styles.buttonSm
+              : styles.buttonMd,
           fullWidth && styles.buttonFullInner,
           variant === "secondary" && styles.buttonSecondary,
           variant === "ghost" && styles.buttonGhost,
@@ -468,8 +474,13 @@ export function Button({
           <ActivityIndicator color={tint} size="small" />
         ) : (
           <View style={styles.buttonInner}>
-            {icon ? <Ionicons name={icon} size={size === "sm" ? 16 : 18} color={tint} /> : null}
-            <Text style={[size === "sm" ? styles.buttonTextSm : styles.buttonText, { color: tint }]}>
+            {icon ? <Ionicons name={icon} size={resolvedSize === "sm" ? 16 : 18} color={tint} /> : null}
+            <Text
+              style={[
+                resolvedSize === "sm" ? styles.buttonTextSm : styles.buttonText,
+                { color: tint },
+              ]}
+            >
               {label}
             </Text>
           </View>
@@ -1017,8 +1028,23 @@ const makeStyles = (colors: Palette) =>
       alignSelf: "flex-start",
       backgroundColor: colors.accent,
     },
-    buttonMd: { paddingVertical: 14, paddingHorizontal: 20, minHeight: 50 },
-    buttonSm: { paddingVertical: 8, paddingHorizontal: 14, minHeight: 36 },
+    buttonLg: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      minHeight: 56,
+      minWidth: 56,
+    },
+    buttonMd: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      minHeight: 52,
+    },
+    buttonSm: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      minHeight: 44,
+      minWidth: 44,
+    },
     buttonFull: { alignSelf: "stretch" },
     buttonFullInner: { alignSelf: "stretch" },
     buttonSecondary: { backgroundColor: colors.surfaceHover },
@@ -1033,11 +1059,12 @@ const makeStyles = (colors: Palette) =>
 
     hevyButton: {
       borderRadius: radius.md,
-      paddingVertical: 16,
+      paddingVertical: spacing.md,
       paddingHorizontal: spacing.xxl,
       alignItems: "center",
       justifyContent: "center",
-      minHeight: 52,
+      minHeight: 56,
+      minWidth: 56,
     },
     hevyButtonSecondary: {
       backgroundColor: colors.surfaceHover,
@@ -1056,6 +1083,8 @@ const makeStyles = (colors: Palette) =>
       bottom: spacing.xl,
       width: 56,
       height: 56,
+      minWidth: 56,
+      minHeight: 56,
       borderRadius: 28,
       backgroundColor: colors.accent,
     },
@@ -1073,7 +1102,7 @@ const makeStyles = (colors: Palette) =>
       borderRadius: radius.md,
       paddingHorizontal: spacing.md,
       gap: spacing.sm,
-      minHeight: 40,
+      minHeight: 44,
     },
     searchInput: { flex: 1, color: colors.text, ...typography.body, paddingVertical: 8 },
     input: {

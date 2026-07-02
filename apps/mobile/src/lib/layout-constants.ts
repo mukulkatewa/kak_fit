@@ -5,6 +5,25 @@ import { spacing } from "./theme";
 /** Flex child that should fill remaining space and allow nested ScrollViews to scroll. */
 export const flexFill: ViewStyle = { flex: 1, minHeight: 0 };
 
+/** Minimum tappable area for icon controls (iOS HIG / Material). */
+export const TOUCH_TARGET_MIN = 44;
+/** Primary CTA button height. */
+export const BUTTON_HEIGHT_PRIMARY = 56;
+/** Secondary button height. */
+export const BUTTON_HEIGHT_SECONDARY = 52;
+/** Extra tap padding for navigation and primary actions. */
+export const HIT_SLOP_LARGE = 8;
+/** Extra tap padding for list rows and cards. */
+export const HIT_SLOP_MEDIUM = 4;
+
+/** Standard 44×44 icon button wrapper — use hitSlop when visual size is smaller. */
+export const iconButtonStyle: ViewStyle = {
+  minWidth: TOUCH_TARGET_MIN,
+  minHeight: TOUCH_TARGET_MIN,
+  alignItems: "center",
+  justifyContent: "center",
+};
+
 /** Extra constraints for full-height screens on web. */
 export const webFlexScreen: ViewStyle =
   Platform.OS === "web" ? { minHeight: 0, height: "100%" } : {};

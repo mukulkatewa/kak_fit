@@ -37,6 +37,7 @@ import {
   useToast,
 } from "../../src/components/ui";
 import { entranceDown, usePulse, useSpringPress } from "../../src/lib/animations";
+import { BUTTON_HEIGHT_PRIMARY, HIT_SLOP_LARGE, iconButtonStyle } from "../../src/lib/layout-constants";
 import { useAuth } from "../../src/lib/auth-context";
 import {
   radius,
@@ -728,7 +729,7 @@ function Stat({
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.statCol, pressed && styles.pressed]}
-      hitSlop={4}
+      hitSlop={HIT_SLOP_LARGE}
     >
       <View style={styles.statValueRow}>
         <Text style={styles.statValue}>{value}</Text>
@@ -861,7 +862,7 @@ const makeStyles = (colors: Palette) => {
     statValueRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
     statValue: { fontSize: 18, fontWeight: "800", color: colors.text }, // custom: dashboard stat emphasis
     statLabel: { ...typography.label, color: colors.textMuted },
-    gear: { padding: spacing.xs },
+    gear: { ...iconButtonStyle, padding: spacing.xs },
 
     heroCardOuter: {
       borderRadius: radius.xl,
@@ -998,7 +999,7 @@ const makeStyles = (colors: Palette) => {
       gap: spacing.sm,
       backgroundColor: colors.accent,
       borderRadius: radius.lg,
-      minHeight: 52,
+      minHeight: BUTTON_HEIGHT_PRIMARY,
       paddingHorizontal: spacing.xl,
       ...glowShadow,
     },
@@ -1033,6 +1034,7 @@ const makeStyles = (colors: Palette) => {
       borderWidth: 1,
       borderColor: colors.border,
       padding: spacing.lg,
+      minHeight: 64,
       overflow: "hidden",
       ...cardShadow,
     },

@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   subtitle: { ...typography.body, fontWeight: "700", textAlign: "center" },
   bottomBlock: { gap: spacing.md },
   googleButton: {
-    minHeight: 60,
+    minHeight: 56,
     borderRadius: 18,
     paddingHorizontal: spacing.lg,
     flexDirection: "row",

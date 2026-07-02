@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useBottomSheetInset } from "../../src/lib/layout-constants";
+import { BUTTON_HEIGHT_PRIMARY, useBottomSheetInset } from "../../src/lib/layout-constants";
 import { FireIcon } from "react-native-heroicons/solid";
 import {
   AdjustmentsHorizontalIcon,
@@ -764,7 +764,7 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.sm,
       backgroundColor: colors.accent,
       borderRadius: radius.lg,
-      minHeight: 52,
+      minHeight: BUTTON_HEIGHT_PRIMARY,
       paddingHorizontal: spacing.xl,
     },
     startEmptyDisabled: { opacity: 0.6 },
@@ -780,8 +780,9 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.xs,
       backgroundColor: colors.surface,
       borderRadius: radius.full,
-      paddingVertical: spacing.sm,
+      paddingVertical: spacing.md,
       paddingHorizontal: spacing.md,
+      minHeight: 44,
     },
     filterChipActive: { backgroundColor: colors.accent },
     filterChipText: { ...typography.bodySmall, color: colors.text },
@@ -790,8 +791,9 @@ const makeStyles = (colors: Palette) =>
     filterOption: {
       backgroundColor: colors.surface,
       borderRadius: 999,
-      paddingVertical: spacing.sm,
+      paddingVertical: spacing.md,
       paddingHorizontal: spacing.md,
+      minHeight: 44,
     },
     filterOptionActive: { backgroundColor: colors.accent },
     filterOptionText: { ...typography.bodySmall, color: colors.text },

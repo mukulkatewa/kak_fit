@@ -542,10 +542,10 @@ function ActiveWorkoutScreen() {
       <View style={styles.mainColumn}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerSide} hitSlop={8}>
-          <Ionicons name="chevron-down" size={24} color={colors.accent} />
+          <Ionicons name="chevron-down" size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {workout.name ?? "Log Workout"}
+          {workout.name && workout.name !== "Workout" ? workout.name : "Log Workout"}
         </Text>
         <View style={styles.headerActions}>
           <Pressable onPress={openRestTimerSettings} hitSlop={8} style={styles.headerIconBtn}>
@@ -562,21 +562,21 @@ function ActiveWorkoutScreen() {
       </View>
 
       <View style={styles.statsBar}>
-        <StatsItem label="Duration" value={formatElapsedDuration(elapsedSeconds)} />
-        <View style={styles.statsDivider} />
+        <StatsItem label="Duration" value={formatElapsedDuration(elapsedSeconds)} accent />
         <StatsItem
           label="Volume"
           value={`${Math.round(displayVolume).toLocaleString()} ${weightLabel(weightUnit)}`}
         />
-        <View style={styles.statsDivider} />
         <StatsItem label="Sets" value={String(completedSetCount)} />
-        <View style={styles.statsDivider} />
         <Pressable
           style={styles.statsIconCell}
           onPress={() => router.push("/(tabs)/progress")}
           hitSlop={8}
         >
-          <Ionicons name="body-outline" size={22} color={colors.accent} />
+          <View style={styles.statsBodyIcons}>
+            <Ionicons name="body-outline" size={20} color={colors.textMuted} />
+            <Ionicons name="body" size={20} color={colors.textMuted} style={{ opacity: 0.55 }} />
+          </View>
         </Pressable>
       </View>
 
@@ -626,6 +626,15 @@ function ActiveWorkoutScreen() {
         </View>
       ) : null}
 
+      {workout.exercises.length === 0 && !reorderMode ? (
+        <View style={styles.emptyWorkoutShell}>
+          <EmptyWorkoutHero onAddExercise={() => setPickerOpen(true)} />
+          <WorkoutFooterActions
+            onSettings={() => setSettingsOpen(true)}
+            onDiscard={openDiscardConfirm}
+          />
+        </View>
+      ) : (
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, styles.contentPad]}
@@ -692,25 +701,15 @@ function ActiveWorkoutScreen() {
         )}
 
         {!reorderMode ? (
-          <View style={styles.workoutActions}>
-            <Button
-              label="Add Exercise"
-              icon="add"
-              variant="primary"
-              fullWidth
-              onPress={() => setPickerOpen(true)}
-            />
-            <View style={styles.secondaryActionsRow}>
-              <Pressable onPress={() => setSettingsOpen(true)} hitSlop={8} style={styles.secondaryActionBtn}>
-                <Text style={styles.settingsText}>Settings</Text>
-              </Pressable>
-              <Pressable onPress={openDiscardConfirm} hitSlop={8} style={styles.secondaryActionBtn}>
-                <Text style={styles.discardText}>Discard Workout</Text>
-              </Pressable>
-            </View>
-          </View>
+          <WorkoutFooterActions
+            onSettings={() => setSettingsOpen(true)}
+            onDiscard={openDiscardConfirm}
+            showAddExercise
+            onAddExercise={() => setPickerOpen(true)}
+          />
         ) : null}
       </ScrollView>
+      )}
       </View>
     </Screen>
 
@@ -1024,14 +1023,78 @@ export default function ActiveWorkoutScreenWithErrorBoundary() {
 }
 
 
-function StatsItem({ label, value }: { label: string; value: string }) {
+function StatsItem({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   return (
     <View style={styles.statsItem}>
-      <Text style={styles.statsValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
+      <Text style={styles.statsLabel}>{label}</Text>
+      <Text
+        style={[styles.statsValue, accent && { color: colors.accent }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.78}
+      >
         {value}
       </Text>
-      <Text style={styles.statsLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function EmptyWorkoutHero({ onAddExercise }: { onAddExercise: () => void }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+
+  return (
+    <View style={styles.emptyHero}>
+      <View style={styles.emptyHeroIconWrap}>
+        <Ionicons name="barbell-outline" size={56} color={colors.text} />
+      </View>
+      <Text style={styles.emptyHeroTitle}>Get started</Text>
+      <Text style={styles.emptyHeroSubtitle}>Add an exercise to start your workout</Text>
+      <Button
+        label="Add Exercise"
+        icon="add"
+        variant="primary"
+        fullWidth
+        onPress={onAddExercise}
+      />
+    </View>
+  );
+}
+
+function WorkoutFooterActions({
+  onSettings,
+  onDiscard,
+  showAddExercise,
+  onAddExercise,
+}: {
+  onSettings: () => void;
+  onDiscard: () => void;
+  showAddExercise?: boolean;
+  onAddExercise?: () => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+
+  return (
+    <View style={styles.workoutActions}>
+      {showAddExercise && onAddExercise ? (
+        <Button
+          label="Add Exercise"
+          icon="add"
+          variant="primary"
+          fullWidth
+          onPress={onAddExercise}
+        />
+      ) : null}
+      <View style={styles.secondaryActionsRow}>
+        <Pressable onPress={onSettings} hitSlop={8} style={styles.secondaryActionBtn}>
+          <Text style={styles.settingsText}>Settings</Text>
+        </Pressable>
+        <Pressable onPress={onDiscard} hitSlop={8} style={styles.secondaryActionBtn}>
+          <Text style={styles.discardText}>Discard Workout</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -1380,8 +1443,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "left",
-    fontSize: 20,
-    fontWeight: "500",
+    fontSize: 22,
+    fontWeight: "700",
     color: colors.text,
   },
   headerActions: {
@@ -1394,17 +1457,18 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   statsBar: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 64,
+    minHeight: 72,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     backgroundColor: colors.bg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.separator,
   },
-  statsItem: { flex: 1, minWidth: 0, alignItems: "flex-start", justifyContent: "center", gap: 4 },
-  statsIconCell: { width: 44, alignItems: "center", justifyContent: "center" },
-  statsValue: { width: "100%", fontSize: 20, fontWeight: "600", color: colors.text, lineHeight: 24 },
-  statsLabel: { fontSize: 12, fontWeight: "500", color: colors.textMuted },
+  statsItem: { flex: 1, minWidth: 0, alignItems: "flex-start", justifyContent: "center", gap: 2 },
+  statsIconCell: { width: 52, alignItems: "flex-end", justifyContent: "center" },
+  statsBodyIcons: { flexDirection: "row", alignItems: "center", gap: 2 },
+  statsValue: { width: "100%", fontSize: 22, fontWeight: "700", color: colors.text, lineHeight: 26 },
+  statsLabel: { fontSize: 13, fontWeight: "400", color: colors.textMuted },
   statsDivider: { display: "none" },
   offlineMeta: {
     color: colors.textMuted,
@@ -1474,7 +1538,44 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   restAdjustText: { fontSize: 14, fontWeight: "600", color: colors.accent },
   scroll: { flex: 1, minHeight: 0 },
-  scrollContent: { paddingBottom: spacing.xxl },
+  scrollContent: { flexGrow: 1, paddingBottom: spacing.xxl },
+  emptyWorkoutShell: {
+    flex: 1,
+    minHeight: 0,
+    justifyContent: "space-between",
+    paddingBottom: spacing.lg,
+  },
+  emptyHero: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
+    maxWidth: 360,
+    alignSelf: "center",
+    width: "100%",
+  },
+  emptyHeroIconWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.sm,
+  },
+  emptyHeroTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: colors.text,
+    textAlign: "center",
+  },
+  emptyHeroSubtitle: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginBottom: spacing.md,
+  },
   exerciseBlock: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
@@ -1707,19 +1808,24 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     backgroundColor: colors.surfaceHover,
   },
   restPresetLabel: { fontSize: 18, fontWeight: "600", color: colors.text },
-  workoutActions: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xl, gap: spacing.md },
+  workoutActions: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.md,
+    width: "100%",
+    maxWidth: 360,
+    alignSelf: "center",
+  },
   secondaryActionsRow: { flexDirection: "row", gap: spacing.md },
   secondaryActionBtn: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 50,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceHover,
     alignItems: "center",
     justifyContent: "center",
   },
-  footer: { display: "none" },
-  footerSide: { display: "none" },
-  footerSideEnd: { display: "none" },
-  discardText: { color: colors.danger, fontSize: 15, fontWeight: "600" },
-  settingsText: { color: colors.text, fontSize: 15, fontWeight: "600" },
+  discardText: { color: colors.danger, fontSize: 16, fontWeight: "600" },
+  settingsText: { color: colors.text, fontSize: 16, fontWeight: "600" },
 });

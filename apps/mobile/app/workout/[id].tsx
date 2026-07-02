@@ -19,6 +19,7 @@ import {
   useThemedStyles,
   type Palette,
 } from "../../src/lib/theme";
+import { workoutTextStyles } from "../../src/lib/workout-common";
 
 function formatDuration(startedAt: string | Date, finishedAt: string | Date | null) {
   if (!finishedAt) return "—";
@@ -399,8 +400,8 @@ const makeStyles = (colors: Palette) =>
     screen: { flex: 1, backgroundColor: colors.bg },
     center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
     pad: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, gap: spacing.md },
-    title: { fontSize: 26, fontWeight: "800", color: colors.text },
-    renameHint: { fontSize: 12, color: colors.textDim, marginTop: 2 },
+    title: { ...workoutTextStyles.titleView, color: colors.text },
+    renameHint: { ...workoutTextStyles.renameHint, color: colors.textDim, marginTop: 2 },
     headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
     editRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
     editInput: {
@@ -410,8 +411,7 @@ const makeStyles = (colors: Palette) =>
       paddingHorizontal: spacing.md,
       paddingVertical: 10,
       color: colors.text,
-      fontSize: 20,
-      fontWeight: "700",
+      ...workoutTextStyles.titleInput,
     },
     saveChip: {
       backgroundColor: colors.accent,
@@ -419,8 +419,8 @@ const makeStyles = (colors: Palette) =>
       paddingHorizontal: spacing.lg,
       paddingVertical: 10,
     },
-    saveChipText: { color: colors.onAccent, fontWeight: "700", fontSize: 15 },
-    date: { fontSize: 14, color: colors.textMuted, marginTop: spacing.xs },
+    saveChipText: { ...workoutTextStyles.saveChipText, color: colors.onAccent },
+    date: { ...workoutTextStyles.date, color: colors.textMuted, marginTop: spacing.xs },
     statsRow: {
       flexDirection: "row",
       backgroundColor: colors.surface,
@@ -429,8 +429,8 @@ const makeStyles = (colors: Palette) =>
       marginTop: spacing.sm,
     },
     stat: { flex: 1, alignItems: "center", gap: 2 },
-    statValue: { fontSize: 17, fontWeight: "800", color: colors.text },
-    statLabel: { fontSize: 12, color: colors.textMuted },
+    statValue: { ...workoutTextStyles.statValue, color: colors.text },
+    statLabel: { ...workoutTextStyles.statLabel, color: colors.textMuted },
     routineBtn: {
       flexDirection: "row",
       alignItems: "center",
@@ -440,7 +440,7 @@ const makeStyles = (colors: Palette) =>
       borderRadius: radius.lg,
       paddingVertical: spacing.md,
     },
-    routineBtnText: { fontSize: 15, fontWeight: "700", color: colors.accent },
+    routineBtnText: { ...workoutTextStyles.routineBtnText, color: colors.accent },
     exerciseCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
@@ -448,24 +448,24 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.sm,
       marginTop: spacing.sm,
     },
-    exerciseName: { fontSize: 17, fontWeight: "700", color: colors.text },
+    exerciseName: { ...workoutTextStyles.exerciseName, color: colors.text },
     setHeader: {
       flexDirection: "row",
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.separator,
       paddingBottom: spacing.xs,
     },
-    headerText: { fontSize: 11, fontWeight: "700", color: colors.textDim },
+    headerText: { ...workoutTextStyles.setTableHeader, color: colors.textDim },
     setRow: { flexDirection: "row", paddingVertical: spacing.xs },
-    colSet: { width: 48, fontSize: 15, color: colors.textMuted },
-    colVal: { flex: 1, fontSize: 15, color: colors.text },
+    colSet: { width: 48, ...workoutTextStyles.setCell, color: colors.textMuted },
+    colVal: { flex: 1, ...workoutTextStyles.setCell, color: colors.text },
     photosSection: { marginTop: spacing.sm },
     photosHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
     photoAddBtn: {
       width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accent,
       alignItems: "center", justifyContent: "center",
     },
-    photosEmpty: { color: colors.textDim, fontSize: 13 },
+    photosEmpty: { ...workoutTextStyles.photosEmpty, color: colors.textDim },
     photosRow: { gap: spacing.sm, paddingVertical: spacing.xs },
     photoThumb: { width: 110, height: 145, borderRadius: radius.lg, backgroundColor: colors.surface },
   });

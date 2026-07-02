@@ -6,7 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import { HevyStackHeader } from "../src/components/hevy-ui";
 import { EmptyState, Screen } from "../src/components/ui";
 import { trpc } from "../src/lib/trpc";
-import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
 
 export default function PhotosScreen() {
   const router = useRouter();
@@ -150,14 +150,14 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "center",
     },
     grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-    card: { width: "47%", gap: 4 },
+    card: { width: "47%", gap: spacing.xs },
     img: {
       width: "100%",
       aspectRatio: 3 / 4,
       borderRadius: radius.lg,
       backgroundColor: colors.surface,
     },
-    date: { fontSize: 12, color: colors.textMuted, textAlign: "center" },
-    note: { fontSize: 11, color: colors.textDim, textAlign: "center" },
-    hint: { fontSize: 12, color: colors.textDim, textAlign: "center", marginTop: spacing.lg },
+    date: { ...typography.caption, color: colors.textMuted, textAlign: "center" },
+    note: { ...typography.label, color: colors.textDim, textAlign: "center" },
+    hint: { ...typography.caption, color: colors.textDim, textAlign: "center", marginTop: spacing.lg },
   });

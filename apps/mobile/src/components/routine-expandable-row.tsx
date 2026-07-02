@@ -5,7 +5,7 @@ import {
   formatRoutineExerciseDetail,
   type RoutineListItem,
 } from "../lib/routine-display";
-import { spacing, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
 import { ExerciseAvatar } from "./exercise-avatar";
 
 type RoutineExpandableRowProps = {
@@ -125,9 +125,9 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    body: { flex: 1, gap: 2 },
-    title: { fontSize: 17, color: colors.text, fontWeight: "400" },
-    subtitle: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    body: { flex: 1, gap: spacing.xs },
+    title: { ...typography.body, color: colors.text },
+    subtitle: { ...typography.caption, color: colors.textMuted },
     chevronBtn: {
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.md,
@@ -136,10 +136,10 @@ const makeStyles = (colors: Palette) =>
       paddingLeft: spacing.md,
       paddingRight: spacing.md,
       paddingBottom: spacing.md,
-      gap: 6,
+      gap: spacing.sm,
     },
     expandedExRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-    expandedLine: { flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    expandedLine: { flex: 1, ...typography.caption, color: colors.textMuted },
   });
 
 type RoutineExpandableCardProps = {
@@ -231,7 +231,7 @@ const makeCardStyles = (colors: Palette, shadows: ShadowSet) =>
   StyleSheet.create({
     card: {
       backgroundColor: colors.surface,
-      borderRadius: 12,
+      borderRadius: radius.lg,
       overflow: "hidden",
       ...shadows.md,
     },
@@ -253,9 +253,9 @@ const makeCardStyles = (colors: Palette, shadows: ShadowSet) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    body: { flex: 1, gap: 2 },
-    title: { fontSize: 16, fontWeight: "700", color: colors.text },
-    subtitle: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    body: { flex: 1, gap: spacing.xs },
+    title: { ...typography.h3, color: colors.text },
+    subtitle: { ...typography.caption, color: colors.textMuted },
     chevronBtn: {
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.md,
@@ -264,10 +264,10 @@ const makeCardStyles = (colors: Palette, shadows: ShadowSet) =>
       paddingHorizontal: spacing.md,
       paddingBottom: spacing.md,
       paddingTop: spacing.sm,
-      gap: 6,
+      gap: spacing.sm,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.separator,
     },
     expandedExRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-    expandedLine: { flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    expandedLine: { flex: 1, ...typography.caption, color: colors.textMuted },
   });

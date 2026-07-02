@@ -6,7 +6,7 @@ import { Screen } from "../src/components/ui";
 import { calculatePlates, generateWarmupSets } from "../src/lib/calculators";
 import { useUserPreferences } from "../src/lib/use-preferences";
 import { formatWeight, fromKg, toKg, weightLabel } from "../src/lib/units";
-import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
 
 type Tab = "plates" | "warmup";
 
@@ -160,7 +160,7 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.md,
     },
     numRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    numLabel: { fontSize: 15, fontWeight: "600", color: colors.text },
+    numLabel: { ...typography.body, fontWeight: "600", color: colors.text },
     numControls: { flexDirection: "row", alignItems: "center", gap: spacing.md },
     stepBtn: {
       width: 36,
@@ -170,8 +170,14 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    stepText: { fontSize: 20, fontWeight: "700", color: colors.text },
-    numValue: { fontSize: 22, fontWeight: "800", color: colors.text, minWidth: 56, textAlign: "center" },
+    stepText: { ...typography.h2, color: colors.text },
+    numValue: {
+      fontSize: 22, // Calculator result emphasis
+      fontWeight: "800",
+      color: colors.text,
+      minWidth: 56,
+      textAlign: "center",
+    },
     resultCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
@@ -179,20 +185,20 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.sm,
       marginTop: spacing.md,
     },
-    resultTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
-    muted: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
+    resultTitle: { ...typography.h2, color: colors.text },
+    muted: { ...typography.bodySmall, color: colors.textMuted, lineHeight: 20 },
     plateRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
     plateChip: {
       backgroundColor: colors.accentMuted,
       color: colors.accent,
+      ...typography.bodySmall,
       fontWeight: "700",
-      fontSize: 14,
       paddingVertical: 6,
       paddingHorizontal: 12,
       borderRadius: 999,
       overflow: "hidden",
     },
-    warn: { fontSize: 13, color: colors.gold, marginTop: spacing.sm },
+    warn: { ...typography.caption, color: colors.gold, marginTop: spacing.sm },
     warmupRow: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -200,6 +206,6 @@ const makeStyles = (colors: Palette) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.separator,
     },
-    warmupLabel: { fontSize: 15, fontWeight: "600", color: colors.textMuted },
-    warmupVal: { fontSize: 15, fontWeight: "700", color: colors.text },
+    warmupLabel: { ...typography.body, fontWeight: "600", color: colors.textMuted },
+    warmupVal: { ...typography.body, fontWeight: "700", color: colors.text },
   });

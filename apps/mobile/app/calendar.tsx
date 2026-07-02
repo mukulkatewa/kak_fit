@@ -1,11 +1,13 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { HevyStackHeader } from "../src/components/hevy-ui";
 import { EmptyState, ListGroup, ListRow, Screen } from "../src/components/ui";
 import { trpc } from "../src/lib/trpc";
-import { spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
+import { iconButtonStyle } from "../src/lib/layout-constants";
+import { useResponsive } from "../src/lib/responsive";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
 
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const MONTHS = [
@@ -31,9 +33,9 @@ function formatDayHeading(key: string) {
 export default function CalendarScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { width: screenWidth } = useWindowDimensions();
+  const { width, horizontalPadding } = useResponsive();
   const styles = useThemedStyles(makeStyles);
-  const cellSize = Math.floor((screenWidth - spacing.lg * 2) / 7);
+  const cellSize = Math.floor((width - horizontalPadding * 2) / 7);
 
   const { data: workouts, isLoading, isError, error, refetch } = trpc.progress.calendar.useQuery();
 
@@ -215,18 +217,18 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "space-between",
       marginBottom: spacing.md,
     },
-    navBtn: { padding: spacing.xs },
-    monthLabel: { fontSize: 20, fontWeight: "800", color: colors.text },
+    navBtn: { ...iconButtonStyle },
+    monthLabel: { ...typography.h2, color: colors.text },
     weekRow: { flexDirection: "row", marginBottom: spacing.xs },
     dayCell: { alignItems: "center", justifyContent: "center" },
-    weekday: { fontSize: 12, fontWeight: "700", color: colors.textDim },
+    weekday: { ...typography.label, color: colors.textDim },
     grid: { flexDirection: "row", flexWrap: "wrap" },
     dayDot: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
     dayDotActive: { backgroundColor: colors.accent },
     dayToday: { borderWidth: 1.5, borderColor: colors.accent },
     dayTodayActive: { borderWidth: 2, borderColor: colors.onAccent },
     daySelected: { borderWidth: 2, borderColor: colors.text },
-    dayText: { fontSize: 14, color: colors.text, fontWeight: "500" },
+    dayText: { ...typography.bodySmall, color: colors.text },
     dayTextActive: { color: colors.onAccent, fontWeight: "800" },
     dayTextFuture: { color: colors.textDim },
     dayTextSelected: { fontWeight: "800" },
@@ -241,14 +243,13 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "center",
       paddingHorizontal: 3,
     },
-    multiDotText: { fontSize: 9, fontWeight: "800", color: colors.bg },
+    multiDotText: { ...typography.label, fontSize: 9, color: colors.bg }, // compact calendar badge
     legend: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginVertical: spacing.md },
-    legendDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.accent },
-    legendText: { fontSize: 13, color: colors.textMuted, flex: 1 },
-    monthCount: { fontSize: 13, color: colors.accent, fontWeight: "700" },
+    legendDot: { width: spacing.md, height: spacing.md, borderRadius: spacing.sm, backgroundColor: colors.accent },
+    legendText: { ...typography.caption, color: colors.textMuted, flex: 1 },
+    monthCount: { ...typography.caption, color: colors.accent, fontWeight: "700" },
     selectedHeading: {
-      fontSize: 16,
-      fontWeight: "800",
+      ...typography.h3,
       color: colors.text,
       marginBottom: spacing.sm,
     },

@@ -18,6 +18,7 @@ import { parseOptionalNumber } from "../../../src/lib/workout-errors";
 import { useUserPreferences } from "../../../src/lib/use-preferences";
 import { fromKg, toKg, weightLabel } from "../../../src/lib/units";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../../../src/lib/theme";
+import { workoutTextStyles } from "../../../src/lib/workout-common";
 
 const SET_TYPES = ["NORMAL", "WARMUP", "DROP", "FAILURE"] as const;
 type SetType = (typeof SET_TYPES)[number];
@@ -236,8 +237,8 @@ const makeStyles = (colors: Palette) =>
     screen: { flex: 1, backgroundColor: colors.bg },
     center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
     pad: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, gap: spacing.md },
-    title: { fontSize: 24, fontWeight: "800", color: colors.text },
-    hint: { fontSize: 13, color: colors.textMuted, marginTop: spacing.xs },
+    title: { ...workoutTextStyles.titleEdit, color: colors.text },
+    hint: { ...workoutTextStyles.hint, color: colors.textMuted, marginTop: spacing.xs },
     exerciseCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
@@ -245,23 +246,22 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.sm,
       marginTop: spacing.sm,
     },
-    exerciseName: { fontSize: 17, fontWeight: "700", color: colors.text },
+    exerciseName: { ...workoutTextStyles.exerciseName, color: colors.text },
     setHeader: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingBottom: spacing.xs },
-    headerText: { fontSize: 11, fontWeight: "700", color: colors.textDim },
+    headerText: { ...workoutTextStyles.setTableHeader, color: colors.textDim },
     setRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.xs },
     setRowDone: { opacity: 0.9 },
     colSet: { width: 36, alignItems: "center" },
     colVal: { flex: 1 },
     colCheck: { width: 36, textAlign: "center" },
-    setNumber: { fontSize: 14, fontWeight: "700", color: colors.textMuted },
+    setNumber: { ...workoutTextStyles.setNumber, color: colors.textMuted },
     setInput: {
       backgroundColor: colors.surfaceHover,
       borderRadius: radius.sm,
+      ...workoutTextStyles.setInput,
       color: colors.text,
       paddingVertical: 8,
       paddingHorizontal: 6,
-      fontSize: 15,
-      fontWeight: "500",
       textAlign: "center",
     },
     check: {
@@ -274,5 +274,5 @@ const makeStyles = (colors: Palette) =>
     },
     checkDone: { backgroundColor: colors.accentMuted },
     addSetBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.xs },
-    addSetText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
+    addSetText: { ...workoutTextStyles.addSetText, color: colors.accent },
   });

@@ -27,11 +27,14 @@ import { formatRestTime } from "../src/lib/rest-timer";
 import {
   radius,
   spacing,
+  typography,
   useTheme,
   useThemedStyles,
   type Palette,
+  type ShadowSet,
   type ThemeMode,
 } from "../src/lib/theme";
+import { BUTTON_HEIGHT_PRIMARY, TOUCH_TARGET_MIN } from "../src/lib/layout-constants";
 
 type ThemeIcon = FC<{ color?: string; size?: number }>;
 
@@ -336,10 +339,10 @@ export default function SettingsScreen() {
   );
 }
 
-const makeStyles = (colors: Palette) =>
+const makeStyles = (colors: Palette, shadows: ShadowSet) =>
   StyleSheet.create({
     sectionLabel: {
-      fontSize: 13,
+      ...typography.caption,
       color: colors.textMuted,
       fontWeight: "600",
       marginTop: spacing.sm,
@@ -349,6 +352,7 @@ const makeStyles = (colors: Palette) =>
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
       overflow: "hidden",
+      ...shadows.sm,
     },
     row: {
       flexDirection: "row",
@@ -362,8 +366,8 @@ const makeStyles = (colors: Palette) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.separator,
     },
-    rowLabel: { flex: 1, fontSize: 16, color: colors.text },
-    rowValue: { fontSize: 14, color: colors.textMuted },
+    rowLabel: { flex: 1, ...typography.body, color: colors.text },
+    rowValue: { ...typography.bodySmall, color: colors.textMuted },
     radioEmpty: {
       width: 22,
       height: 22,
@@ -373,18 +377,21 @@ const makeStyles = (colors: Palette) =>
     },
     restRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     restChip: {
-      paddingVertical: 10,
-      paddingHorizontal: 16,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
       borderRadius: radius.md,
       borderWidth: 1,
+      minHeight: TOUCH_TARGET_MIN,
+      justifyContent: "center",
     },
-    restChipText: { fontSize: 14, fontWeight: "600" },
+    restChipText: { ...typography.bodySmall, fontWeight: "600" },
     signOutBtn: {
       backgroundColor: colors.danger,
       borderRadius: radius.lg,
-      paddingVertical: 16,
+      minHeight: BUTTON_HEIGHT_PRIMARY,
       alignItems: "center",
+      justifyContent: "center",
       marginTop: spacing.sm,
     },
-    signOutText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+    signOutText: { ...typography.button, color: "#fff" },
   });

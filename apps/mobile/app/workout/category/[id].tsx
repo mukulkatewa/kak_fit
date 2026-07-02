@@ -8,7 +8,7 @@ import { buildRoutinePayload, resolveExerciseIds } from "../../../src/lib/import
 import { trpc } from "../../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../../src/lib/workout-navigation";
-import { useThemedStyles, spacing, type Palette } from "../../../src/lib/theme";
+import { useThemedStyles, spacing, typography, type Palette } from "../../../src/lib/theme";
 
 type DialogButton = {
   label: string;
@@ -179,7 +179,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg },
   error: { color: colors.textMuted, textAlign: "center", marginTop: 40 },
   hero: { alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg },
-  heroIcon: { fontSize: 48 },
-  heroDesc: { color: colors.textMuted, fontSize: 15, textAlign: "center", lineHeight: 22 },
-  sectionTitle: { fontSize: 20, fontWeight: "700", color: colors.text },
+  heroIcon: { fontSize: 48 }, // Decorative emoji scale
+  heroDesc: { ...typography.body, color: colors.textMuted, textAlign: "center", lineHeight: 22 },
+  sectionTitle: { ...typography.h2, color: colors.text },
 });

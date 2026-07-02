@@ -26,6 +26,7 @@ import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { useUserPreferences } from "../../src/lib/use-preferences";
 import { useTheme, useThemedStyles, spacing, radius, typography, type Palette } from "../../src/lib/theme";
+import { workoutTextStyles } from "../../src/lib/workout-common";
 import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
 import type { RouterOutputs } from "@kak-fit/api/router";
 
@@ -515,23 +516,22 @@ const makeStyles = (colors: Palette) =>
     list: { gap: spacing.xl },
     folderSection: { gap: spacing.sm },
     folderHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-    folderName: { flex: 1, color: colors.text, fontSize: 16, fontWeight: "700" },
+    folderName: { flex: 1, ...workoutTextStyles.folderName, color: colors.text },
     folderCount: {
+      ...workoutTextStyles.folderCount,
       color: colors.textMuted,
-      fontSize: 12,
-      fontWeight: "700",
       backgroundColor: colors.surfaceHover,
       borderRadius: radius.full,
       paddingHorizontal: 8,
       paddingVertical: 2,
       overflow: "hidden",
     },
-    folderEmpty: { color: colors.textDim, fontSize: 13, paddingLeft: spacing.sm },
-    ungroupedLabel: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+    folderEmpty: { ...workoutTextStyles.folderEmpty, color: colors.textDim, paddingLeft: spacing.sm },
+    ungroupedLabel: { ...workoutTextStyles.ungroupedLabel, color: colors.textMuted },
     routineWrap: { gap: spacing.sm },
     actions: { flexDirection: "row", gap: spacing.lg, paddingHorizontal: spacing.sm, flexWrap: "wrap" },
     actionBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-    actionText: { color: colors.textMuted, fontSize: 13 },
+    actionText: { ...workoutTextStyles.actionText, color: colors.textMuted },
     danger: { color: colors.danger },
     emptyWrap: { gap: spacing.lg, alignItems: "center", marginTop: spacing.xl },
     modalBackdrop: {
@@ -550,18 +550,18 @@ const makeStyles = (colors: Palette) =>
       borderWidth: 1,
       borderColor: colors.border,
     },
-    modalTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
+    modalTitle: { ...workoutTextStyles.modalTitle, color: colors.text },
     modalInput: {
       backgroundColor: colors.surface,
       borderRadius: radius.md,
       paddingHorizontal: spacing.md,
       paddingVertical: 12,
+      ...workoutTextStyles.modalInput,
       color: colors.text,
-      fontSize: 16,
     },
     modalActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: spacing.lg },
-    modalCancel: { color: colors.textMuted, fontSize: 15, fontWeight: "600" },
-    moveRoutineName: { color: colors.textMuted, fontSize: 15 },
+    modalCancel: { ...workoutTextStyles.modalCancel, color: colors.textMuted },
+    moveRoutineName: { ...workoutTextStyles.moveRoutineName, color: colors.textMuted },
     moveOptions: { gap: spacing.sm },
     moveOption: {
       flexDirection: "row",
@@ -572,10 +572,10 @@ const makeStyles = (colors: Palette) =>
       borderRadius: radius.md,
       backgroundColor: colors.surfaceHover,
     },
-    moveOptionText: { color: colors.text, fontSize: 16, fontWeight: "500" },
+    moveOptionText: { ...workoutTextStyles.moveOptionText, color: colors.text },
     moveCancel: { alignItems: "flex-end", paddingTop: spacing.sm },
     modalSave: { backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 10 },
-    modalSaveText: { color: colors.onAccent, fontSize: 15, fontWeight: "700" },
+    modalSaveText: { ...workoutTextStyles.modalSaveText, color: colors.onAccent },
     previewSheet: {
       ...flexFill,
       backgroundColor: colors.bg,
@@ -591,13 +591,13 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.md,
     },
     previewTitle: { flex: 1, ...typography.h1, color: colors.text },
-    previewNotes: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
+    previewNotes: { ...workoutTextStyles.previewNotes, color: colors.textMuted },
     previewLoading: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
-    previewError: { color: colors.textMuted, fontSize: 15, textAlign: "center" },
+    previewError: { ...workoutTextStyles.previewError, color: colors.textMuted, textAlign: "center" },
     previewScroll: { ...flexFill },
     previewScrollContent: { gap: spacing.md, paddingBottom: spacing.md },
     previewExerciseRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
     previewExerciseBody: { flex: 1, gap: 2 },
-    previewExerciseName: { fontSize: 16, fontWeight: "700", color: colors.text },
-    previewExerciseDetail: { fontSize: 13, color: colors.textMuted },
+    previewExerciseName: { ...workoutTextStyles.previewExerciseName, color: colors.text },
+    previewExerciseDetail: { ...workoutTextStyles.previewExerciseDetail, color: colors.textMuted },
   });

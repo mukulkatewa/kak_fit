@@ -8,7 +8,7 @@ import { getProgram, type ProgramRoutineTemplate } from "../../../src/lib/explor
 import { trpc } from "../../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../../src/lib/workout-navigation";
-import { spacing, useTheme, useThemedStyles, type Palette } from "../../../src/lib/theme";
+import { spacing, typography, useTheme, useThemedStyles, type Palette } from "../../../src/lib/theme";
 
 type DialogButton = {
   label: string;
@@ -384,8 +384,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
   },
-  pillText: { color: colors.textMuted, fontSize: 13, fontWeight: "500" },
-  sectionTitle: { fontSize: 20, fontWeight: "700", color: colors.text },
+  pillText: { ...typography.caption, color: colors.textMuted },
+  sectionTitle: { ...typography.h2, color: colors.text },
   expandBtn: { padding: 4 },
   exerciseExpand: {
     gap: spacing.sm,
@@ -396,5 +396,5 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   exerciseExpandLast: { borderBottomWidth: 0 },
   exerciseRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingLeft: spacing.sm },
-  exerciseName: { color: colors.textMuted, fontSize: 15 },
+  exerciseName: { ...typography.body, color: colors.textMuted },
 });

@@ -6,7 +6,7 @@ import { BarChart } from "../src/components/charts";
 import { Button, Header, Input, ListGroup, ListRow, Screen, SectionHeader, ThemedDialog, useToast } from "../src/components/ui";
 import { HevySegmentedControl } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
-import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../src/lib/theme";
 
 type Field = "weight" | "bodyFat" | "waist" | "chest" | "arms";
 const FIELDS: Array<{ key: Field; label: string; unit: string }> = [
@@ -194,15 +194,23 @@ export default function MeasurementsScreen() {
   );
 }
 
-const makeStyles = (colors: Palette) => StyleSheet.create({
-  latest: { backgroundColor: colors.surface, borderRadius: 12, padding: spacing.lg, gap: 4 },
-  latestLabel: { fontSize: 13, color: colors.textMuted },
-  latestVal: { fontSize: 22, fontWeight: "700", color: colors.text },
-  latestDate: { fontSize: 13, color: colors.textDim },
+const makeStyles = (colors: Palette, shadows: ShadowSet) => StyleSheet.create({
+  latest: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.sm,
+  },
+  latestLabel: { ...typography.caption, color: colors.textMuted },
+  latestVal: { ...typography.h2, color: colors.text },
+  latestDate: { ...typography.caption, color: colors.textDim },
   form: { gap: spacing.md },
   photoLink: {
     flexDirection: "row", alignItems: "center", gap: spacing.sm,
     justifyContent: "center", paddingVertical: spacing.lg,
   },
-  photoLinkText: { color: colors.accent, fontSize: 15, fontWeight: "600" },
+  photoLinkText: { ...typography.button, color: colors.accent },
 });

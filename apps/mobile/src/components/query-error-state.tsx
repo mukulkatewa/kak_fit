@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Button } from "./ui";
-import { spacing, useThemedStyles, type Palette } from "../lib/theme";
+import { spacing, typography, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
 
 type QueryErrorStateProps = {
   message?: string;
@@ -24,5 +24,5 @@ export function QueryErrorState({
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     wrap: { alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg },
-    text: { color: colors.danger, fontSize: 15, fontWeight: "600", textAlign: "center" },
+    text: { ...typography.body, color: colors.danger, fontWeight: "600", textAlign: "center" },
   });

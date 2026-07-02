@@ -12,7 +12,8 @@ import {
   type ProgramGoal,
   type ProgramLevel,
 } from "../../src/lib/explore-data";
-import { useTheme, useThemedStyles, spacing, type Palette } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, radius, typography, type Palette } from "../../src/lib/theme";
+import { TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
 
 type FilterKey = "level" | "goal" | "equipment" | null;
 
@@ -127,16 +128,18 @@ export default function AllProgramsScreen() {
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
   pad: { paddingHorizontal: spacing.lg, gap: spacing.lg },
-  filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "flex-start" },
   filterOption: {
     backgroundColor: colors.surface,
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    borderRadius: radius.full,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    minHeight: TOUCH_TARGET_MIN,
+    alignSelf: "flex-start",
   },
   filterOptionActive: { backgroundColor: colors.accent },
-  filterOptionText: { color: colors.text, fontSize: 14, fontWeight: "500" },
+  filterOptionText: { ...typography.bodySmall, color: colors.text },
   filterOptionTextActive: { color: "#fff" },
   list: { gap: spacing.md },
-  empty: { color: colors.textMuted, textAlign: "center", marginTop: spacing.xl },
+  empty: { ...typography.bodySmall, color: colors.textMuted, textAlign: "center", marginTop: spacing.xl },
 });

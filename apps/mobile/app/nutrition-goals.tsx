@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { HevyModalHeader } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
-import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
+import { TOUCH_TARGET_MIN } from "../src/lib/layout-constants";
 
 export default function NutritionGoalsScreen() {
   const router = useRouter();
@@ -89,17 +90,18 @@ const makeStyles = (colors: Palette) =>
     headerPad: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl },
     body: { padding: spacing.lg, gap: spacing.md },
     row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    label: { fontSize: 16, color: colors.text, fontWeight: "600" },
+    label: { ...typography.body, color: colors.text, fontWeight: "600" },
     inputWrap: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
+      gap: spacing.sm,
       backgroundColor: colors.surface,
       borderRadius: radius.md,
       paddingHorizontal: spacing.md,
       minWidth: 130,
+      minHeight: TOUCH_TARGET_MIN,
     },
-    input: { flex: 1, color: colors.text, fontSize: 16, paddingVertical: 12, textAlign: "right" },
-    unit: { color: colors.textMuted, fontSize: 14 },
-    hint: { color: colors.textDim, fontSize: 13, marginTop: spacing.sm },
+    input: { flex: 1, color: colors.text, ...typography.body, paddingVertical: spacing.md, textAlign: "right" },
+    unit: { ...typography.bodySmall, color: colors.textMuted },
+    hint: { ...typography.caption, color: colors.textDim, marginTop: spacing.sm },
   });

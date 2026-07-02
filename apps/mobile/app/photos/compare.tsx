@@ -5,7 +5,7 @@ import { Image } from "expo-image";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
 import { Button, EmptyState, Screen } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
-import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 export default function PhotoCompareScreen() {
   const router = useRouter();
@@ -153,9 +153,9 @@ const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     compareRow: { flexDirection: "row", gap: spacing.sm },
     pane: { flex: 1, gap: spacing.xs },
-    paneLabel: { fontSize: 13, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
+    paneLabel: { ...typography.caption, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
     paneImg: { width: "100%", aspectRatio: 3 / 4, borderRadius: radius.lg, backgroundColor: colors.surface },
-    paneDate: { fontSize: 11, color: colors.textDim, textAlign: "center" },
+    paneDate: { ...typography.label, color: colors.textDim, textAlign: "center" },
     paneEmpty: {
       aspectRatio: 3 / 4,
       borderRadius: radius.lg,
@@ -164,13 +164,13 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "center",
       padding: spacing.sm,
     },
-    paneEmptyText: { fontSize: 12, color: colors.textDim, textAlign: "center" },
-    delta: { textAlign: "center", fontSize: 14, fontWeight: "700", color: colors.accent, marginTop: spacing.sm },
-    hint: { fontSize: 12, color: colors.textDim, textAlign: "center", marginVertical: spacing.md },
+    paneEmptyText: { ...typography.label, color: colors.textDim, textAlign: "center" },
+    delta: { ...typography.bodySmall, fontWeight: "700", color: colors.accent, textAlign: "center", marginTop: spacing.sm },
+    hint: { ...typography.label, color: colors.textDim, textAlign: "center", marginVertical: spacing.md },
     thumbGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     thumb: { width: "30%", gap: 2, borderRadius: radius.md, padding: 2 },
     thumbActive: { borderWidth: 2, borderColor: colors.accent },
     thumbImg: { width: "100%", aspectRatio: 1, borderRadius: radius.sm, backgroundColor: colors.surface },
-    thumbDate: { fontSize: 10, color: colors.textDim, textAlign: "center" },
-    thumbBadge: { fontSize: 10, fontWeight: "700", color: colors.accent, textAlign: "center" },
+    thumbDate: { ...typography.label, fontSize: 10, color: colors.textDim, textAlign: "center" }, // compact thumbnail label
+    thumbBadge: { ...typography.label, fontSize: 10, fontWeight: "700", color: colors.accent, textAlign: "center" },
   });

@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Screen, SearchBar, ThemedDialog, useToast } from "../../src/components/ui";
 import { HevyInfoStrip, HevyModalHeader, HevyUnderlineInput } from "../../src/components/hevy-ui";
 import { trpc } from "../../src/lib/trpc";
-import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, radius, typography, type Palette } from "../../src/lib/theme";
 import { useUserPreferences } from "../../src/lib/use-preferences";
 import { fromKg, toKg, weightLabel } from "../../src/lib/units";
 import { parseOptionalNumber } from "../../src/lib/workout-errors";
@@ -820,13 +820,18 @@ const makeStyles = (colors: Palette) =>
       paddingHorizontal: spacing.xl,
       paddingBottom: spacing.xxl,
     },
-    errorTitle: { color: colors.text, fontSize: 18, fontWeight: "700", textAlign: "center" },
-    errorText: { color: colors.textMuted, fontSize: 15, textAlign: "center", lineHeight: 22 },
+    errorTitle: {
+      fontSize: 18, // Error state title emphasis
+      fontWeight: "700",
+      color: colors.text,
+      textAlign: "center",
+    },
+    errorText: { ...typography.body, color: colors.textMuted, textAlign: "center", lineHeight: 22 },
     scroll: { ...flexFill },
     scrollContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.md },
-    nameErrorText: { color: colors.danger, fontSize: 13, fontWeight: "500", marginTop: spacing.xs },
+    nameErrorText: { ...typography.caption, color: colors.danger, marginTop: spacing.xs },
     nameSuggestions: { gap: spacing.sm, marginTop: spacing.xs },
-    nameSuggestionsLabel: { color: colors.textDim, fontSize: 12, fontWeight: "600" },
+    nameSuggestionsLabel: { ...typography.label, color: colors.textDim },
     nameSuggestionChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     nameSuggestionChip: {
       backgroundColor: colors.surface,
@@ -840,7 +845,7 @@ const makeStyles = (colors: Palette) =>
       backgroundColor: colors.accentMuted,
       borderColor: colors.accent,
     },
-    nameSuggestionChipText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+    nameSuggestionChipText: { ...typography.caption, color: colors.textMuted, fontWeight: "600" },
     nameSuggestionChipTextActive: { color: colors.accent },
     empty: {
       flex: 1,
@@ -850,8 +855,8 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: 80,
     },
     emptyText: {
+      ...typography.body,
       color: colors.textMuted,
-      fontSize: 15,
       textAlign: "center",
       maxWidth: 260,
       lineHeight: 22,
@@ -865,7 +870,7 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: 14,
       paddingHorizontal: 28,
     },
-    addBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+    addBtnText: { ...typography.button, color: "#fff", fontWeight: "600" },
 
     // Exercise card
     supersetRow: {
@@ -875,7 +880,7 @@ const makeStyles = (colors: Palette) =>
       paddingLeft: spacing.sm,
       paddingVertical: 4,
     },
-    supersetText: { fontSize: 12, color: colors.textDim, fontWeight: "600" },
+    supersetText: { ...typography.label, color: colors.textDim, fontWeight: "600" },
     supersetTextActive: { color: colors.accent },
     card: {
       backgroundColor: colors.surface,
@@ -886,18 +891,18 @@ const makeStyles = (colors: Palette) =>
     },
     cardLinked: { borderLeftWidth: 3, borderLeftColor: colors.accent },
     cardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-    exerciseName: { flex: 1, minWidth: 0, color: colors.accent, fontSize: 15, fontWeight: "700" },
+    exerciseName: { flex: 1, minWidth: 0, ...typography.h3, color: colors.accent },
     dimmed: { opacity: 0.3 },
     notesInput: {
+      ...typography.caption,
       color: colors.text,
-      fontSize: 13,
       paddingVertical: spacing.xs,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.separator,
     },
     restRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-    restLabel: { color: colors.textDim, fontSize: 13 },
-    restValue: { color: colors.textDim, fontSize: 13, fontWeight: "600" },
+    restLabel: { ...typography.caption, color: colors.textDim },
+    restValue: { ...typography.caption, color: colors.textDim, fontWeight: "600" },
     restValueActive: { color: colors.accent },
 
     // Set header / rows
@@ -909,9 +914,9 @@ const makeStyles = (colors: Palette) =>
     },
     setCol: {
       flex: 1,
-      color: colors.textDim,
-      fontSize: 11,
+      fontSize: 11, // Compact set table column header - intentional for data density
       fontWeight: "600",
+      color: colors.textDim,
       textAlign: "center",
     },
     setColNarrow: { flex: 0, width: 32 },
@@ -922,18 +927,17 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.xs,
     },
     setTypeBtn: { width: 32, alignItems: "center" },
-    setNumber: { fontSize: 13, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
-    setTypeBadge: { fontSize: 13, fontWeight: "700", textAlign: "center" },
+    setNumber: { ...typography.caption, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
+    setTypeBadge: { ...typography.caption, fontWeight: "700", textAlign: "center" },
     setInput: {
       flex: 1,
       minWidth: 0,
       backgroundColor: colors.surfaceHover,
       borderRadius: radius.sm,
+      ...typography.body,
       color: colors.text,
       paddingVertical: 7,
       paddingHorizontal: 6,
-      fontSize: 15,
-      fontWeight: "500",
       textAlign: "center",
     },
     removeSetBtn: { width: 28, alignItems: "center" },
@@ -943,7 +947,7 @@ const makeStyles = (colors: Palette) =>
       gap: 4,
       paddingTop: spacing.xs,
     },
-    addSetText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
+    addSetText: { ...typography.bodySmall, color: colors.accent, fontWeight: "600" },
 
     // Picker
     picker: {
@@ -957,7 +961,7 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "space-between",
       alignItems: "center",
     },
-    pickerTitle: { fontSize: 20, fontWeight: "700", color: colors.text },
+    pickerTitle: { ...typography.h2, color: colors.text },
     pickerRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -966,5 +970,5 @@ const makeStyles = (colors: Palette) =>
       borderBottomColor: colors.separator,
       gap: spacing.md,
     },
-    pickerName: { flex: 1, color: colors.text, fontSize: 16 },
+    pickerName: { flex: 1, ...typography.h3, color: colors.text },
   });

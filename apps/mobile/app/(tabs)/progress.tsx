@@ -35,7 +35,7 @@ import { entranceDown } from "../../src/lib/animations";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { formatWeight, tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../../src/lib/theme";
 
 function AnimatedStatBlock({
   index,
@@ -437,11 +437,11 @@ export default function ProgressScreen() {
   );
 }
 
-const makeStyles = (colors: Palette) =>
+const makeStyles = (colors: Palette, shadows: ShadowSet) =>
   StyleSheet.create({
     statsRow: {
       flexDirection: "row",
-      borderRadius: 12,
+      borderRadius: radius.lg,
       paddingVertical: spacing.lg,
       paddingHorizontal: spacing.md,
       overflow: "hidden",
@@ -452,8 +452,11 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       gap: spacing.md,
       backgroundColor: colors.surface,
-      borderRadius: 12,
+      borderRadius: radius.lg,
       padding: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...shadows.sm,
     },
     prBadgeWrap: { position: "relative" },
     prBadgeGlow: {

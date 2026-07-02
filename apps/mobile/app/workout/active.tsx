@@ -58,7 +58,7 @@ import {
   WORKOUT_HISTORY_PAGE_SIZE,
   workoutHistoryInfiniteOptions,
 } from "../../src/lib/workout-history-query";
-import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, radius, typography, type Palette } from "../../src/lib/theme";
 
 const SET_TYPES = ["NORMAL", "WARMUP", "DROP", "FAILURE"] as const;
 type SetType = (typeof SET_TYPES)[number];
@@ -1443,7 +1443,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "left",
-    fontSize: 22,
+    fontSize: 22, // Stat emphasis - intentional
     fontWeight: "700",
     color: colors.text,
   },
@@ -1467,12 +1467,18 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   statsItem: { flex: 1, minWidth: 0, alignItems: "flex-start", justifyContent: "center", gap: 2 },
   statsIconCell: { width: 52, alignItems: "flex-end", justifyContent: "center" },
   statsBodyIcons: { flexDirection: "row", alignItems: "center", gap: 2 },
-  statsValue: { width: "100%", fontSize: 22, fontWeight: "700", color: colors.text, lineHeight: 26 },
-  statsLabel: { fontSize: 13, fontWeight: "400", color: colors.textMuted },
+  statsValue: {
+    width: "100%",
+    fontSize: 22, // Stat emphasis - intentional
+    fontWeight: "700",
+    color: colors.text,
+    lineHeight: 26,
+  },
+  statsLabel: { ...typography.caption, fontWeight: "400", color: colors.textMuted },
   statsDivider: { display: "none" },
   offlineMeta: {
+    ...typography.label,
     color: colors.textMuted,
-    fontSize: 12,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xs,
     marginBottom: spacing.sm,
@@ -1486,8 +1492,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginBottom: spacing.sm,
   },
   syncBannerText: {
+    ...typography.label,
     color: colors.textMuted,
-    fontSize: 12,
     fontWeight: "600",
   },
   syncErrorBanner: {
@@ -1503,19 +1509,23 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   syncErrorText: {
     flex: 1,
+    ...typography.label,
     color: colors.danger,
-    fontSize: 12,
     fontWeight: "600",
   },
   syncRetryText: {
+    ...typography.label,
     color: colors.accent,
-    fontSize: 12,
     fontWeight: "700",
   },
   contentPad: { paddingHorizontal: 0 },
   mainColumn: { flex: 1, minHeight: 0 },
-  workoutTitle: { fontSize: 28, fontWeight: "700", color: colors.text },
-  meta: { color: colors.textMuted, fontSize: 15, marginTop: 2 },
+  workoutTitle: {
+    fontSize: 28, // Hero title - intentional emphasis
+    fontWeight: "700",
+    color: colors.text,
+  },
+  meta: { ...typography.body, color: colors.textMuted, marginTop: 2 },
   restBar: {
     backgroundColor: colors.accentMuted,
     borderRadius: radius.lg,
@@ -1525,18 +1535,22 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.sm,
   },
-  restLabel: { color: colors.accent, fontWeight: "600", fontSize: 15 },
+  restLabel: { ...typography.body, color: colors.accent, fontWeight: "600" },
   restCenter: { flex: 1, alignItems: "center" },
   restCenterTop: { flexDirection: "row", alignItems: "center", gap: 6 },
-  restTime: { color: colors.text, fontWeight: "700", fontSize: 28 },
-  restHint: { color: colors.textDim, fontSize: 12 },
+  restTime: {
+    fontSize: 28, // Rest timer - intentional emphasis
+    fontWeight: "700",
+    color: colors.text,
+  },
+  restHint: { ...typography.label, color: colors.textDim },
   restAdjustBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     minWidth: 44,
     alignItems: "center",
   },
-  restAdjustText: { fontSize: 14, fontWeight: "600", color: colors.accent },
+  restAdjustText: { ...typography.bodySmall, fontWeight: "600", color: colors.accent },
   scroll: { flex: 1, minHeight: 0 },
   scrollContent: { flexGrow: 1, paddingBottom: spacing.xxl },
   emptyWorkoutShell: {
@@ -1564,13 +1578,13 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginBottom: spacing.sm,
   },
   emptyHeroTitle: {
-    fontSize: 24,
+    fontSize: 24, // Empty hero - intentional emphasis
     fontWeight: "700",
     color: colors.text,
     textAlign: "center",
   },
   emptyHeroSubtitle: {
-    fontSize: 16,
+    ...typography.h3,
     lineHeight: 22,
     color: colors.textMuted,
     textAlign: "center",
@@ -1586,20 +1600,27 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
   exerciseHeaderMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.md },
-  exerciseName: { flex: 1, minWidth: 0, color: colors.accent, fontSize: 18, lineHeight: 22, fontWeight: "600" },
+  exerciseName: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 18, // Exercise name emphasis
+    lineHeight: 22,
+    fontWeight: "600",
+    color: colors.accent,
+  },
   iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   supersetBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginBottom: 4 },
-  supersetBadgeText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
-  prevMeta: { color: colors.textDim, fontSize: 12, marginTop: spacing.sm },
+  supersetBadgeText: { ...typography.label, color: colors.accent, fontWeight: "700" },
+  prevMeta: { ...typography.label, color: colors.textDim, marginTop: spacing.sm },
   exerciseNotesInput: {
+    ...typography.body,
     color: colors.textMuted,
-    fontSize: 15,
     lineHeight: 20,
     paddingVertical: spacing.sm,
     paddingHorizontal: 0,
   },
   exerciseRestRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs, marginBottom: spacing.md },
-  exerciseRestText: { color: colors.accent, fontSize: 14, lineHeight: 18, fontWeight: "500" },
+  exerciseRestText: { ...typography.bodySmall, color: colors.accent, lineHeight: 18 },
   setTable: { gap: 4 },
   setHeader: {
     flexDirection: "row",
@@ -1608,10 +1629,10 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     paddingBottom: 4,
   },
   setHeaderLabel: {
-    color: colors.textDim,
-    fontSize: 10,
+    fontSize: 10, // Compact table header - intentional for data density
     fontWeight: "700",
     letterSpacing: 0.4,
+    color: colors.textDim,
     textAlign: "center",
     textTransform: "uppercase",
   },
@@ -1622,7 +1643,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     gap: 3,
   },
   prevCol: { alignItems: "center", justifyContent: "center" },
-  prevColText: { color: colors.textMuted, fontSize: 12, fontWeight: "500", textAlign: "center" },
+  prevColText: { ...typography.label, color: colors.textMuted, fontWeight: "500", textAlign: "center" },
   setRow: {
     minHeight: 48,
     flexDirection: "row",
@@ -1632,7 +1653,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderRadius: radius.sm,
   },
   setRowDone: { backgroundColor: colors.successMuted },
-  setNumber: { fontSize: 14, fontWeight: "700", textAlign: "center" },
+  setNumber: { ...typography.bodySmall, fontWeight: "700", textAlign: "center" },
   setTypeBtn: { alignItems: "center", justifyContent: "center" },
   rpeCell: {
     minHeight: 40,
@@ -1641,13 +1662,13 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderRadius: radius.sm,
     backgroundColor: colors.surfaceHover,
   },
-  rpeText: { color: colors.text, fontSize: 13, fontWeight: "600", textAlign: "center" },
+  rpeText: { ...typography.caption, color: colors.text, fontWeight: "600", textAlign: "center" },
   setInput: {
     minWidth: 0,
+    ...typography.body,
     color: colors.text,
     paddingVertical: 10,
     paddingHorizontal: 4,
-    fontSize: 15,
     fontWeight: "600",
     textAlign: "center",
     backgroundColor: colors.surfaceHover,
@@ -1675,7 +1696,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderRadius: radius.sm,
     width: 88,
   },
-  deleteActionText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  deleteActionText: { ...typography.bodySmall, color: "#fff", fontWeight: "700" },
   addSetBtn: {
     minHeight: 44,
     marginTop: spacing.md,
@@ -1688,7 +1709,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderSubtle,
   },
-  addSet: { color: colors.text, fontSize: 15, fontWeight: "600" },
+  addSet: { ...typography.body, color: colors.text, fontWeight: "600" },
   pickerModal: {
     flex: 1,
     ...webFlexScreen,
@@ -1701,8 +1722,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  pickerTitle: { fontSize: 20, fontWeight: "700", color: colors.text },
-  pickerSubtitle: { fontSize: 12, marginTop: 2 },
+  pickerTitle: { ...typography.h2, color: colors.text },
+  pickerSubtitle: { ...typography.label, marginTop: 2 },
   pickerList: { flex: 1 },
   pickerListContent: { paddingBottom: spacing.md, gap: 6 },
   pickerItem: {
@@ -1714,7 +1735,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderRadius: radius.md,
     marginBottom: 6,
   },
-  pickerText: { color: colors.text, fontSize: 15, fontWeight: "500", flex: 1 },
+  pickerText: { ...typography.body, color: colors.text, flex: 1 },
   summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   summaryItem: {
     flexGrow: 1,
@@ -1724,13 +1745,17 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     padding: spacing.md,
     alignItems: "center",
   },
-  summaryValue: { color: colors.text, fontSize: 18, fontWeight: "800" },
-  summaryLabel: { color: colors.textDim, fontSize: 12, fontWeight: "600", marginTop: 2 },
+  summaryValue: {
+    fontSize: 18, // Summary emphasis - intentional
+    fontWeight: "800",
+    color: colors.text,
+  },
+  summaryLabel: { ...typography.label, color: colors.textDim, fontWeight: "600", marginTop: 2 },
   finishInput: {
     backgroundColor: colors.surfaceHover,
     borderRadius: radius.md,
+    ...typography.button,
     color: colors.text,
-    fontSize: 16,
     padding: spacing.md,
   },
   finishNotes: { minHeight: 86, textAlignVertical: "top" },
@@ -1741,11 +1766,15 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.sm,
   },
-  finishModalTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
+  finishModalTitle: {
+    fontSize: 18, // Modal title emphasis - intentional
+    fontWeight: "800",
+    color: colors.text,
+  },
   finishModalHeaderSpacer: { width: 24 },
   finishFieldLabel: {
+    ...typography.caption,
     color: colors.textMuted,
-    fontSize: 13,
     fontWeight: "600",
     marginBottom: spacing.xs,
   },
@@ -1771,14 +1800,19 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  confirmTitle: { fontSize: 18, fontWeight: "800", color: colors.text, textAlign: "center" },
+  confirmTitle: {
+    fontSize: 18, // Confirm modal title emphasis - intentional
+    fontWeight: "800",
+    color: colors.text,
+    textAlign: "center",
+  },
   confirmSubtitle: {
+    ...typography.bodySmall,
     color: colors.textMuted,
-    fontSize: 14,
     textAlign: "center",
     marginBottom: spacing.sm,
   },
-  confirmError: { color: colors.danger, fontSize: 14, textAlign: "center" },
+  confirmError: { ...typography.bodySmall, color: colors.danger, textAlign: "center" },
   confirmAction: {
     alignItems: "center",
     justifyContent: "center",
@@ -1787,12 +1821,12 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     backgroundColor: colors.surfaceHover,
   },
   confirmActionDanger: { backgroundColor: "rgba(239,68,68,0.12)" },
-  confirmActionText: { color: colors.text, fontSize: 16, fontWeight: "600" },
-  confirmActionMutedText: { color: colors.textMuted, fontSize: 16, fontWeight: "600" },
-  confirmActionDangerText: { color: colors.danger, fontSize: 16, fontWeight: "700" },
+  confirmActionText: { ...typography.button, color: colors.text, fontWeight: "600" },
+  confirmActionMutedText: { ...typography.button, color: colors.textMuted, fontWeight: "600" },
+  confirmActionDangerText: { ...typography.button, color: colors.danger, fontWeight: "700" },
   restTimerDisplay: {
     textAlign: "center",
-    fontSize: 48,
+    fontSize: 48, // Large rest timer - intentional emphasis
     fontWeight: "700",
     color: colors.accent,
     marginVertical: spacing.lg,
@@ -1807,7 +1841,11 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginBottom: spacing.xs,
     backgroundColor: colors.surfaceHover,
   },
-  restPresetLabel: { fontSize: 18, fontWeight: "600", color: colors.text },
+  restPresetLabel: {
+    fontSize: 18, // Rest preset label emphasis
+    fontWeight: "600",
+    color: colors.text,
+  },
   workoutActions: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -1826,6 +1864,6 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  discardText: { color: colors.danger, fontSize: 16, fontWeight: "600" },
-  settingsText: { color: colors.text, fontSize: 16, fontWeight: "600" },
+  discardText: { ...typography.button, color: colors.danger, fontWeight: "600" },
+  settingsText: { ...typography.button, color: colors.text, fontWeight: "600" },
 });

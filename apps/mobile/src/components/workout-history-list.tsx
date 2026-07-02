@@ -13,7 +13,7 @@ import {
 import { EmptyState } from "./ui";
 import { flexFill } from "../lib/layout-constants";
 import type { WorkoutHistoryItem } from "../lib/workout-history-query";
-import { radius, spacing, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
 import { tonnageFromKg, weightLabel } from "../lib/units";
 
 type WorkoutHistoryListProps = {
@@ -200,9 +200,9 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    cardBody: { flex: 1, gap: 2 },
-    cardTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-    cardSub: { fontSize: 13, color: colors.textMuted },
+    cardBody: { flex: 1, gap: spacing.xs },
+    cardTitle: { ...typography.h3, color: colors.text },
+    cardSub: { ...typography.caption, color: colors.textMuted },
     pressed: { opacity: 0.7 },
     loadingFooter: {
       flexDirection: "row",
@@ -211,6 +211,6 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       gap: spacing.sm,
       paddingVertical: spacing.lg,
     },
-    loadingText: { fontSize: 14, color: colors.textMuted },
+    loadingText: { ...typography.bodySmall, color: colors.textMuted },
     emptyLoading: { paddingVertical: spacing.xxxl, alignItems: "center" },
   });

@@ -21,7 +21,7 @@ import { ThemedDialog } from "./ui";
 import { useAuth } from "../lib/auth-context";
 import type { ActiveWorkout } from "../lib/active-workout-cache";
 import { formatElapsedDuration } from "../lib/format-duration";
-import { isMainTabRoot, TAB_BAR_HEIGHT } from "../lib/layout-constants";
+import { isMainTabRoot, TAB_BAR_HEIGHT, ACTIVE_WORKOUT_PILL_HEIGHT } from "../lib/layout-constants";
 import { trpc, queryStaleTime } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
 
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 16,
     right: 16,
-    height: 64,
+    height: ACTIVE_WORKOUT_PILL_HEIGHT,
     borderRadius: 28,
     borderWidth: 2,
     flexDirection: "row",

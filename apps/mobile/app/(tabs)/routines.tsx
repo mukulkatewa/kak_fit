@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomSheetInset } from "../../src/lib/layout-constants";
 import { FireIcon } from "react-native-heroicons/solid";
 import {
   AdjustmentsHorizontalIcon,
@@ -262,7 +262,7 @@ export default function WorkoutTabScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const insets = useSafeAreaInsets();
+  const bottomSheetInset = useBottomSheetInset();
   const utils = trpc.useUtils();
   const { weightUnit } = useUserPreferences();
   const [openFilter, setOpenFilter] = useState<FilterKey>(null);
@@ -650,7 +650,7 @@ export default function WorkoutTabScreen() {
         <Pressable style={styles.menuBackdrop} onPress={() => setWorkoutMenu({ visible: false })}>
           <Animated.View
             entering={SlideInDown.springify().damping(18)}
-            style={[styles.menuCard, { paddingBottom: insets.bottom + spacing.md }]}
+            style={[styles.menuCard, { paddingBottom: bottomSheetInset }]}
           >
             <Text style={styles.menuTitle} numberOfLines={1}>
               {workoutMenu.workoutName ?? "Workout"}

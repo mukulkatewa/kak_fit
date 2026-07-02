@@ -39,6 +39,7 @@ import Animated, {
 import { create } from "zustand";
 import { SPRING_CONFIG } from "../lib/animations";
 import { useScreenBottomInset, useScreenTopInset, type ScreenLayoutVariant } from "../lib/layout-constants";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   radius,
   spacing,
@@ -81,7 +82,7 @@ export function Screen({
   padded?: boolean;
   refreshControl?: ScrollViewProps["refreshControl"];
   scrollViewRef?: React.RefObject<ScrollView | null>;
-  /** Layout context — tab screens skip tab-bar height in bottom padding. */
+  /** Layout context — tab screens reserve space for tab bar overlay and active-workout pill. */
   variant?: ScreenLayoutVariant;
 }) {
   const styles = useThemedStyles(makeStyles);
@@ -110,6 +111,7 @@ export function Screen({
             styles.scrollContent,
             { paddingBottom: bottomPad },
           ]}
+          contentInsetAdjustmentBehavior={Platform.OS === "ios" ? "automatic" : undefined}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           refreshControl={refreshControl}
@@ -744,11 +746,22 @@ export function ThemedDialog({
   onDismiss?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss}>
       {visible ? (
-        <Animated.View entering={FadeIn.duration(200)} style={styles.dialogBackdrop}>
+        <Animated.View
+          entering={FadeIn.duration(200)}
+          style={[
+            styles.dialogBackdrop,
+            {
+              paddingTop: Math.max(insets.top, spacing.xl),
+              paddingBottom: Math.max(insets.bottom, spacing.xl),
+              paddingHorizontal: spacing.xl,
+            },
+          ]}
+        >
           <Pressable style={StyleSheet.absoluteFillObject} onPress={onDismiss} accessibilityRole="button" />
           <Animated.View
             entering={FadeInUp.springify().damping(16)}
@@ -1136,7 +1149,6 @@ const makeStyles = (colors: Palette) =>
       backgroundColor: "rgba(0,0,0,0.55)",
       alignItems: "center",
       justifyContent: "center",
-      padding: spacing.xl,
     },
     dialogCard: {
       width: "100%",

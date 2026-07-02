@@ -4,6 +4,7 @@ import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomSheetInset } from "../../src/lib/layout-constants";
 import {
   FireIcon,
   MoonIcon,
@@ -209,6 +210,7 @@ function AnimatedFoodRow({
 export default function NutritionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const bottomSheetInset = useBottomSheetInset();
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => StyleSheet.create(makeStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
   const headerText = isDark ? colors.text : "#1A1A1A";
@@ -666,7 +668,7 @@ export default function NutritionScreen() {
         presentationStyle="pageSheet"
         onRequestClose={closeFoodInputModal}
       >
-        <View style={[styles.editModal, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom }]}>
+        <View style={[styles.editModal, { paddingTop: insets.top + spacing.sm, paddingBottom: bottomSheetInset }]}>
           <View style={styles.editModalHeader}>
             <Text style={styles.editModalTitle}>
               {isEditingFood ? "Edit quantity" : "Add food"}

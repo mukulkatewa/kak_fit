@@ -9,7 +9,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
 import { BoltIcon } from "react-native-heroicons/solid";
 import Animated, {
@@ -90,13 +89,10 @@ function GoogleButton({ loading, onPress }: { loading: boolean; onPress: () => v
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
   const { signInWithGoogle } = useAuth();
   const { colors, isDark } = useTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const compact = height < 700;
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -127,7 +123,7 @@ export default function LoginScreen() {
         style={[
           styles.content,
           {
-            paddingTop: insets.top + (compact ? spacing.lg : spacing.xxxl),
+            paddingTop: insets.top + spacing.xl,
             paddingBottom: insets.bottom + spacing.xl,
             paddingHorizontal: spacing.lg,
           },

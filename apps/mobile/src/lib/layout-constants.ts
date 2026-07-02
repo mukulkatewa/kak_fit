@@ -14,6 +14,9 @@ export const TAB_BAR_CONTENT_HEIGHT = 56;
 export const TAB_BAR_HEIGHT = TAB_BAR_CONTENT_HEIGHT + 8;
 export const TAB_BAR_PADDING_BOTTOM = Platform.OS === "web" ? spacing.sm : 28;
 
+/** Height of the floating active-workout pill above the tab bar. */
+export const ACTIVE_WORKOUT_PILL_HEIGHT = 64;
+
 export type ScreenLayoutVariant = "tab" | "stack" | "modal";
 
 /** Top padding below status bar / browser chrome. */
@@ -25,11 +28,18 @@ export function useScreenTopInset(variant: ScreenLayoutVariant = "stack"): numbe
   return insets.top + (variant === "modal" ? spacing.xs : spacing.sm);
 }
 
-/** Bottom scroll padding — tab screens omit tab bar height (bar is in layout flow). */
+/** Bottom padding for slide-up sheets and bottom menu cards. */
+export function useBottomSheetInset(): number {
+  const insets = useSafeAreaInsets();
+  return insets.bottom + spacing.md;
+}
+
+/** Bottom scroll padding — tab scenes sit above the tab bar; reserve space for the floating workout pill. */
 export function useScreenBottomInset(variant: ScreenLayoutVariant = "stack"): number {
   const insets = useSafeAreaInsets();
   if (variant === "tab") {
-    return spacing.md;
+    const overlayReserve = ACTIVE_WORKOUT_PILL_HEIGHT + spacing.sm;
+    return spacing.lg + overlayReserve;
   }
   return Math.max(insets.bottom, spacing.md) + spacing.sm;
 }

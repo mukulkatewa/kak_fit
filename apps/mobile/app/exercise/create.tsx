@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { HevyModalHeader } from "../../src/components/hevy-ui";
 import { trpc } from "../../src/lib/trpc";
+import { useScreenTopInset } from "../../src/lib/layout-constants";
 import {
   radius,
   spacing,
@@ -15,6 +16,7 @@ export default function CreateExerciseScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const topInset = useScreenTopInset("modal");
   const utils = trpc.useUtils();
 
   const [name, setName] = useState("");
@@ -51,7 +53,7 @@ export default function CreateExerciseScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.headerPad}>
+      <View style={[styles.headerPad, { paddingTop: topInset }]}>
         <HevyModalHeader
           title="New Exercise"
           onCancel={() => router.back()}
@@ -107,7 +109,7 @@ export default function CreateExerciseScreen() {
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bg },
-    headerPad: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl },
+    headerPad: { paddingHorizontal: spacing.lg },
     body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.sm },
     label: {
       fontSize: 13,

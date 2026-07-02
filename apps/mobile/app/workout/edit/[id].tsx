@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,7 +11,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { HevyStackHeader } from "../../../src/components/hevy-ui";
-import { EmptyState, ThemedDialog } from "../../../src/components/ui";
+import { EmptyState, Screen, ThemedDialog } from "../../../src/components/ui";
+import { flexFill } from "../../../src/lib/layout-constants";
 import { trpc } from "../../../src/lib/trpc";
 import { parseOptionalNumber } from "../../../src/lib/workout-errors";
 import { useUserPreferences } from "../../../src/lib/use-preferences";
@@ -68,18 +68,20 @@ export default function EditWorkoutScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
+      <Screen style={styles.center}>
         <ActivityIndicator color={colors.accent} size="large" />
-      </View>
+      </Screen>
     );
   }
 
   if (isError || !workout || !workout.finishedAt) {
     return (
-      <View style={styles.pad}>
-        <HevyStackHeader title="Edit Workout" onBack={() => router.back()} />
-        <EmptyState icon="alert-circle-outline" title="Workout not found" message="Only finished workouts can be edited." />
-      </View>
+      <Screen>
+        <View style={styles.pad}>
+          <HevyStackHeader title="Edit Workout" onBack={() => router.back()} />
+          <EmptyState icon="alert-circle-outline" title="Workout not found" message="Only finished workouts can be edited." />
+        </View>
+      </Screen>
     );
   }
 
@@ -90,7 +92,8 @@ export default function EditWorkoutScreen() {
 
   return (
     <>
-    <ScrollView style={styles.screen} contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
+    <Screen scroll padded={false} style={flexFill}>
+      <View style={styles.pad}>
       <HevyStackHeader title="Edit Workout" onBack={() => router.back()} />
       <Text style={styles.title}>{workout.name ?? "Workout"}</Text>
       <Text style={styles.hint}>Changes update your history and personal records.</Text>
@@ -131,7 +134,8 @@ export default function EditWorkoutScreen() {
       ))}
 
       <View style={{ height: spacing.xxxl }} />
-    </ScrollView>
+      </View>
+    </Screen>
 
     <ThemedDialog
       visible={deleteSetDialog.visible}
@@ -234,9 +238,8 @@ function EditableSetRow({
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg },
-    center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
-    pad: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, gap: spacing.md },
+    center: { flex: 1, alignItems: "center", justifyContent: "center" },
+    pad: { paddingHorizontal: spacing.lg, gap: spacing.md },
     title: { ...workoutTextStyles.titleEdit, color: colors.text },
     hint: { ...workoutTextStyles.hint, color: colors.textMuted, marginTop: spacing.xs },
     exerciseCard: {

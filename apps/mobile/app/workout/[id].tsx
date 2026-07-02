@@ -1,12 +1,13 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { flexFill } from "../../src/lib/layout-constants";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
 import { QueryErrorBoundary } from "../../src/components/query-error-boundary";
-import { EmptyState, ThemedDialog, useToast } from "../../src/components/ui";
+import { EmptyState, Screen, ThemedDialog, useToast } from "../../src/components/ui";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
@@ -147,18 +148,20 @@ function WorkoutDetailScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
+      <Screen style={styles.center}>
         <ActivityIndicator color={colors.accent} size="large" />
-      </View>
+      </Screen>
     );
   }
 
   if (isError || !workout) {
     return (
-      <View style={styles.pad}>
-        <HevyStackHeader title="Workout" onBack={() => router.back()} />
-        <EmptyState icon="alert-circle-outline" title="Workout not found" message="It may have been deleted." />
-      </View>
+      <Screen>
+        <View style={styles.pad}>
+          <HevyStackHeader title="Workout" onBack={() => router.back()} />
+          <EmptyState icon="alert-circle-outline" title="Workout not found" message="It may have been deleted." />
+        </View>
+      </Screen>
     );
   }
 
@@ -170,7 +173,8 @@ function WorkoutDetailScreen() {
 
   return (
     <>
-    <ScrollView style={styles.screen} contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
+    <Screen scroll padded={false} style={flexFill}>
+      <View style={styles.pad}>
       <HevyStackHeader
         title="Workout"
         onBack={() => router.back()}
@@ -328,7 +332,8 @@ function WorkoutDetailScreen() {
       ) : null}
 
       <View style={{ height: spacing.xxxl }} />
-    </ScrollView>
+      </View>
+    </Screen>
 
     <ThemedDialog
       visible={deleteWorkoutDialogOpen}
@@ -397,9 +402,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg },
-    center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
-    pad: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, gap: spacing.md },
+    center: { flex: 1, alignItems: "center", justifyContent: "center" },
+    pad: { paddingHorizontal: spacing.lg, gap: spacing.md },
     title: { ...workoutTextStyles.titleView, color: colors.text },
     renameHint: { ...workoutTextStyles.renameHint, color: colors.textDim, marginTop: 2 },
     headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
@@ -451,14 +455,23 @@ const makeStyles = (colors: Palette) =>
     exerciseName: { ...workoutTextStyles.exerciseName, color: colors.text },
     setHeader: {
       flexDirection: "row",
+      alignItems: "center",
+      width: "100%",
+      alignSelf: "stretch",
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.separator,
       paddingBottom: spacing.xs,
     },
-    headerText: { ...workoutTextStyles.setTableHeader, color: colors.textDim },
-    setRow: { flexDirection: "row", paddingVertical: spacing.xs },
-    colSet: { width: 48, ...workoutTextStyles.setCell, color: colors.textMuted },
-    colVal: { flex: 1, ...workoutTextStyles.setCell, color: colors.text },
+    headerText: { ...workoutTextStyles.setTableHeader, color: colors.textDim, textAlign: "center" },
+    setRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      width: "100%",
+      alignSelf: "stretch",
+      paddingVertical: spacing.xs,
+    },
+    colSet: { width: 40, flexShrink: 0, ...workoutTextStyles.setCell, color: colors.textMuted, textAlign: "center" },
+    colVal: { flex: 1, minWidth: 0, ...workoutTextStyles.setCell, color: colors.text, textAlign: "center" },
     photosSection: { marginTop: spacing.sm },
     photosHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
     photoAddBtn: {

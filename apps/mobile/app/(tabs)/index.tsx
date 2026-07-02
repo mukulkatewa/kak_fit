@@ -833,7 +833,7 @@ const makeStyles = (colors: Palette) => {
       justifyContent: "space-between",
       gap: spacing.md,
     },
-    greetingText: { flex: 1, gap: 4 },
+    greetingText: { flex: 1, gap: spacing.xs },
     greetingTitle: {
       ...typography.h1,
       color: colors.text,
@@ -851,18 +851,18 @@ const makeStyles = (colors: Palette) => {
     avatarRing: {
       borderWidth: 2,
       borderRadius: 999,
-      padding: 2,
+      padding: spacing.xs,
     },
     statsRow: {
       flexDirection: "row",
       justifyContent: "space-around",
     },
     statWrap: { flex: 1 },
-    statCol: { alignItems: "center", gap: 1 },
-    statValueRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+    statCol: { alignItems: "center", gap: spacing.xs },
+    statValueRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
     statValue: { fontSize: 18, fontWeight: "800", color: colors.text },
     statLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
-    gear: { padding: 2 },
+    gear: { padding: spacing.xs },
 
     heroCardOuter: {
       borderRadius: radius.xl,
@@ -895,8 +895,8 @@ const makeStyles = (colors: Palette) => {
     heroBigRow: {
       flexDirection: "row",
       alignItems: "flex-end",
-      gap: 6,
-      marginTop: 4,
+      gap: spacing.sm,
+      marginTop: spacing.xs,
     },
     heroBig: {
       fontSize: 40,
@@ -908,13 +908,13 @@ const makeStyles = (colors: Palette) => {
       fontSize: 16,
       fontWeight: "700",
       color: colors.onAccentMuted,
-      marginBottom: 6,
+      marginBottom: spacing.sm,
     },
     heroSub: {
       fontSize: 13,
       fontWeight: "500",
       color: colors.onAccentMuted,
-      marginTop: 2,
+      marginTop: spacing.xs,
     },
     heroBadge: {
       width: 44,
@@ -927,7 +927,6 @@ const makeStyles = (colors: Palette) => {
     heroLabels: {
       flexDirection: "row",
       justifyContent: "space-between",
-      marginTop: 0,
     },
     heroDay: {
       flex: 1,
@@ -941,7 +940,7 @@ const makeStyles = (colors: Palette) => {
       alignItems: "flex-end",
       justifyContent: "space-between",
       height: 120,
-      gap: 6,
+      gap: spacing.sm,
     },
     heroBarSkeleton: {
       flex: 1,
@@ -980,7 +979,7 @@ const makeStyles = (colors: Palette) => {
     activeTitleRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
+      gap: spacing.sm,
     },
     activePulseDot: {
       width: 8,
@@ -994,7 +993,7 @@ const makeStyles = (colors: Palette) => {
       fontWeight: "700",
       color: colors.text,
     },
-    activeSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+    activeSub: { fontSize: 13, color: colors.textMuted, marginTop: spacing.xs },
 
     startEmptyButton: {
       flexDirection: "row",
@@ -1015,7 +1014,7 @@ const makeStyles = (colors: Palette) => {
     buttonDisabled: { opacity: 0.6 },
 
     sectionTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
-    sectionTitleWrap: { gap: 6 },
+    sectionTitleWrap: { gap: spacing.sm },
     sectionUnderline: {
       width: 32,
       height: 3,
@@ -1038,7 +1037,7 @@ const makeStyles = (colors: Palette) => {
       borderRadius: radius.lg,
       borderWidth: 1,
       borderColor: colors.border,
-      padding: spacing.md,
+      padding: spacing.lg,
       overflow: "hidden",
       ...cardShadow,
     },
@@ -1058,13 +1057,13 @@ const makeStyles = (colors: Palette) => {
       justifyContent: "center",
     },
     activityTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-    activitySub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+    activitySub: { fontSize: 13, color: colors.textMuted, marginTop: spacing.xs },
     pressed: { opacity: 0.7 },
 
     emptyCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
-      padding: spacing.xxl,
+      padding: spacing.lg,
       alignItems: "center",
       gap: spacing.md,
     },

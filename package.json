@@ -18,6 +18,7 @@
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "db:generate": "turbo db:generate",
+    "db:migrate": "pnpm --filter @kak-fit/db db:migrate",
     "db:push": "turbo db:push",
     "db:import": "pnpm --filter @kak-fit/db import:wger",
     "import:hevy": "pnpm --filter @kak-fit/db import:hevy",

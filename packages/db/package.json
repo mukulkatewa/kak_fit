@@ -6,6 +6,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "db:generate": "dotenv -o -e ../../.env -- prisma generate",
+    "db:migrate": "dotenv -o -e ../../.env -- prisma migrate deploy",
     "db:push": "dotenv -o -e ../../.env -- prisma db push --accept-data-loss",
     "studio": "dotenv -o -e ../../.env -- prisma studio",
     "import:wger": "dotenv -o -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/import-wger.ts'",

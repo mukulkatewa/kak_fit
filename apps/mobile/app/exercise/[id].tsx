@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { EmptyState, Screen } from "../../src/components/ui";
+import { ExerciseHowTo } from "../../src/components/exercise-how-to";
 import { flexFill, useScreenTopInset, webFlexScreen } from "../../src/lib/layout-constants";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { useUserPreferences } from "../../src/lib/use-preferences";
@@ -55,17 +56,6 @@ const PR_LABELS: Record<string, string> = {
 
 const PR_DISPLAY_ORDER = ["MAX_WEIGHT", "ESTIMATED_1RM", "MAX_VOLUME", "MAX_REPS", "MAX_DURATION"] as const;
 
-function stripHtml(value: string): string {
-  return value
-    .replace(/<br\s*\/?\s*>/gi, "\n")
-    .replace(/<li>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
 function titleCase(value: string): string {
   return value
     .replace(/_/g, " ")
@@ -96,8 +86,24 @@ function metricUnit(metric: MetricKey, unit: WeightUnit): string {
   return metric === "volume" ? weightLabel(unit) : weightLabel(unit);
 }
 
-function buildMediaList(exercise: { media?: ExerciseHeroMedia[] }): ExerciseHeroMedia[] {
-  return exercise.media ?? [];
+function buildMediaList(exercise: {
+  media?: ExerciseHeroMedia[];
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+}): ExerciseHeroMedia[] {
+  if (exercise.media && exercise.media.length > 0) return exercise.media;
+  if (exercise.videoUrl) {
+    return [{
+      id: "legacy-video",
+      type: "VIDEO",
+      storageUrl: exercise.videoUrl,
+      thumbnailUrl: exercise.imageUrl,
+    }];
+  }
+  if (exercise.imageUrl) {
+    return [{ id: "legacy-image", type: "IMAGE", storageUrl: exercise.imageUrl }];
+  }
+  return [];
 }
 
 function ExerciseMediaHero({ media, colors, styles }: {
@@ -335,7 +341,6 @@ export default function ExerciseDetailScreen() {
   const primary = exercise.muscles.find((m) => m.isPrimary)?.muscle.name ?? "-";
   const secondary = exercise.muscles.filter((m) => !m.isPrimary).map((m) => m.muscle.name);
   const equipment = exercise.equipment.map((item) => item.equipment.name);
-  const instructions = exercise.instructions ? stripHtml(exercise.instructions) : null;
   const unitLabel = metricUnit(metric, weightUnit);
   const chartValues = chart.map((point) => metricValue(point, metric, weightUnit));
   const hasChartData = chartValues.some((value) => value > 0);
@@ -388,7 +393,9 @@ export default function ExerciseDetailScreen() {
 
       {renderHistory()}
       {renderRecords()}
-      {instructions ? renderInstructions(true) : null}
+      {exercise.instructions ? (
+        <ExerciseHowTo exerciseName={exercise.name} instructions={exercise.instructions} compact />
+      ) : null}
     </>
   );
 
@@ -439,11 +446,8 @@ export default function ExerciseDetailScreen() {
     </Animated.View>
   );
 
-  const renderInstructions = (compact = false) => (
-    <Animated.View entering={FadeInDown.duration(280)} style={styles.instructionsBlock}>
-      {!compact ? <Text style={styles.sectionTitle}>How to</Text> : null}
-      <Text style={styles.instructions} numberOfLines={compact ? 5 : undefined}>{instructions}</Text>
-    </Animated.View>
+  const renderHowTo = () => (
+    <ExerciseHowTo exerciseName={exercise.name} instructions={exercise.instructions} />
   );
 
   return (
@@ -483,7 +487,7 @@ export default function ExerciseDetailScreen() {
 
         {activeTab === "summary" ? renderSummary() : null}
         {activeTab === "history" ? renderHistory() : null}
-        {activeTab === "howTo" ? renderInstructions(false) : null}
+        {activeTab === "howTo" ? renderHowTo() : null}
         {activeTab === "records" ? renderRecords() : null}
       </ScrollView>
     </View>
@@ -665,8 +669,5 @@ const makeStyles = (colors: Palette) => {
     },
     prName: { ...typography.body, color: colors.text, flex: 1 },
     prValue: { ...typography.h3, color: colors.text, textAlign: "right" },
-    instructionsBlock: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, gap: spacing.md },
-    sectionTitle: { ...typography.h2, color: colors.text },
-    instructions: { ...typography.body, color: colors.textMuted, lineHeight: 23 },
   });
 };

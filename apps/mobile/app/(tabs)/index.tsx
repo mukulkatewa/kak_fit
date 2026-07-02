@@ -41,6 +41,7 @@ import { useAuth } from "../../src/lib/auth-context";
 import {
   radius,
   spacing,
+  typography,
   useTheme,
   useThemedStyles,
   type Palette,
@@ -834,10 +835,8 @@ const makeStyles = (colors: Palette) => {
     },
     greetingText: { flex: 1, gap: 4 },
     greetingTitle: {
-      fontSize: 28,
-      fontWeight: "800",
+      ...typography.h1,
       color: colors.text,
-      letterSpacing: 0,
     },
     greetingDate: {
       fontSize: 14,

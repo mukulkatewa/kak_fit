@@ -28,18 +28,24 @@ export const personalRecordRouter = router({
   byExercise: protectedProcedure
     .input(z.object({ exerciseId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const records = await ctx.prisma.personalRecord.findMany({
+      const bests = await ctx.prisma.personalRecord.groupBy({
+        by: ["type"],
         where: { userId: ctx.user.id, exerciseId: input.exerciseId },
-        orderBy: { achievedAt: "desc" },
+        _max: { value: true },
       });
 
-      const bestByType = new Map<string, (typeof records)[number]>();
-      for (const record of records) {
-        if (!bestByType.has(record.type)) {
-          bestByType.set(record.type, record);
-        }
-      }
+      if (bests.length === 0) return [];
 
-      return Array.from(bestByType.values());
+      return ctx.prisma.personalRecord.findMany({
+        where: {
+          userId: ctx.user.id,
+          exerciseId: input.exerciseId,
+          OR: bests.map((row) => ({
+            type: row.type,
+            value: row._max.value ?? 0,
+          })),
+        },
+        orderBy: { achievedAt: "desc" },
+      });
     }),
 });

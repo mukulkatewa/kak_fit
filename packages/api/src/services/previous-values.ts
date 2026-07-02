@@ -104,29 +104,27 @@ export async function getPreviousSetsBatch(
 ) {
   if (exerciseIds.length === 0) return {};
 
-  const recentWorkouts = await prisma.workout.findMany({
-    where: { userId, finishedAt: { not: null } },
-    orderBy: { finishedAt: "desc" },
-    take: 20,
-    select: { id: true },
-  });
-
   const result = Object.fromEntries(exerciseIds.map((id) => [id, null])) as Record<
     string,
     PreviousExerciseSession | null
   >;
 
-  if (recentWorkouts.length === 0) return result;
-
   const workoutExercises = await prisma.workoutExercise.findMany({
     where: {
       exerciseId: { in: exerciseIds },
-      workoutId: { in: recentWorkouts.map((w) => w.id) },
+      workout: { userId, finishedAt: { not: null } },
+      sets: { some: { isCompleted: true } },
     },
     include: {
       sets: {
         where: { isCompleted: true },
         orderBy: { setNumber: "asc" },
+        select: {
+          setNumber: true,
+          weight: true,
+          reps: true,
+          duration: true,
+        },
       },
       workout: { select: { name: true, finishedAt: true } },
     },

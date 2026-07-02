@@ -97,6 +97,53 @@ async function fetchCurrentPrMaxMap(
   );
 }
 
+async function fetchCurrentPrMaxMapBatch(
+  prisma: PrismaClient,
+  userId: string,
+  exerciseIds: string[],
+): Promise<Map<string, Map<PersonalRecordType, number>>> {
+  if (exerciseIds.length === 0) return new Map();
+
+  const grouped = await prisma.personalRecord.groupBy({
+    by: ["exerciseId", "type"],
+    where: { userId, exerciseId: { in: exerciseIds } },
+    _max: { value: true },
+  });
+
+  const result = new Map<string, Map<PersonalRecordType, number>>();
+  for (const row of grouped) {
+    if (!result.has(row.exerciseId)) {
+      result.set(row.exerciseId, new Map());
+    }
+    result.get(row.exerciseId)!.set(row.type, row._max.value ?? 0);
+  }
+  return result;
+}
+
+function syncPersonalRecordsWithBest(
+  userId: string,
+  exerciseId: string,
+  sets: CompletedSet[],
+  currentBest: Map<PersonalRecordType, number>,
+): NewRecord[] {
+  const completed = sets.filter((s) => s.weight || s.reps || s.duration);
+  if (completed.length === 0) return [];
+
+  const created: NewRecord[] = [];
+
+  for (const set of completed) {
+    const candidates = buildIncrementalCandidates(set, currentBest);
+    for (const record of candidates) {
+      const previous = currentBest.get(record.type) ?? 0;
+      if (record.value <= previous) continue;
+      currentBest.set(record.type, record.value);
+      created.push(record);
+    }
+  }
+
+  return created;
+}
+
 /** Build PR candidates for one completed set against current bests. */
 export function buildIncrementalCandidates(
   set: CompletedSet,
@@ -181,21 +228,8 @@ export async function syncPersonalRecords(
   exerciseId: string,
   sets: CompletedSet[],
 ): Promise<NewRecord[]> {
-  const completed = sets.filter((s) => s.weight || s.reps || s.duration);
-  if (completed.length === 0) return [];
-
   const currentBest = await fetchCurrentPrMaxMap(prisma, userId, exerciseId);
-  const created: NewRecord[] = [];
-
-  for (const set of completed) {
-    const candidates = buildIncrementalCandidates(set, currentBest);
-    for (const record of candidates) {
-      const previous = currentBest.get(record.type) ?? 0;
-      if (record.value <= previous) continue;
-      currentBest.set(record.type, record.value);
-      created.push(record);
-    }
-  }
+  const created = syncPersonalRecordsWithBest(userId, exerciseId, sets, currentBest);
 
   if (created.length === 0) return [];
 
@@ -209,6 +243,46 @@ export async function syncPersonalRecords(
     })),
   });
 
+  return created;
+}
+
+export async function syncPersonalRecordsBatch(
+  prisma: PrismaClient,
+  userId: string,
+  exercises: Array<{ exerciseId: string; sets: CompletedSet[] }>,
+): Promise<Array<NewRecord & { exerciseId: string }>> {
+  if (exercises.length === 0) return [];
+
+  const exerciseIds = exercises.map((exercise) => exercise.exerciseId);
+  const bestByExercise = await fetchCurrentPrMaxMapBatch(prisma, userId, exerciseIds);
+  const created: Array<NewRecord & { exerciseId: string }> = [];
+  const rows: Array<{
+    userId: string;
+    exerciseId: string;
+    type: PersonalRecordType;
+    value: number;
+    workoutSetId: string;
+  }> = [];
+
+  for (const { exerciseId, sets } of exercises) {
+    const currentBest =
+      bestByExercise.get(exerciseId) ?? new Map<PersonalRecordType, number>();
+    const records = syncPersonalRecordsWithBest(userId, exerciseId, sets, currentBest);
+    for (const record of records) {
+      created.push({ ...record, exerciseId });
+      rows.push({
+        userId,
+        exerciseId,
+        type: record.type,
+        value: record.value,
+        workoutSetId: record.workoutSetId,
+      });
+    }
+  }
+
+  if (rows.length === 0) return [];
+
+  await prisma.personalRecord.createMany({ data: rows });
   return created;
 }
 

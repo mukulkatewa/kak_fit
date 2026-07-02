@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@kak-fit/db";
-import { syncPersonalRecords } from "../services/personal-records";
+import { syncPersonalRecordsBatch } from "../services/personal-records";
 import { authenticateApiKey, PublicApiError, type ApiAuthContext } from "./auth";
 import { exerciseAccessWhere, parseRoutineExercisePayload, resolveExercise, suggestExerciseMatches } from "./helpers";
 import { errorResponse, jsonResponse } from "./response";
@@ -166,11 +166,15 @@ const routes: Array<{
         include: workoutInclude,
       });
 
-      for (const exercise of created.exercises) {
-        const completed = exercise.sets.filter((s) => s.isCompleted);
-        if (completed.length > 0) {
-          await syncPersonalRecords(prisma, ctx.user.id, exercise.exerciseId, completed);
-        }
+      const exercisesWithCompleted = created.exercises
+        .map((exercise) => ({
+          exerciseId: exercise.exerciseId,
+          sets: exercise.sets.filter((set) => set.isCompleted),
+        }))
+        .filter((exercise) => exercise.sets.length > 0);
+
+      if (exercisesWithCompleted.length > 0) {
+        await syncPersonalRecordsBatch(prisma, ctx.user.id, exercisesWithCompleted);
       }
 
       return { workout: serializeWorkout(created) };

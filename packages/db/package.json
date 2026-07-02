@@ -19,7 +19,9 @@
     "analyze:hevy": "dotenv -o -e ../../.env -- tsx scripts/hevy/analyze-hevy-schema.ts",
     "verify:hevy": "dotenv -o -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/hevy/verify-hevy-import.ts'",
     "seed:demo": "dotenv -o -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/seed-demo.ts'",
-    "count": "dotenv -o -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/count.ts'"
+    "count": "dotenv -o -e ../../.env -- bash -c 'DATABASE_URL=\"$DIRECT_URL\" tsx scripts/count.ts'",
+    "import:wger-media": "dotenv -o -e ../../.env -- tsx scripts/wger-media/import-wger-media.ts",
+    "import:wger-media:dry": "dotenv -o -e ../../.env -- tsx scripts/wger-media/import-wger-media.ts --dry-run"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0",

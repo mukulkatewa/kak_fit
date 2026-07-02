@@ -1,6 +1,13 @@
-import { Platform } from "react-native";
+import { Platform, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing } from "./theme";
+
+/** Flex child that should fill remaining space and allow nested ScrollViews to scroll. */
+export const flexFill: ViewStyle = { flex: 1, minHeight: 0 };
+
+/** Extra constraints for full-height screens on web. */
+export const webFlexScreen: ViewStyle =
+  Platform.OS === "web" ? { minHeight: 0, height: "100%" } : {};
 
 /** Icon + label area of the bottom tab bar (excluding safe-area padding). */
 export const TAB_BAR_CONTENT_HEIGHT = 56;

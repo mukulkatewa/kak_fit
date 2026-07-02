@@ -10,6 +10,7 @@ import {
 } from "../../src/lib/workout-history-query";
 import { trpc } from "../../src/lib/trpc";
 import { useUserPreferences } from "../../src/lib/use-preferences";
+import { flexFill } from "../../src/lib/layout-constants";
 import { spacing, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 export default function WorkoutHistoryScreen() {
@@ -54,12 +55,13 @@ export default function WorkoutHistoryScreen() {
   });
 
   return (
-    <Screen variant="stack" padded={false}>
-      <View style={styles.headerPad}>
-        <HevyStackHeader title="Workout History" onBack={() => router.back()} />
-      </View>
+    <Screen variant="stack" padded={false} style={flexFill}>
+      <View style={styles.column}>
+        <View style={styles.headerPad}>
+          <HevyStackHeader title="Workout History" onBack={() => router.back()} />
+        </View>
 
-      <WorkoutHistoryList
+        <WorkoutHistoryList
         workouts={workouts}
         weightUnit={weightUnit}
         isLoading={isLoading}
@@ -75,10 +77,10 @@ export default function WorkoutHistoryScreen() {
         }
         onEndReached={() => void fetchNextPage()}
         onRefresh={async () => {
-          await utils.workout.history.invalidate();
           await refetch();
         }}
       />
+      </View>
 
       <ThemedDialog
         visible={deleteDialog.visible}
@@ -108,5 +110,6 @@ export default function WorkoutHistoryScreen() {
 
 const makeStyles = (_colors: Palette) =>
   StyleSheet.create({
+    column: flexFill,
     headerPad: { paddingHorizontal: spacing.lg },
   });

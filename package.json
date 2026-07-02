@@ -32,7 +32,9 @@
     "db:count": "pnpm --filter @kak-fit/db count",
     "db:studio": "pnpm --filter @kak-fit/db studio",
     "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down"
+    "docker:down": "docker compose down",
+    "import:wger-media": "pnpm --filter @kak-fit/db import:wger-media",
+    "import:wger-media:dry": "pnpm --filter @kak-fit/db import:wger-media:dry"
   },
   "devDependencies": {
     "turbo": "^2.4.4",

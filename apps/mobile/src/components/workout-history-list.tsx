@@ -11,6 +11,7 @@ import {
   type ListRenderItem,
 } from "react-native";
 import { EmptyState } from "./ui";
+import { flexFill } from "../lib/layout-constants";
 import type { WorkoutHistoryItem } from "../lib/workout-history-query";
 import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../lib/theme";
 import { tonnageFromKg, weightLabel } from "../lib/units";
@@ -70,6 +71,7 @@ export function WorkoutHistoryList({
 
   return (
     <FlatList
+      style={flexFill}
       data={workouts}
       keyExtractor={(item) => item.id}
       renderItem={renderItem}

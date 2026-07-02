@@ -25,7 +25,8 @@ import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { useTheme, useThemedStyles, spacing, radius, type Palette } from "../../src/lib/theme";
+import { useTheme, useThemedStyles, spacing, radius, typography, type Palette } from "../../src/lib/theme";
+import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
 import type { RouterOutputs } from "@kak-fit/api/router";
 
 type RoutineItem = RouterOutputs["routine"]["list"][number];
@@ -576,8 +577,9 @@ const makeStyles = (colors: Palette) =>
     modalSave: { backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 10 },
     modalSaveText: { color: colors.onAccent, fontSize: 15, fontWeight: "700" },
     previewSheet: {
-      flex: 1,
+      ...flexFill,
       backgroundColor: colors.bg,
+      ...webFlexScreen,
       paddingTop: spacing.lg,
       paddingHorizontal: spacing.lg,
       gap: spacing.md,
@@ -588,11 +590,11 @@ const makeStyles = (colors: Palette) =>
       justifyContent: "space-between",
       gap: spacing.md,
     },
-    previewTitle: { flex: 1, fontSize: 26, fontWeight: "800", color: colors.text },
+    previewTitle: { flex: 1, ...typography.h1, color: colors.text },
     previewNotes: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
     previewLoading: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
     previewError: { color: colors.textMuted, fontSize: 15, textAlign: "center" },
-    previewScroll: { flex: 1 },
+    previewScroll: { ...flexFill },
     previewScrollContent: { gap: spacing.md, paddingBottom: spacing.md },
     previewExerciseRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
     previewExerciseBody: { flex: 1, gap: 2 },

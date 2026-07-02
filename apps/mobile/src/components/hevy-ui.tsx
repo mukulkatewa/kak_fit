@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { forwardRef } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
-import { radius, shadows, spacing, useTheme, useThemedStyles, type Palette } from "../lib/theme";
+import { radius, shadows, spacing, typography, useTheme, useThemedStyles, type Palette } from "../lib/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -357,10 +357,10 @@ const makeStyles = (colors: Palette) =>
       minHeight: 44,
       marginBottom: spacing.sm,
     },
-    titleRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-    title: { fontSize: 28, fontWeight: "700", color: colors.text },
+    titleRow: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1, minWidth: 0 },
+    title: { ...typography.h1, color: colors.text },
     actions: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-    iconBtn: { padding: 4 },
+    iconBtn: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
     statsRow: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.sm },
     statCol: { gap: 2 },
     statValue: { fontSize: 16, fontWeight: "700", color: colors.text },

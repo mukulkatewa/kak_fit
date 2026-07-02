@@ -21,6 +21,7 @@ import { useUserPreferences } from "../../src/lib/use-preferences";
 import { fromKg, toKg, weightLabel } from "../../src/lib/units";
 import { parseOptionalNumber } from "../../src/lib/workout-errors";
 import { ExerciseAvatar } from "../../src/components/exercise-avatar";
+import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -809,7 +810,7 @@ export default function CreateRoutineScreen() {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg },
+    screen: { ...flexFill, backgroundColor: colors.bg, ...webFlexScreen },
     headerPad: { paddingHorizontal: spacing.lg },
     centered: {
       flex: 1,
@@ -821,7 +822,7 @@ const makeStyles = (colors: Palette) =>
     },
     errorTitle: { color: colors.text, fontSize: 18, fontWeight: "700", textAlign: "center" },
     errorText: { color: colors.textMuted, fontSize: 15, textAlign: "center", lineHeight: 22 },
-    scroll: { flex: 1 },
+    scroll: { ...flexFill },
     scrollContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.md },
     nameErrorText: { color: colors.danger, fontSize: 13, fontWeight: "500", marginTop: spacing.xs },
     nameSuggestions: { gap: spacing.sm, marginTop: spacing.xs },
@@ -925,6 +926,7 @@ const makeStyles = (colors: Palette) =>
     setTypeBadge: { fontSize: 13, fontWeight: "700", textAlign: "center" },
     setInput: {
       flex: 1,
+      minWidth: 0,
       backgroundColor: colors.surfaceHover,
       borderRadius: radius.sm,
       color: colors.text,
@@ -933,7 +935,6 @@ const makeStyles = (colors: Palette) =>
       fontSize: 15,
       fontWeight: "500",
       textAlign: "center",
-      minWidth: 0,
     },
     removeSetBtn: { width: 28, alignItems: "center" },
     addSetBtn: {

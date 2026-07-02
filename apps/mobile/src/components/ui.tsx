@@ -826,13 +826,19 @@ export function MacroRing({
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg },
+    screen: {
+      flex: 1,
+      backgroundColor: colors.bg,
+      ...(Platform.OS === "web" ? { minHeight: 0, height: "100%" as const } : null),
+    },
     screenInner: {
+      flex: 1,
+      minHeight: 0,
       paddingHorizontal: spacing.lg,
       gap: spacing.lg,
     },
-    screenInnerFlush: { gap: spacing.lg },
-    scrollContent: { flexGrow: Platform.OS === "web" ? 0 : 1 },
+    screenInnerFlush: { flex: 1, minHeight: 0, gap: spacing.lg },
+    scrollContent: { flexGrow: 1 },
 
     header: {
       flexDirection: "row",
@@ -842,7 +848,7 @@ const makeStyles = (colors: Palette) =>
       marginBottom: spacing.xs,
     },
     headerText: { flex: 1, gap: 4 },
-    headerTitle: { ...typography.display, color: colors.text },
+    headerTitle: { ...typography.h1, color: colors.text },
     headerSubtitle: { ...typography.caption, color: colors.textMuted },
     headerAction: { marginLeft: spacing.md, marginTop: 8 },
 

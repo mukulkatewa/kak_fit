@@ -66,6 +66,7 @@ export default function ExercisesTab() {
       {!loading ? (
         <ScrollView
           horizontal
+          nestedScrollEnabled
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
         >

@@ -233,7 +233,9 @@ project in the target region and repoint the app.
    psql "NEW_DIRECT_URL" < data.sql
    ```
 5. **Storage:** the `progress-photos` bucket auto-creates on the first upload to
-   the new project; existing photos are not migrated automatically.
+   the new project; existing photos are not migrated automatically. Exercise
+   catalog media imports into `SUPABASE_EXERCISE_MEDIA_BUCKET` when set, then
+   `SUPABASE_IMAGE_BUCKET`, falling back to `SUPABASE_STORAGE_BUCKET`.
 6. Restart the API (`pnpm dev:api`). Expect every request to drop by ~70%.
 | `SUPABASE_PROJECT_REF` | Subdomain in your project URL (`https://REF.supabase.co`) |
 | `NEXT_PUBLIC_SUPABASE_*` | Dashboard → Project Settings → **API** (use the `anon` JWT key, not `sb_publishable_…`) |

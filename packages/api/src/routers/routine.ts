@@ -204,6 +204,7 @@ export const routineRouter = router({
       where: { userId: ctx.user.id },
       include: routineListSummaryInclude,
       orderBy: { updatedAt: "desc" },
+      take: 200,
     });
   }),
 

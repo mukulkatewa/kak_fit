@@ -50,7 +50,7 @@ import {
 } from "../../src/lib/workout-history-query";
 import { tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
+import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type FilterKey = "level" | "goal" | "equipment" | null;
 type FilterChip = {
@@ -756,7 +756,7 @@ const makeStyles = (colors: Palette) =>
       alignItems: "center",
       gap: spacing.sm,
     },
-    pageTitle: { fontSize: 34, fontWeight: "800", color: colors.text },
+    pageTitle: { ...typography.h1, color: colors.text },
     startEmptyButton: {
       flexDirection: "row",
       alignItems: "center",
@@ -770,7 +770,7 @@ const makeStyles = (colors: Palette) =>
     startEmptyDisabled: { opacity: 0.6 },
     startEmptyLabel: { fontSize: 16, fontWeight: "700", color: "#fff" },
     section: { gap: spacing.md },
-    sectionTitle: { fontSize: 22, fontWeight: "700", color: colors.text },
+    sectionTitle: { ...typography.h2, color: colors.text },
     sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     manageLink: { fontSize: 15, fontWeight: "700", color: colors.accent },
     filterRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },

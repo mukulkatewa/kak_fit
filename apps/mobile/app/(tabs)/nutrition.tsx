@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState, type FC, type ReactNode } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,7 +36,7 @@ import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
 import { entranceDown, useSpringPress } from "../../src/lib/animations";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
-import { radius, spacing, useTheme, type Palette, type ShadowSet } from "../../src/lib/theme";
+import { radius, spacing, typography, useTheme, type Palette, type ShadowSet } from "../../src/lib/theme";
 
 type MealIcon = FC<{ color?: string; size?: number }>;
 
@@ -773,7 +773,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       marginBottom: spacing.md,
     },
     titleActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.sm },
-    pageTitle: { flex: 1, fontSize: 30, fontWeight: "800" as const },
+    pageTitle: { flex: 1, ...typography.h1 },
     goalsBtn: {
       flexDirection: "row" as const,
       alignItems: "center" as const,
@@ -786,7 +786,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
     goalsBtnText: { fontSize: 14, fontWeight: "700" as const },
 
     calHero: { alignItems: "center" as const, paddingVertical: spacing.sm },
-    calValue: { fontSize: 26, fontWeight: "800" as const },
+    calValue: { fontSize: 22, fontWeight: "800" as const },
     calTarget: { fontSize: 12, marginTop: 0 },
     calUnit: { fontSize: 11, fontWeight: "600" as const },
 
@@ -853,9 +853,9 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
     mealName: { fontSize: 16, fontWeight: "700" as const, color: colors.text },
     mealSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
     addBtn: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: isDark ? colors.accent : colors.surfaceHover,
       alignItems: "center" as const,
       justifyContent: "center" as const,
@@ -864,6 +864,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
     mealRowActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
     editModal: {
       flex: 1,
+      ...(Platform.OS === "web" ? { minHeight: 0, height: "100%" as const } : null),
       backgroundColor: colors.bg,
       paddingHorizontal: spacing.lg,
       gap: spacing.lg,

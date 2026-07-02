@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "@kak-fit/db";
 import { getPreviousSetsBatch } from "../services/previous-values";
-import { recalculatePersonalRecordsForExercise, needsFullPersonalRecordRecalc, syncPersonalRecords, updatePersonalRecordsIncremental } from "../services/personal-records";
+import { recalculatePersonalRecordsForExercise, needsFullPersonalRecordRecalc, syncPersonalRecords, syncPersonalRecordsBatch, updatePersonalRecordsIncremental } from "../services/personal-records";
 import {
   getWorkoutWithDetails,
   queryWorkoutHistoryPage,
@@ -475,19 +475,14 @@ export const workoutRouter = router({
         include: workoutDetailInclude,
       });
 
-      const newRecords = (
-        await Promise.all(
-          workout.exercises.map(async (exercise) => {
-            const records = await syncPersonalRecords(
-              ctx.prisma,
-              ctx.user.id,
-              exercise.exerciseId,
-              exercise.sets,
-            );
-            return records.map((r) => ({ ...r, exerciseId: exercise.exerciseId }));
-          }),
-        )
-      ).flat();
+      const newRecords = await syncPersonalRecordsBatch(
+        ctx.prisma,
+        ctx.user.id,
+        workout.exercises.map((exercise) => ({
+          exerciseId: exercise.exerciseId,
+          sets: exercise.sets,
+        })),
+      );
 
       const durationMinutes = Math.max(
         1,

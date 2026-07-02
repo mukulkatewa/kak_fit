@@ -2,7 +2,7 @@ import { Prisma } from "@kak-fit/db";
 import type { Prisma as PrismaTypes } from "@kak-fit/db";
 import { dedupeExercisesByName } from "../lib/exercise-name";
 
-export const exerciseListInclude = {
+export const exerciseListInclude = Prisma.validator<PrismaTypes.ExerciseInclude>()({
   category: { select: { id: true, name: true } },
   muscles: {
     where: { isPrimary: true },
@@ -13,9 +13,14 @@ export const exerciseListInclude = {
     take: 3,
     include: { equipment: { select: { id: true, name: true } } },
   },
-} as const;
+  media: {
+    take: 1,
+    orderBy: [{ type: "asc" }, { displayOrder: "asc" }],
+    select: { id: true, type: true, storageUrl: true, thumbnailUrl: true },
+  },
+});
 
-export const exerciseDetailInclude = {
+export const exerciseDetailInclude = Prisma.validator<PrismaTypes.ExerciseInclude>()({
   category: { select: { id: true, name: true } },
   muscles: {
     include: { muscle: { select: { id: true, name: true } } },
@@ -24,7 +29,23 @@ export const exerciseDetailInclude = {
   equipment: {
     include: { equipment: { select: { id: true, name: true } } },
   },
-} as const;
+  media: {
+    orderBy: [{ type: "asc" }, { displayOrder: "asc" }],
+    select: {
+      id: true,
+      type: true,
+      storageUrl: true,
+      thumbnailUrl: true,
+      mimeType: true,
+      displayOrder: true,
+      width: true,
+      height: true,
+      duration: true,
+      fileSize: true,
+      source: true,
+    },
+  },
+});
 
 export type ExerciseListItem = PrismaTypes.ExerciseGetPayload<{ include: typeof exerciseListInclude }>;
 
@@ -35,7 +56,8 @@ export function globalExerciseWhere(userId: string): PrismaTypes.ExerciseWhereIn
 }
 
 const catalogScoreSql = Prisma.sql`(
-  CASE WHEN e."imageUrl" IS NOT NULL THEN 100 ELSE 0 END +
+  CASE WHEN EXISTS (SELECT 1 FROM "ExerciseMedia" media WHERE media."exerciseId" = e.id) THEN 100 ELSE 0 END +
+  CASE WHEN e."imageUrl" IS NOT NULL THEN 25 ELSE 0 END +
   CASE WHEN e.instructions IS NOT NULL AND btrim(e.instructions) <> '' THEN 20 ELSE 0 END +
   CASE WHEN e."wgerId" IS NOT NULL THEN 10 ELSE 0 END +
   CASE WHEN e."hevyId" IS NOT NULL THEN 5 ELSE 0 END
@@ -83,7 +105,7 @@ function buildCatalogFilters(
 
 /**
  * List catalog exercises with deduplication by normalized name.
- * Prefers Wger rows (images/instructions) and merges Hevy metadata via hevyId on same row.
+ * Prefers rows with locally stored media/instructions and merges Hevy metadata via hevyId on same row.
  */
 export async function listCatalogExercises(
   prisma: PrismaTypes.TransactionClient | import("@kak-fit/db").PrismaClient,

@@ -52,7 +52,8 @@
         {
           "photosPermission": "Allow Kak Fit to add progress photos from your library."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "extra": {
       "router": {},

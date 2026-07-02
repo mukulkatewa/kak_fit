@@ -12,7 +12,7 @@ import {
 } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
@@ -186,8 +186,14 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  gestureRoot: { flex: 1 },
-  root: { flex: 1 },
+  gestureRoot: {
+    flex: 1,
+    ...(Platform.OS === "web" ? { minHeight: 0, height: "100%" as const } : null),
+  },
+  root: {
+    flex: 1,
+    ...(Platform.OS === "web" ? { minHeight: 0, height: "100%" as const } : null),
+  },
   loadingOverlay: {
     alignItems: "center",
     justifyContent: "center",

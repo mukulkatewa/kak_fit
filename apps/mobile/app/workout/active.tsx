@@ -5,6 +5,7 @@ import {
   FlatList,
   Keyboard,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -51,6 +52,7 @@ import {
 } from "../../src/lib/offline-workouts";
 import { formatElapsedDuration } from "../../src/lib/format-duration";
 import { useWorkoutSetMutationQueue } from "../../src/lib/workout-mutation-queue";
+import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
 import {
   WORKOUT_HISTORY_PAGE_SIZE,
   workoutHistoryInfiniteOptions,
@@ -522,7 +524,7 @@ function ActiveWorkoutScreen() {
 
   return (
     <>
-    <Screen padded={false}>
+    <Screen padded={false} style={flexFill}>
       <View style={styles.mainColumn}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerSide} hitSlop={8}>
@@ -614,6 +616,8 @@ function ActiveWorkoutScreen() {
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, styles.contentPad]}
         keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={Platform.OS !== "web"}
       >
         {reorderMode ? (
           <Card>
@@ -1088,7 +1092,7 @@ function ExerciseBlock({
       ) : null}
       <View style={styles.exerciseHeader}>
         <Pressable onLongPress={onRequestDeleteExercise} style={styles.exerciseHeaderMain}>
-          <ExerciseAvatar name={name} imageUrl={imageUrl} size={48} />
+          <ExerciseAvatar name={name} imageUrl={imageUrl} size={40} />
           <Text style={styles.exerciseName} numberOfLines={1}>
             {name}
           </Text>
@@ -1313,7 +1317,7 @@ function SetRow({
           onPress={handleCompletePress}
         >
           {set.isCompleted ? (
-            <Ionicons name="checkmark" size={24} color={colors.onAccent} />
+            <Ionicons name="checkmark" size={20} color={colors.onAccent} />
           ) : null}
         </Pressable>
       </View>
@@ -1352,16 +1356,16 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   statsBar: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 110,
+    minHeight: 72,
     paddingHorizontal: spacing.lg,
     backgroundColor: colors.bg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.separator,
   },
-  statsItem: { flex: 1, minWidth: 0, alignItems: "flex-start", justifyContent: "center", gap: 6 },
-  statsIconCell: { width: 52, alignItems: "center", justifyContent: "center" },
-  statsValue: { width: "100%", fontSize: 24, fontWeight: "400", color: colors.text, lineHeight: 30 },
-  statsLabel: { fontSize: 15, fontWeight: "400", color: colors.textMuted },
+  statsItem: { flex: 1, minWidth: 0, alignItems: "flex-start", justifyContent: "center", gap: 4 },
+  statsIconCell: { width: 44, alignItems: "center", justifyContent: "center" },
+  statsValue: { width: "100%", fontSize: 20, fontWeight: "600", color: colors.text, lineHeight: 24 },
+  statsLabel: { fontSize: 12, fontWeight: "500", color: colors.textMuted },
   statsDivider: { display: "none" },
   offlineMeta: {
     color: colors.textMuted,
@@ -1442,61 +1446,70 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
   exerciseHeaderMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.md },
-  exerciseName: { flex: 1, minWidth: 0, color: colors.accent, fontSize: 28, lineHeight: 34, fontWeight: "500" },
-  iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  exerciseName: { flex: 1, minWidth: 0, color: colors.accent, fontSize: 18, lineHeight: 22, fontWeight: "600" },
+  iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   supersetBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginBottom: 4 },
   supersetBadgeText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
-  prevMeta: { color: colors.textDim, fontSize: 13, marginTop: spacing.sm },
+  prevMeta: { color: colors.textDim, fontSize: 12, marginTop: spacing.sm },
   exerciseNotesInput: {
     color: colors.textMuted,
-    fontSize: 26,
-    lineHeight: 32,
-    paddingVertical: spacing.md,
+    fontSize: 15,
+    lineHeight: 20,
+    paddingVertical: spacing.sm,
     paddingHorizontal: 0,
   },
-  exerciseRestRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.lg },
-  exerciseRestText: { color: colors.accent, fontSize: 24, lineHeight: 30, fontWeight: "400" },
-  setHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 6, marginBottom: spacing.sm },
-  setCol: { flex: 1, color: colors.textDim, fontSize: 18, fontWeight: "400", textAlign: "center" },
-  setColNarrow: { flex: 0, width: 48 },
-  setColRpe: { flex: 0, width: 56 },
-  setColPrev: { flex: 0, width: 112 },
-  setColKgHeader: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
-  setColKgHeaderText: { color: colors.textDim, fontSize: 18, fontWeight: "400" },
-  prevCol: { width: 112, alignItems: "center" as const, justifyContent: "center" as const },
-  prevColText: { color: colors.textMuted, fontSize: 24, textAlign: "center" as const },
-  setRow: {
-    minHeight: 66,
+  exerciseRestRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs, marginBottom: spacing.md },
+  exerciseRestText: { color: colors.accent, fontSize: 14, lineHeight: 18, fontWeight: "500" },
+  setHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 6,
+    gap: spacing.xs,
+    paddingHorizontal: 2,
+    marginBottom: spacing.sm,
+  },
+  setCol: { flex: 1, minWidth: 0, color: colors.textDim, fontSize: 11, fontWeight: "600", textAlign: "center" },
+  setColNarrow: { flex: 0, width: 36 },
+  setColRpe: { flex: 0, width: 44 },
+  setColPrev: { flex: 0, width: 72 },
+  setColKgHeader: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  setColKgHeaderText: { color: colors.textDim, fontSize: 11, fontWeight: "600" },
+  prevCol: { width: 72, alignItems: "center" as const, justifyContent: "center" as const },
+  prevColText: { color: colors.textMuted, fontSize: 13, textAlign: "center" as const },
+  setRow: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: 2,
     backgroundColor: colors.bg,
   },
   setRowDone: { backgroundColor: colors.successMuted },
-  setNumber: { fontSize: 26, fontWeight: "700", textAlign: "center" },
-  setTypeBtn: { width: 48, alignItems: "center", justifyContent: "center" },
+  setNumber: { fontSize: 15, fontWeight: "700", textAlign: "center" },
+  setTypeBtn: { width: 36, alignItems: "center", justifyContent: "center" },
   rpeCell: {
-    width: 56,
-    minHeight: 44,
+    width: 44,
+    minHeight: 40,
     alignItems: "center",
     justifyContent: "center",
   },
-  rpeText: { color: colors.text, fontSize: 24, fontWeight: "400", textAlign: "center" },
+  rpeText: { color: colors.text, fontSize: 14, fontWeight: "500", textAlign: "center" },
   setInput: {
     flex: 1,
-    color: colors.text,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: 2,
-    fontSize: 26,
-    fontWeight: "400",
-    textAlign: "center",
     minWidth: 0,
+    color: colors.text,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    fontSize: 16,
+    fontWeight: "500",
+    textAlign: "center",
+    backgroundColor: colors.surfaceHover,
+    borderRadius: radius.sm,
   },
   setInputDone: { color: colors.text },
   check: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surfaceHover,
@@ -1513,8 +1526,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   deleteActionText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   addSetBtn: {
-    minHeight: 68,
-    marginTop: spacing.lg,
+    minHeight: 48,
+    marginTop: spacing.md,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceHover,
     flexDirection: "row",
@@ -1522,9 +1535,10 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
   },
-  addSet: { color: colors.text, fontSize: 24, fontWeight: "500" },
+  addSet: { color: colors.text, fontSize: 16, fontWeight: "600" },
   pickerModal: {
     flex: 1,
+    ...webFlexScreen,
     backgroundColor: colors.bg,
     paddingHorizontal: spacing.lg,
     gap: spacing.md,

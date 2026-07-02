@@ -354,10 +354,14 @@ function ActiveWorkoutScreen() {
 
   const addExercise = trpc.workout.addExercise.useMutation({
     onMutate: async (variables) => {
-      const fetched = await utils.workout.previousSets.fetch({
-        exerciseIds: [variables.exerciseId],
-      });
-      return { previousSets: fetched };
+      try {
+        const fetched = await utils.workout.previousSets.fetch({
+          exerciseIds: [variables.exerciseId],
+        });
+        return { previousSets: fetched };
+      } catch {
+        return { previousSets: {} };
+      }
     },
     onSuccess: (newExercise, variables, context) => {
       patchActiveWorkout((workout) => {
@@ -389,7 +393,7 @@ function ActiveWorkoutScreen() {
           workout,
           createOptimisticExercise(workout, variables, {
             name: meta?.name ?? "Exercise",
-            imageUrl: meta?.imageUrl ?? null,
+            imageUrl: getExerciseMediaUrl(meta),
           }),
         ),
       );

@@ -2,6 +2,7 @@ import type { PrismaClient } from "@kak-fit/db";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
+import { findInaccessibleExerciseIds } from "../lib/exercise-access";
 import { protectedProcedure, router } from "../trpc";
 
 const setInput = z.object({
@@ -241,6 +242,25 @@ export const routineRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const inaccessible = await findInaccessibleExerciseIds(
+        ctx.prisma,
+        ctx.user.id,
+        input.exercises.map((exercise) => exercise.exerciseId),
+      );
+      if (inaccessible.length > 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exercise not found" });
+      }
+
+      if (input.folderId) {
+        const folder = await ctx.prisma.routineFolder.findFirst({
+          where: { id: input.folderId, userId: ctx.user.id },
+          select: { id: true },
+        });
+        if (!folder) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Folder not found" });
+        }
+      }
+
       return ctx.prisma.routine.create({
         data: {
           userId: ctx.user.id,
@@ -281,6 +301,25 @@ export const routineRouter = router({
       });
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });
+      }
+
+      const inaccessible = await findInaccessibleExerciseIds(
+        ctx.prisma,
+        ctx.user.id,
+        input.exercises.map((exercise) => exercise.exerciseId),
+      );
+      if (inaccessible.length > 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exercise not found" });
+      }
+
+      if (input.folderId) {
+        const folder = await ctx.prisma.routineFolder.findFirst({
+          where: { id: input.folderId, userId: ctx.user.id },
+          select: { id: true },
+        });
+        if (!folder) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Folder not found" });
+        }
       }
 
       // Replace the exercise tree wholesale (simplest correct edit).

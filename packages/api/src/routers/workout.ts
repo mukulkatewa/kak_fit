@@ -9,6 +9,7 @@ import {
   workoutDetailInclude,
 } from "../services/workout-history";
 import { logWorkoutDeletion } from "../public-api/handlers";
+import { findInaccessibleExerciseIds } from "../lib/exercise-access";
 import { protectedProcedure, router } from "../trpc";
 
 async function batchUpdateExerciseOrder(
@@ -228,6 +229,11 @@ export const workoutRouter = router({
           code: "NOT_FOUND",
           message: "Active workout not found",
         });
+      }
+
+      const inaccessible = await findInaccessibleExerciseIds(ctx.prisma, ctx.user.id, [input.exerciseId]);
+      if (inaccessible.length > 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exercise not found" });
       }
 
       const order = workout.exercises.length;

@@ -1,3 +1,4 @@
+import { Prisma } from "@kak-fit/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { fetchExternal } from "../fetch-external";
@@ -407,38 +408,36 @@ export const nutritionRouter = router({
     .query(async ({ ctx, input }) => {
       const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
 
-      const [meals, user] = await Promise.all([
-        ctx.prisma.mealLog.findMany({
-          where: { userId: ctx.user.id, date: { gte: startOfDay } },
-          include: { items: { include: { food: true } } },
-        }),
+      const [summaryRows, user] = await Promise.all([
+        ctx.prisma.$queryRaw<
+          Array<{ calories: number | null; protein: number | null; carbs: number | null; fat: number | null; mealCount: bigint }>
+        >(Prisma.sql`
+          SELECT
+            COALESCE(SUM(f.calories * (mi.quantity / COALESCE(NULLIF(f."servingSize", 0), 100))), 0) as calories,
+            COALESCE(SUM(f.protein * (mi.quantity / COALESCE(NULLIF(f."servingSize", 0), 100))), 0) as protein,
+            COALESCE(SUM(f.carbs * (mi.quantity / COALESCE(NULLIF(f."servingSize", 0), 100))), 0) as carbs,
+            COALESCE(SUM(f.fat * (mi.quantity / COALESCE(NULLIF(f."servingSize", 0), 100))), 0) as fat,
+            COUNT(DISTINCT ml.id)::bigint as "mealCount"
+          FROM "MealLog" ml
+          LEFT JOIN "MealItem" mi ON mi."mealId" = ml.id
+          LEFT JOIN "Food" f ON f.id = mi."foodId"
+          WHERE ml."userId" = ${ctx.user.id}
+            AND ml.date >= ${startOfDay}
+        `),
         ctx.prisma.user.findUnique({
           where: { id: ctx.user.id },
           select: { calorieGoal: true, proteinGoal: true, carbGoal: true, fatGoal: true },
         }),
       ]);
 
-      let calories = 0;
-      let protein = 0;
-      let carbs = 0;
-      let fat = 0;
-
-      for (const meal of meals) {
-        for (const item of meal.items) {
-          const ratio = item.quantity / (item.food.servingSize ?? 100);
-          calories += item.food.calories * ratio;
-          protein += item.food.protein * ratio;
-          carbs += item.food.carbs * ratio;
-          fat += item.food.fat * ratio;
-        }
-      }
+      const summary = summaryRows[0];
 
       return {
-        calories: Math.round(calories),
-        protein: Math.round(protein),
-        carbs: Math.round(carbs),
-        fat: Math.round(fat),
-        mealCount: meals.length,
+        calories: Math.round(Number(summary?.calories ?? 0)),
+        protein: Math.round(Number(summary?.protein ?? 0)),
+        carbs: Math.round(Number(summary?.carbs ?? 0)),
+        fat: Math.round(Number(summary?.fat ?? 0)),
+        mealCount: Number(summary?.mealCount ?? 0),
         targets: resolveTargets(
           user ?? { calorieGoal: null, proteinGoal: null, carbGoal: null, fatGoal: null },
         ),

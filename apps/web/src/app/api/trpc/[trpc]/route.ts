@@ -27,7 +27,7 @@ async function resolveBearerUser(token: string) {
     include: { user: true },
   });
   if (dbSession && dbSession.expiresAt > new Date()) {
-    return dbSession.user;
+    return { user: dbSession.user, expiresAt: dbSession.expiresAt };
   }
   return null;
 }
@@ -42,9 +42,10 @@ const createContext = async (opts: { req: Request }) => {
   if (sessionToken) {
     user = getCachedSessionUser(sessionToken);
     if (!user) {
-      user = await resolveBearerUser(sessionToken);
-      if (user) {
-        setCachedSessionUser(sessionToken, user);
+      const resolved = await resolveBearerUser(sessionToken);
+      if (resolved) {
+        user = resolved.user;
+        setCachedSessionUser(sessionToken, resolved.user, resolved.expiresAt);
       } else {
         deleteCachedSessionUser(sessionToken);
       }

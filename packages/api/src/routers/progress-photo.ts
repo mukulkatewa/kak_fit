@@ -41,6 +41,17 @@ export const progressPhotoRouter = router({
           message: "Photo storage is not configured on the server.",
         });
       }
+
+      if (input.workoutId) {
+        const workout = await ctx.prisma.workout.findFirst({
+          where: { id: input.workoutId, userId: ctx.user.id },
+          select: { id: true },
+        });
+        if (!workout) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
+        }
+      }
+
       const { url, path } = await uploadImage(ctx.user.id, input.base64, input.contentType);
       return ctx.prisma.progressPhoto.create({
         data: {

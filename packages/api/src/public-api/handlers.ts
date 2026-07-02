@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@kak-fit/db";
+import { findInaccessibleExerciseIds } from "../lib/exercise-access";
 import { syncPersonalRecordsBatch } from "../services/personal-records";
 import { authenticateApiKey, PublicApiError, type ApiAuthContext } from "./auth";
 import { exerciseAccessWhere, parseRoutineExercisePayload, resolveExercise, suggestExerciseMatches } from "./helpers";
@@ -47,6 +48,17 @@ type Handler = (
   request: Request,
   params: Record<string, string>,
 ) => Promise<unknown>;
+
+async function assertExerciseAccess(
+  prisma: PrismaClient,
+  userId: string,
+  exerciseIds: string[],
+) {
+  const inaccessible = await findInaccessibleExerciseIds(prisma, userId, exerciseIds);
+  if (inaccessible.length > 0) {
+    throw new PublicApiError(404, "One or more exercises were not found");
+  }
+}
 
 function workoutExerciseInput(exercises: unknown) {
   if (!Array.isArray(exercises)) {
@@ -146,6 +158,7 @@ const routes: Array<{
       const startTime = workout.start_time ? new Date(String(workout.start_time)) : new Date();
       const endTime = workout.end_time ? new Date(String(workout.end_time)) : startTime;
       const exercises = workoutExerciseInput(workout.exercises);
+      await assertExerciseAccess(prisma, ctx.user.id, exercises.map((exercise) => exercise.exerciseId));
 
       const created = await prisma.workout.create({
         data: {
@@ -266,31 +279,38 @@ const routes: Array<{
       const body = (await request.json()) as { workout?: Record<string, unknown> };
       const workout = body.workout ?? (body as Record<string, unknown>);
 
-      if (workout.exercises) {
-        await prisma.workoutExercise.deleteMany({ where: { workoutId: params.id } });
+      const exercises = workout.exercises ? workoutExerciseInput(workout.exercises) : null;
+      if (exercises) {
+        await assertExerciseAccess(prisma, ctx.user.id, exercises.map((exercise) => exercise.exerciseId));
       }
 
-      const updated = await prisma.workout.update({
-        where: { id: params.id },
-        data: {
-          name: workout.title != null ? String(workout.title) : workout.name != null ? String(workout.name) : undefined,
-          notes: workout.description != null ? String(workout.description) : workout.notes != null ? String(workout.notes) : undefined,
-          startedAt: workout.start_time ? new Date(String(workout.start_time)) : undefined,
-          finishedAt: workout.end_time ? new Date(String(workout.end_time)) : undefined,
-          ...(workout.exercises
-            ? {
-                exercises: {
-                  create: workoutExerciseInput(workout.exercises).map((ex) => ({
-                    exerciseId: ex.exerciseId,
-                    order: ex.order,
-                    notes: ex.notes,
-                    sets: { create: ex.sets },
-                  })),
-                },
-              }
-            : {}),
-        },
-        include: workoutInclude,
+      const updated = await prisma.$transaction(async (tx) => {
+        if (exercises) {
+          await tx.workoutExercise.deleteMany({ where: { workoutId: params.id } });
+        }
+
+        return tx.workout.update({
+          where: { id: params.id },
+          data: {
+            name: workout.title != null ? String(workout.title) : workout.name != null ? String(workout.name) : undefined,
+            notes: workout.description != null ? String(workout.description) : workout.notes != null ? String(workout.notes) : undefined,
+            startedAt: workout.start_time ? new Date(String(workout.start_time)) : undefined,
+            finishedAt: workout.end_time ? new Date(String(workout.end_time)) : undefined,
+            ...(exercises
+              ? {
+                  exercises: {
+                    create: exercises.map((ex) => ({
+                      exerciseId: ex.exerciseId,
+                      order: ex.order,
+                      notes: ex.notes,
+                      sets: { create: ex.sets },
+                    })),
+                  },
+                }
+              : {}),
+          },
+          include: workoutInclude,
+        });
       });
 
       return { workout: serializeWorkout(updated) };
@@ -327,6 +347,16 @@ const routes: Array<{
       if (!title?.trim()) throw new PublicApiError(400, "routine.title is required");
 
       const exercises = routine.exercises ? workoutExerciseInput(routine.exercises) : [];
+      await assertExerciseAccess(prisma, ctx.user.id, exercises.map((exercise) => exercise.exerciseId));
+
+      if (typeof routine.folder_id === "string") {
+        const folder = await prisma.routineFolder.findFirst({
+          where: { id: routine.folder_id, userId: ctx.user.id },
+          select: { id: true },
+        });
+        if (!folder) throw new PublicApiError(404, "Routine folder not found");
+      }
+
       const created = await prisma.routine.create({
         data: {
           userId: ctx.user.id,
@@ -510,38 +540,53 @@ const routes: Array<{
       const body = (await request.json()) as { routine?: Record<string, unknown> };
       const routine = body.routine ?? (body as Record<string, unknown>);
 
-      if (routine.exercises) {
-        await prisma.routineExercise.deleteMany({ where: { routineId: params.id } });
+      const exercises = routine.exercises ? workoutExerciseInput(routine.exercises) : null;
+      if (exercises) {
+        await assertExerciseAccess(prisma, ctx.user.id, exercises.map((exercise) => exercise.exerciseId));
       }
 
-      const updated = await prisma.routine.update({
-        where: { id: params.id },
-        data: {
-          name: routine.title != null ? String(routine.title) : routine.name != null ? String(routine.name) : undefined,
-          notes: routine.notes != null ? String(routine.notes) : undefined,
-          folderId: routine.folder_id != null ? String(routine.folder_id) : undefined,
-          ...(routine.exercises
-            ? {
-                exercises: {
-                  create: workoutExerciseInput(routine.exercises).map((ex) => ({
-                    exerciseId: ex.exerciseId,
-                    order: ex.order,
-                    notes: ex.notes,
-                    sets: {
-                      create: ex.sets.map((set) => ({
-                        setNumber: set.setNumber,
-                        targetWeight: set.weight,
-                        targetReps: set.reps,
-                        targetDuration: set.duration,
-                        setType: set.setType,
-                      })),
-                    },
-                  })),
-                },
-              }
-            : {}),
-        },
-        include: routineInclude,
+      if (routine.folder_id != null) {
+        const folder = await prisma.routineFolder.findFirst({
+          where: { id: String(routine.folder_id), userId: ctx.user.id },
+          select: { id: true },
+        });
+        if (!folder) throw new PublicApiError(404, "Routine folder not found");
+      }
+
+      const updated = await prisma.$transaction(async (tx) => {
+        if (exercises) {
+          await tx.routineExercise.deleteMany({ where: { routineId: params.id } });
+        }
+
+        return tx.routine.update({
+          where: { id: params.id },
+          data: {
+            name: routine.title != null ? String(routine.title) : routine.name != null ? String(routine.name) : undefined,
+            notes: routine.notes != null ? String(routine.notes) : undefined,
+            folderId: routine.folder_id != null ? String(routine.folder_id) : undefined,
+            ...(exercises
+              ? {
+                  exercises: {
+                    create: exercises.map((ex) => ({
+                      exerciseId: ex.exerciseId,
+                      order: ex.order,
+                      notes: ex.notes,
+                      sets: {
+                        create: ex.sets.map((set) => ({
+                          setNumber: set.setNumber,
+                          targetWeight: set.weight,
+                          targetReps: set.reps,
+                          targetDuration: set.duration,
+                          setType: set.setType,
+                        })),
+                      },
+                    })),
+                  },
+                }
+              : {}),
+          },
+          include: routineInclude,
+        });
       });
       return { routine: serializeRoutine(updated) };
     },

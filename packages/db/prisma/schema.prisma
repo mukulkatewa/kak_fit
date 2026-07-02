@@ -264,6 +264,8 @@ model ExerciseMuscle {
   muscle   Muscle   @relation(fields: [muscleId], references: [id], onDelete: Cascade)
 
   @@unique([exerciseId, muscleId])
+  @@index([muscleId])
+  @@index([exerciseId, isPrimary])
 }
 
 model ExerciseEquipment {
@@ -275,6 +277,7 @@ model ExerciseEquipment {
   equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
 
   @@unique([exerciseId, equipmentId])
+  @@index([equipmentId])
 }
 
 model RoutineFolder {
@@ -286,6 +289,8 @@ model RoutineFolder {
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   routines Routine[]
+
+  @@index([userId])
 }
 
 model Routine {
@@ -446,6 +451,7 @@ model Like {
   workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workoutId])
+  @@index([workoutId])
 }
 
 model Comment {
@@ -461,6 +467,9 @@ model Comment {
   workout Workout   @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies Comment[] @relation("CommentReplies")
+
+  @@index([workoutId])
+  @@index([parentId])
 }
 
 model Media {
@@ -472,6 +481,8 @@ model Media {
   createdAt DateTime  @default(now())
 
   workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  @@index([workoutId])
 }
 
 model Food {
@@ -496,6 +507,7 @@ model Food {
 
   @@index([name])
   @@index([isCustom, userId])
+  @@index([isCustom, userId, updatedAt])
 }
 
 model MealLog {

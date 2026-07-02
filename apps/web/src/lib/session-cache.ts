@@ -21,7 +21,9 @@ const stats: CacheStats = {
   evictions: 0,
 };
 
-const sessionCache = new LRUCache<string, User>({
+type CachedSessionUser = { user: User; sessionExpiresAt: Date };
+
+const sessionCache = new LRUCache<string, CachedSessionUser>({
   max: maxEntries,
   ttl: SESSION_CACHE_TTL_MS,
   updateAgeOnGet: true,
@@ -57,15 +59,20 @@ export function clearSessionCache() {
 export function getCachedSessionUser(token: string): User | null {
   const cached = sessionCache.get(token);
   if (cached) {
-    stats.hits += 1;
-    return cached;
+    if (cached.sessionExpiresAt > new Date()) {
+      stats.hits += 1;
+      return cached.user;
+    }
+    sessionCache.delete(token);
   }
   stats.misses += 1;
   return null;
 }
 
-export function setCachedSessionUser(token: string, user: User) {
-  sessionCache.set(token, user);
+export function setCachedSessionUser(token: string, user: User, sessionExpiresAt: Date) {
+  const ttl = Math.max(0, Math.min(SESSION_CACHE_TTL_MS, sessionExpiresAt.getTime() - Date.now()));
+  if (ttl <= 0) return;
+  sessionCache.set(token, { user, sessionExpiresAt }, { ttl });
 }
 
 export function deleteCachedSessionUser(token: string) {

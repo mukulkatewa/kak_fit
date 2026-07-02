@@ -1,4 +1,5 @@
 import { Prisma } from "@kak-fit/db";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
@@ -15,17 +16,16 @@ const userSelect = {
 
 export const authRouter = router({
   me: protectedProcedure.query(async ({ ctx }) => {
-    const user = ctx.user;
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      image: user.image,
-      bio: user.bio,
-      subscriptionTier: user.subscriptionTier,
-      weightUnit: user.weightUnit,
-      defaultRestSeconds: user.defaultRestSeconds,
-    };
+    const user = await ctx.prisma.user.findUnique({
+      where: { id: ctx.user.id },
+      select: userSelect,
+    });
+
+    if (!user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Authenticated user was not found" });
+    }
+
+    return user;
   }),
 
   updateProfile: protectedProcedure

@@ -38,6 +38,7 @@ import {
 } from "../../src/components/ui";
 import { entranceDown, usePulse, useSpringPress } from "../../src/lib/animations";
 import { BUTTON_HEIGHT_PRIMARY, HIT_SLOP_LARGE, iconButtonStyle } from "../../src/lib/layout-constants";
+import { useResponsive } from "../../src/lib/responsive";
 import { useAuth } from "../../src/lib/auth-context";
 import {
   radius,
@@ -139,6 +140,7 @@ function WeeklyProgressHeroCard({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { heroFontSize, heroLineHeight } = useResponsive();
   const { scale, onPressIn, onPressOut } = useSpringPress();
   const glowOpacity = useSharedValue(0.35);
 
@@ -176,7 +178,7 @@ function WeeklyProgressHeroCard({
               <AnimatedCounter
                 value={Math.round(totalVolume)}
                 loading={weeklyLoading}
-                style={styles.heroBig}
+                style={[styles.heroBig, { fontSize: heroFontSize, lineHeight: heroLineHeight }]}
               />
               {!weeklyLoading ? (
                 <Text style={styles.heroUnit}>{volumeUnit}</Text>
@@ -301,6 +303,7 @@ function DashboardScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { horizontalPadding, pageTitleSize, pageTitleLineHeight } = useResponsive();
   const utils = trpc.useUtils();
   const { showToast } = useToast();
 
@@ -475,7 +478,7 @@ function DashboardScreen() {
 
   return (
     <Screen scroll padded={false} variant="tab">
-      <View style={styles.pad}>
+      <View style={[styles.pad, { paddingHorizontal: horizontalPadding }]}>
         {/* Greeting header + stats */}
         <View style={styles.headerBlock}>
           <Animated.View
@@ -483,7 +486,14 @@ function DashboardScreen() {
             style={styles.greetingRow}
           >
             <View style={styles.greetingText}>
-              <Text style={styles.greetingTitle}>Ready to train?</Text>
+              <Text
+                style={[
+                  styles.greetingTitle,
+                  { fontSize: pageTitleSize, lineHeight: pageTitleLineHeight },
+                ]}
+              >
+                Ready to train?
+              </Text>
               <Text style={styles.greetingDate}>{formatDashboardDate()}</Text>
             </View>
             <View style={styles.headerRight}>
@@ -823,7 +833,6 @@ const makeStyles = (colors: Palette) => {
 
   return StyleSheet.create({
     pad: {
-      paddingHorizontal: spacing.lg,
       gap: spacing.lg,
     },
 
@@ -856,12 +865,13 @@ const makeStyles = (colors: Palette) => {
     statsRow: {
       flexDirection: "row",
       justifyContent: "space-around",
+      gap: spacing.xs,
     },
-    statWrap: { flex: 1 },
-    statCol: { alignItems: "center", gap: spacing.xs },
-    statValueRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-    statValue: { fontSize: 18, fontWeight: "800", color: colors.text }, // custom: dashboard stat emphasis
-    statLabel: { ...typography.label, color: colors.textMuted },
+    statWrap: { flex: 1, minWidth: 0 },
+    statCol: { alignItems: "center", gap: spacing.xs, minWidth: 0 },
+    statValueRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, maxWidth: "100%" },
+    statValue: { fontSize: 18, fontWeight: "800", color: colors.text, flexShrink: 1 }, // custom: dashboard stat emphasis
+    statLabel: { ...typography.label, color: colors.textMuted, textAlign: "center" },
     gear: { ...iconButtonStyle, padding: spacing.xs },
 
     heroCardOuter: {
@@ -899,11 +909,9 @@ const makeStyles = (colors: Palette) => {
       marginTop: spacing.xs,
     },
     heroBig: {
-      // custom: hero metric display number
-      fontSize: 40,
+      // custom: hero metric display number — fontSize set via useResponsive()
       fontWeight: "800",
       color: colors.onAccent,
-      lineHeight: 44,
     },
     heroUnit: {
       ...typography.h3,

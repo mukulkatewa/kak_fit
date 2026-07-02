@@ -49,6 +49,7 @@ import { trpc, authMeQueryOptions, queryStaleTime } from "../../src/lib/trpc";
 import { tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { useUserPreferences } from "../../src/lib/use-preferences";
 import { TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
+import { useResponsive } from "../../src/lib/responsive";
 import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
 type ChartMode = "duration" | "volume" | "reps";
@@ -124,12 +125,13 @@ function DashboardGridItem({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { gridItemWidth } = useResponsive();
   const { scale, onPressIn, onPressOut } = useSpringPress();
 
   return (
     <Animated.View
       entering={FadeInUp.delay(index * 50).springify().damping(16)}
-      style={[styles.gridItemWrap, scale]}
+      style={[styles.gridItemWrap, { width: gridItemWidth }, scale]}
     >
       <Pressable
         style={styles.gridItem}
@@ -172,6 +174,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { horizontalPadding } = useResponsive();
   const { signOut } = useAuth();
   const { weightUnit } = useUserPreferences();
   const [chartMode, setChartMode] = useState<ChartMode>("volume");
@@ -239,7 +242,7 @@ export default function ProfileScreen() {
 
   return (
     <Screen scroll padded={false} variant="tab">
-      <View style={styles.pad}>
+      <View style={[styles.pad, { paddingHorizontal: horizontalPadding }]}>
         <Animated.View entering={entranceDown(100)}>
           <HevyTopBar
             title={username}
@@ -378,7 +381,7 @@ export default function ProfileScreen() {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    pad: { paddingHorizontal: spacing.lg, gap: spacing.lg },
+    pad: { gap: spacing.lg },
     profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.xl },
     statsWrap: { flex: 1 },
     bio: { ...typography.bodySmall, color: colors.textMuted },
@@ -417,7 +420,7 @@ const makeStyles = (colors: Palette) =>
     noDataText: { ...typography.body, color: colors.textMuted },
     sectionLabel: { ...typography.caption, color: colors.textMuted, marginTop: spacing.sm },
     grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-    gridItemWrap: { width: "48%" },
+    gridItemWrap: { minWidth: 150 },
     gridItem: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,

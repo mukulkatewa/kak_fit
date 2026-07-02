@@ -24,12 +24,14 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSpringPress } from "../src/lib/animations";
 import { useAuth } from "../src/lib/auth-context";
+import { useResponsive } from "../src/lib/responsive";
 import { spacing, typography, useTheme } from "../src/lib/theme";
 
 const DARK_BG = ["#05070B", "#07111C", "#020304"] as const;
 const LIGHT_BG = ["#F8FAF6", "#ECF6EE", "#F8FAF6"] as const;
 
 function AmbientMark() {
+  const { ambientRingSize } = useResponsive();
   const rotation = useSharedValue(0);
   const opacity = useSharedValue(0.32);
 
@@ -48,8 +50,30 @@ function AmbientMark() {
   }));
 
   return (
-    <Animated.View pointerEvents="none" style={[styles.ambientRing, ringStyle]}>
-      <View style={styles.ambientCutout} />
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.ambientRing,
+        {
+          width: ambientRingSize,
+          height: ambientRingSize,
+          borderRadius: ambientRingSize / 2,
+        },
+        ringStyle,
+      ]}
+    >
+      <View
+        style={[
+          styles.ambientCutout,
+          {
+            left: ambientRingSize * 0.133,
+            top: ambientRingSize * 0.133,
+            right: ambientRingSize * 0.133,
+            bottom: ambientRingSize * 0.133,
+            borderRadius: ambientRingSize * 0.367,
+          },
+        ]}
+      />
     </Animated.View>
   );
 }
@@ -89,6 +113,14 @@ function GoogleButton({ loading, onPress }: { loading: boolean; onPress: () => v
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const {
+    horizontalPadding,
+    isCompact,
+    loginTitleSize,
+    loginTitleLineHeight,
+    loginOrbSize,
+    ambientRingSize,
+  } = useResponsive();
   const { signInWithGoogle } = useAuth();
   const { colors, isDark } = useTheme();
   const [loading, setLoading] = useState(false);
@@ -123,9 +155,9 @@ export default function LoginScreen() {
         style={[
           styles.content,
           {
-            paddingTop: insets.top + spacing.xl,
+            paddingTop: insets.top + (isCompact ? spacing.lg : spacing.xl),
             paddingBottom: insets.bottom + spacing.xl,
-            paddingHorizontal: spacing.lg,
+            paddingHorizontal: horizontalPadding,
           },
         ]}
       >
@@ -150,14 +182,29 @@ export default function LoginScreen() {
             style={[
               styles.logoOrb,
               {
+                width: loginOrbSize,
+                height: loginOrbSize,
+                borderRadius: loginOrbSize * 0.29,
                 backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "#FFFFFF",
                 borderColor: isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.06)",
               },
             ]}
           >
-            <BoltIcon color={colors.accent} size={54} />
+            <BoltIcon color={colors.accent} size={loginOrbSize * 0.47} />
           </Animated.View>
-          <Animated.Text entering={FadeInDown.delay(210).springify().damping(18)} style={[styles.title, { color: colors.text }]}>Kak Fit</Animated.Text>
+          <Animated.Text
+            entering={FadeInDown.delay(210).springify().damping(18)}
+            style={[
+              styles.title,
+              {
+                color: colors.text,
+                fontSize: loginTitleSize,
+                lineHeight: loginTitleLineHeight,
+              },
+            ]}
+          >
+            Kak Fit
+          </Animated.Text>
           <Animated.Text entering={FadeInDown.delay(250).springify().damping(18)} style={[styles.subtitle, { color: colors.textMuted }]}>Sign in</Animated.Text>
         </View>
 
@@ -182,19 +229,11 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: "18%",
     alignSelf: "center",
-    width: 360,
-    height: 360,
-    borderRadius: 180,
     borderWidth: 1,
     borderColor: "rgba(10,132,255,0.45)",
   },
   ambientCutout: {
     position: "absolute",
-    left: 48,
-    top: 48,
-    right: 48,
-    bottom: 48,
-    borderRadius: 132,
     borderWidth: 1,
     borderColor: "rgba(48,209,88,0.22)",
   },
@@ -210,9 +249,6 @@ const styles = StyleSheet.create({
   brandText: { fontSize: 24, lineHeight: 30, fontWeight: "800", letterSpacing: 0 }, // custom: compact brand lockup
   centerBlock: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
   logoOrb: {
-    width: 116,
-    height: 116,
-    borderRadius: 34,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -223,7 +259,7 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  title: { fontSize: 44, lineHeight: 50, fontWeight: "900", letterSpacing: 0, textAlign: "center" }, // custom: hero title
+  title: { fontWeight: "900", letterSpacing: 0, textAlign: "center" }, // fontSize via useResponsive()
   subtitle: { ...typography.body, fontWeight: "700", textAlign: "center" },
   bottomBlock: { gap: spacing.md },
   googleButton: {

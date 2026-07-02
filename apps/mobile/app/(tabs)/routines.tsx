@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { BUTTON_HEIGHT_PRIMARY, useBottomSheetInset } from "../../src/lib/layout-constants";
+import { useResponsive } from "../../src/lib/responsive";
 import { FireIcon } from "react-native-heroicons/solid";
 import {
   AdjustmentsHorizontalIcon,
@@ -216,10 +217,11 @@ function AnimatedCategoryTile({
   onPress: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const { gridItemWidth } = useResponsive();
   const { scale, onPressIn, onPressOut } = useSpringPress();
 
   return (
-    <Animated.View style={[scale, styles.categoryTileWrap]}>
+    <Animated.View style={[scale, styles.categoryTileWrap, { width: gridItemWidth }]}>
       <Pressable
         onPress={onPress}
         onPressIn={onPressIn}
@@ -262,6 +264,7 @@ export default function WorkoutTabScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { horizontalPadding, pageTitleSize, pageTitleLineHeight } = useResponsive();
   const bottomSheetInset = useBottomSheetInset();
   const utils = trpc.useUtils();
   const { weightUnit } = useUserPreferences();
@@ -500,9 +503,16 @@ export default function WorkoutTabScreen() {
         />
       }
     >
-      <View style={styles.pad}>
+      <View style={[styles.pad, { paddingHorizontal: horizontalPadding }]}>
         <Animated.View entering={entranceDown()} style={styles.pageTitleRow}>
-          <Text style={styles.pageTitle}>Workout</Text>
+          <Text
+            style={[
+              styles.pageTitle,
+              { fontSize: pageTitleSize, lineHeight: pageTitleLineHeight },
+            ]}
+          >
+            Workout
+          </Text>
           <FireIcon color={colors.accent} size={28} />
         </Animated.View>
 
@@ -750,7 +760,7 @@ export default function WorkoutTabScreen() {
 
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
-    pad: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingTop: spacing.sm },
+    pad: { gap: spacing.lg, paddingTop: spacing.sm },
     pageTitleRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -773,7 +783,7 @@ const makeStyles = (colors: Palette) =>
     sectionTitle: { ...typography.h2, color: colors.text },
     sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     manageLink: { ...typography.body, fontWeight: "700", color: colors.accent },
-    filterRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
+    filterRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", alignItems: "flex-start" },
     filterChip: {
       flexDirection: "row",
       alignItems: "center",
@@ -783,27 +793,33 @@ const makeStyles = (colors: Palette) =>
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.md,
       minHeight: 44,
+      alignSelf: "flex-start",
+      flexGrow: 0,
+      flexShrink: 1,
+      maxWidth: "100%",
     },
     filterChipActive: { backgroundColor: colors.accent },
     filterChipText: { ...typography.bodySmall, color: colors.text },
     filterChipTextActive: { color: "#fff" },
-    filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "flex-start" },
     filterOption: {
       backgroundColor: colors.surface,
       borderRadius: 999,
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.md,
       minHeight: 44,
+      alignSelf: "flex-start",
+      flexGrow: 0,
+      flexShrink: 1,
+      maxWidth: "100%",
     },
     filterOptionActive: { backgroundColor: colors.accent },
     filterOptionText: { ...typography.bodySmall, color: colors.text },
     filterOptionTextActive: { color: "#fff" },
     programList: { gap: spacing.md },
-    categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "space-between" },
+    categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     categoryTileWrap: {
-      flexBasis: "48%",
-      flexGrow: 1,
-      maxWidth: "48%",
+      minWidth: 150,
     },
     categoryTile: {
       backgroundColor: colors.surface,

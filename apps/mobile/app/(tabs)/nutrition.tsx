@@ -1,24 +1,16 @@
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState, type FC, type ReactNode } from "react";
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { TOUCH_TARGET_MIN, useBottomSheetInset } from "../../src/lib/layout-constants";
+import { TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
 import {
   ArrowPathIcon,
   CheckCircleIcon,
   ClockIcon,
-  FireIcon,
-  MoonIcon,
-  PencilSquareIcon,
-  PlusIcon,
   SparklesIcon,
-  SunIcon,
-  TrashIcon,
 } from "react-native-heroicons/outline";
 import Animated, {
-  FadeIn,
   FadeInRight,
   runOnJS,
   useAnimatedReaction,
@@ -27,51 +19,27 @@ import Animated, {
 } from "react-native-reanimated";
 import {
   Button,
-  EmptyState,
   Input,
   ListGroup,
   ListRow,
   Screen,
-  SearchBar,
-  ThemedDialog,
   useToast,
 } from "../../src/components/ui";
 import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
-import { entranceDown, useSpringPress } from "../../src/lib/animations";
+import { entranceDown } from "../../src/lib/animations";
 import { scheduleMealPlanNotifications } from "../../src/lib/meal-plan-notifications";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { radius, spacing, typography, useTheme, type Palette, type ShadowSet } from "../../src/lib/theme";
 
-type MealIcon = FC<{ color?: string; size?: number }>;
-
 const MEAL_TYPES = [
-  { key: "BREAKFAST" as const, label: "Breakfast", Icon: SunIcon },
-  { key: "LUNCH" as const, label: "Lunch", Icon: FireIcon },
-  { key: "DINNER" as const, label: "Dinner", Icon: MoonIcon },
-  { key: "SNACK" as const, label: "Snacks", Icon: SparklesIcon },
+  { key: "BREAKFAST" as const, label: "Breakfast" },
+  { key: "LUNCH" as const, label: "Lunch" },
+  { key: "DINNER" as const, label: "Dinner" },
+  { key: "SNACK" as const, label: "Snacks" },
 ];
 
-const MEAL_ACCENT_LIGHT: Record<(typeof MEAL_TYPES)[number]["key"], string> = {
-  BREAKFAST: "#FF9A3C",
-  LUNCH: "#52C41A",
-  DINNER: "#722ED1",
-  SNACK: "#13C2C2",
-};
-
 type MealKey = (typeof MEAL_TYPES)[number]["key"];
-
-type FoodSearchItem = {
-  id: string | null;
-  fdcId: number;
-  name: string;
-  brand: string | null;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  source: "local" | "usda";
-};
 
 type PlannedMealItem = {
   name: string;
@@ -96,15 +64,6 @@ type PlannedMeal = {
   swapIdeas: string[];
 };
 
-type FoodInputModalState = {
-  visible: boolean;
-  mealItemId?: string;
-  food?: FoodSearchItem;
-  foodName?: string;
-  quantity?: string;
-};
-
-const DEFAULT_FOOD_QUANTITY_G = 100;
 
 const COMMON_FOODS = [
   "roti",
@@ -171,86 +130,6 @@ function AnimatedCalorieRing({
       >
         {children}
       </ProgressRing>
-    </Animated.View>
-  );
-}
-
-function MealCard({
-  index,
-  label,
-  Icon,
-  accent,
-  subtitle,
-  onPress,
-}: {
-  index: number;
-  label: string;
-  Icon: MealIcon;
-  accent?: string;
-  subtitle: string;
-  onPress: () => void;
-}) {
-  const { colors, shadows, isDark } = useTheme();
-  const styles = useMemo(
-    () => StyleSheet.create(makeStyles(colors, shadows, isDark)),
-    [colors, shadows, isDark],
-  );
-  const { scale, onPressIn, onPressOut } = useSpringPress();
-  const iconColor = !isDark && accent ? accent : colors.accent;
-
-  return (
-    <Animated.View
-      entering={entranceDown(index * 80)}
-      style={scale}
-    >
-      <Pressable
-        onPress={onPress}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-        style={[
-          styles.mealCard,
-          !isDark && accent ? { borderLeftWidth: 3, borderLeftColor: accent } : null,
-        ]}
-      >
-        <View style={[styles.mealIcon, !isDark && accent ? { backgroundColor: `${accent}18` } : null]}>
-          <Icon color={iconColor} size={22} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.mealName}>{label}</Text>
-          <Text style={styles.mealSub}>{subtitle}</Text>
-        </View>
-        <View style={styles.addBtn}>
-          <PlusIcon color={!isDark ? colors.textMuted : colors.onAccent} size={20} />
-        </View>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-function AnimatedFoodRow({
-  item,
-  isLast,
-  accentColor,
-  onPress,
-}: {
-  item: FoodSearchItem;
-  isLast: boolean;
-  accentColor: string;
-  onPress: () => void;
-}) {
-  const { scale, onPressIn, onPressOut } = useSpringPress();
-
-  return (
-    <Animated.View style={scale}>
-      <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut}>
-        <ListRow
-          title={item.name}
-          subtitle={`${Math.round(item.calories)} cal · P${Math.round(item.protein)} C${Math.round(item.carbs)} F${Math.round(item.fat)} · ${item.source}`}
-          icon="restaurant-outline"
-          right={<PlusIcon color={accentColor} size={22} />}
-          last={isLast}
-        />
-      </Pressable>
     </Animated.View>
   );
 }
@@ -612,26 +491,12 @@ function SegmentedChips({ label, values, selected, onSelect }: { label: string; 
 
 export default function NutritionScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const bottomSheetInset = useBottomSheetInset();
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => StyleSheet.create(makeStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
   const headerText = isDark ? colors.text : "#1A1A1A";
   const gradientColors = isDark
     ? ([colors.bg, colors.bg] as const)
     : (["#A8E063", "#56AB2F"] as const);
-
-  const [search, setSearch] = useState("");
-  const [mealType, setMealType] = useState<MealKey>("LUNCH");
-  const [logging, setLogging] = useState(false);
-  const [deleteMealDialog, setDeleteMealDialog] = useState<{
-    visible: boolean;
-    mealItemId?: string;
-    label?: string;
-  }>({ visible: false });
-  const [foodInputModal, setFoodInputModal] = useState<FoodInputModalState>({ visible: false });
-  const utils = trpc.useUtils();
-  const { showToast } = useToast();
 
   const {
     data: summary,
@@ -648,160 +513,6 @@ export default function NutritionScreen() {
   const { data: targets } = trpc.nutrition.getTargets.useQuery(undefined, {
     staleTime: queryStaleTime.nutritionTargets,
   });
-  const searchEnabled = search.length >= 2;
-
-  const {
-    data: localFoods,
-    isLoading: localLoading,
-    isError: localError,
-    error: localErr,
-    refetch: refetchLocal,
-  } = trpc.nutrition.searchFoodsLocal.useQuery(
-    { query: search },
-    { enabled: searchEnabled, staleTime: queryStaleTime.default },
-  );
-
-  const excludeNames = useMemo(() => localFoods?.map((f) => f.name) ?? [], [localFoods]);
-
-  const {
-    data: usdaFoods,
-    isFetching: usdaFetching,
-    isError: usdaError,
-    error: usdaErr,
-    refetch: refetchUsda,
-  } = trpc.nutrition.searchFoodsUsda.useQuery(
-    { query: search, excludeNames },
-    {
-      enabled: searchEnabled && localFoods !== undefined && !localLoading && !localError,
-      staleTime: queryStaleTime.default,
-    },
-  );
-
-  const foods = useMemo(() => {
-    if (!localFoods) return undefined;
-    return [...localFoods, ...(usdaFoods ?? [])];
-  }, [localFoods, usdaFoods]);
-
-  const isLoading = localLoading;
-  const isError = localError || (usdaError && (localFoods?.length ?? 0) === 0);
-  const error = localError ? localErr : usdaErr;
-  const refetch = () => {
-    void refetchLocal();
-    void refetchUsda();
-  };
-  const usdaLoading = usdaFetching && !usdaFoods;
-
-  const logMeal = trpc.nutrition.logMeal.useMutation({
-    onSuccess: () => {
-      utils.nutrition.dailySummary.invalidate();
-      utils.nutrition.todayMeals.invalidate();
-      setFoodInputModal({ visible: false });
-      showToast("Food added to your daily macros", "success");
-    },
-    onError: (err) => showToast(err.message, "error"),
-  });
-
-  const deleteMealItem = trpc.nutrition.deleteMealItem.useMutation({
-    onSuccess: () => {
-      setDeleteMealDialog({ visible: false });
-      utils.nutrition.dailySummary.invalidate();
-      utils.nutrition.todayMeals.invalidate();
-      showToast("Food removed", "success");
-    },
-    onError: (err) => showToast(err.message, "error"),
-  });
-
-  const updateMeal = trpc.nutrition.updateMeal.useMutation({
-    onSuccess: () => {
-      utils.nutrition.dailySummary.invalidate();
-      utils.nutrition.todayMeals.invalidate();
-      setFoodInputModal({ visible: false });
-      showToast("Quantity updated", "success");
-    },
-    onError: (err) => showToast(err.message, "error"),
-  });
-
-  const isAddingFood = foodInputModal.visible && foodInputModal.food != null;
-  const isEditingFood = foodInputModal.visible && foodInputModal.mealItemId != null;
-  const isSavingFood = logMeal.isPending || updateMeal.isPending;
-
-  const mealTotals = useMemo(() => {
-    const totals: Record<string, { cal: number; count: number }> = {};
-    for (const meal of meals ?? []) {
-      const t = totals[meal.mealType] ?? { cal: 0, count: 0 };
-      for (const item of meal.items) {
-        const ratio = item.quantity / (item.food.servingSize ?? 100);
-        t.cal += item.food.calories * ratio;
-      }
-      t.count += meal.items.length;
-      totals[meal.mealType] = t;
-    }
-    return totals;
-  }, [meals]);
-
-  const handleLogFood = (item: FoodSearchItem) => {
-    setFoodInputModal({
-      visible: true,
-      food: item,
-      foodName: item.name,
-      quantity: String(DEFAULT_FOOD_QUANTITY_G),
-    });
-  };
-
-  const confirmDeleteMealItem = (mealItemId: string, label: string) => {
-    setDeleteMealDialog({ visible: true, mealItemId, label });
-  };
-
-  const openEditFood = (mealItemId: string, foodName: string, quantity: number) => {
-    setFoodInputModal({
-      visible: true,
-      mealItemId,
-      foodName,
-      quantity: String(Math.round(quantity)),
-    });
-  };
-
-  const closeFoodInputModal = () => {
-    if (isSavingFood) return;
-    setFoodInputModal({ visible: false });
-  };
-
-  const saveFoodInput = () => {
-    const qty = Number(foodInputModal.quantity);
-    if (!Number.isFinite(qty) || qty <= 0) {
-      showToast("Enter a positive number of grams", "error");
-      return;
-    }
-
-    if (foodInputModal.mealItemId) {
-      updateMeal.mutate({ mealItemId: foodInputModal.mealItemId, quantity: qty });
-      return;
-    }
-
-    const food = foodInputModal.food;
-    if (!food) return;
-
-    logMeal.mutate({
-      mealType,
-      items: [
-        {
-          foodId: food.id ?? undefined,
-          fdcId: food.fdcId > 0 ? food.fdcId : undefined,
-          name: food.name,
-          calories: food.calories,
-          protein: food.protein,
-          carbs: food.carbs,
-          fat: food.fat,
-          quantity: qty,
-        },
-      ],
-    });
-  };
-
-  const openLogger = (key: MealKey) => {
-    setMealType(key);
-    setLogging(true);
-  };
 
   const cals = summary?.calories ?? 0;
   const macroTargets = summary?.targets ?? targets;
@@ -921,36 +632,14 @@ export default function NutritionScreen() {
           )
         ) : null}
 
-        <Text style={styles.sectionTitle}>Today's Meals</Text>
-        <View style={styles.mealStack}>
-          {MEAL_TYPES.map((meal, index) => {
-            const total = mealTotals[meal.key];
-            const accent = !isDark ? MEAL_ACCENT_LIGHT[meal.key] : undefined;
-            return (
-              <MealCard
-                key={meal.key}
-                index={index}
-                label={meal.label}
-                Icon={meal.Icon}
-                accent={accent}
-                subtitle={
-                  total
-                    ? `${total.count} item${total.count === 1 ? "" : "s"} · ${Math.round(total.cal)} cal`
-                    : "Tap to add food"
-                }
-                onPress={() => openLogger(meal.key)}
-              />
-            );
-          })}
-        </View>
-
         {loggedItems.length > 0 ? (
-          <>
+          <View style={styles.loggedSection}>
             <Text style={styles.sectionTitle}>Logged Today</Text>
             <ListGroup>
               {loggedItems.map(({ meal, item }, flatIndex) => {
                 const ratio = item.quantity / (item.food.servingSize ?? 100);
                 const cal = Math.round(item.food.calories * ratio);
+                const protein = Math.round(item.food.protein * ratio);
                 const mealLabel = MEAL_TYPES.find((m) => m.key === meal.mealType)?.label ?? meal.mealType;
                 const isLast = flatIndex === loggedItems.length - 1;
                 return (
@@ -962,149 +651,16 @@ export default function NutritionScreen() {
                       title={item.food.name}
                       subtitle={`${mealLabel} · ${Math.round(item.quantity)}g · ${cal} cal`}
                       icon="restaurant-outline"
-                      right={
-                        <View style={styles.mealRowActions}>
-                          <Pressable
-                            hitSlop={8}
-                            onPress={() => openEditFood(item.id, item.food.name, item.quantity)}
-                          >
-                            <PencilSquareIcon color={colors.accent} size={18} />
-                          </Pressable>
-                          <Pressable
-                            hitSlop={8}
-                            onPress={() => confirmDeleteMealItem(item.id, item.food.name)}
-                          >
-                            <TrashIcon color={colors.textDim} size={18} />
-                          </Pressable>
-                        </View>
-                      }
+                      right={<Text style={styles.loggedProtein}>{protein}g P</Text>}
                       last={isLast}
                     />
                   </Animated.View>
                 );
               })}
             </ListGroup>
-          </>
-        ) : null}
-
-        {logging ? (
-          <View style={styles.loggerSection}>
-            <View style={styles.loggerHeader}>
-              <Text style={styles.sectionTitle}>
-                Add to {MEAL_TYPES.find((m) => m.key === mealType)?.label}
-              </Text>
-              <Pressable hitSlop={8} onPress={() => setLogging(false)}>
-                <Text style={styles.doneLink}>Done</Text>
-              </Pressable>
-            </View>
-
-            <SearchBar
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search foods (e.g. chicken, rice, egg)"
-            />
-
-            {search.length < 2 ? (
-              <EmptyState
-                icon="search-outline"
-                title="Search to log food"
-                message="Type at least 2 characters. Results come from USDA + your saved foods."
-              />
-            ) : isLoading ? (
-              <ListSkeleton rows={6} />
-            ) : isError ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorTitle}>Search failed</Text>
-                <Text style={styles.errorMsg}>{error?.message}</Text>
-                <Text style={styles.errorHint} onPress={() => refetch()}>
-                  Tap to retry
-                </Text>
-              </View>
-            ) : (foods ?? []).length === 0 ? (
-              <EmptyState icon="search-outline" title="No foods found" message="Try chicken, rice, banana, or egg." />
-            ) : (
-              <Animated.View entering={FadeIn.duration(400)}>
-                {usdaLoading ? (
-                  <Text style={styles.usdaLoadingHint}>Loading more results from USDA…</Text>
-                ) : null}
-                <ListGroup>
-                  {foods?.map((item, index) => (
-                    <AnimatedFoodRow
-                      key={`${item.source}-${item.fdcId}-${item.name}`}
-                      item={item}
-                      isLast={index === (foods?.length ?? 0) - 1}
-                      accentColor={colors.accent}
-                      onPress={() => handleLogFood(item)}
-                    />
-                  ))}
-                </ListGroup>
-              </Animated.View>
-            )}
           </View>
         ) : null}
       </View>
-
-      <ThemedDialog
-        visible={deleteMealDialog.visible}
-        title="Remove food?"
-        message={
-          deleteMealDialog.label
-            ? `Remove ${deleteMealDialog.label} from today's log?`
-            : undefined
-        }
-        onDismiss={() => setDeleteMealDialog({ visible: false })}
-        buttons={[
-          { label: "Cancel" },
-          {
-            label: "Remove",
-            variant: "destructive",
-            onPress: () => {
-              if (deleteMealDialog.mealItemId) {
-                deleteMealItem.mutate({ mealItemId: deleteMealDialog.mealItemId });
-              }
-            },
-          },
-        ]}
-      />
-
-      <Modal
-        visible={foodInputModal.visible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={closeFoodInputModal}
-      >
-        <View style={[styles.editModal, { paddingTop: insets.top + spacing.sm, paddingBottom: bottomSheetInset }]}>
-          <View style={styles.editModalHeader}>
-            <Text style={styles.editModalTitle}>
-              {isEditingFood ? "Edit quantity" : "Add food"}
-            </Text>
-            <Pressable hitSlop={8} onPress={closeFoodInputModal} disabled={isSavingFood}>
-              <Ionicons name="close" size={24} color={colors.text} />
-            </Pressable>
-          </View>
-          <Text style={styles.editFoodName}>{foodInputModal.foodName}</Text>
-          {isAddingFood && foodInputModal.food ? (
-            <Text style={styles.foodMacroHint}>
-              {Math.round(foodInputModal.food.calories)} cal per {DEFAULT_FOOD_QUANTITY_G}g · P
-              {Math.round(foodInputModal.food.protein)} C{Math.round(foodInputModal.food.carbs)} F
-              {Math.round(foodInputModal.food.fat)}
-            </Text>
-          ) : null}
-          <Input
-            placeholder="Quantity (g)"
-            value={foodInputModal.quantity ?? ""}
-            onChangeText={(quantity) => setFoodInputModal((prev) => ({ ...prev, quantity }))}
-            keyboardType="decimal-pad"
-            autoFocus
-          />
-          <Button
-            label={isEditingFood ? "Save" : "Add to meal"}
-            fullWidth
-            onPress={saveFoodInput}
-            loading={isSavingFood}
-          />
-        </View>
-      </Modal>
     </Screen>
   );
 }
@@ -1288,6 +844,8 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       color: colors.textMuted,
       textAlign: "center" as const,
     },
+    loggedSection: { gap: spacing.md },
+    loggedProtein: { ...typography.label, color: colors.accent, fontWeight: "800" as const },
 
     sectionTitle: isDark
       ? { ...typography.h2, color: colors.text }
@@ -1298,59 +856,6 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
           color: colors.textMuted,
         },
 
-    mealStack: { gap: spacing.md },
-    mealCard: {
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      gap: spacing.md,
-      backgroundColor: isDark ? colors.bg : colors.bgElevated,
-      borderRadius: 16,
-      borderWidth: isDark ? 1 : 0,
-      borderColor: colors.border,
-      padding: spacing.md,
-      overflow: "hidden" as const,
-      ...shadows.md,
-    },
-    mealIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: radius.md,
-      backgroundColor: colors.accentMuted,
-      alignItems: "center" as const,
-      justifyContent: "center" as const,
-    },
-    mealName: { ...typography.h3, color: colors.text },
-    mealSub: { ...typography.caption, color: colors.textMuted, marginTop: spacing.xs },
-    addBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: isDark ? colors.accent : colors.surfaceHover,
-      alignItems: "center" as const,
-      justifyContent: "center" as const,
-    },
-
-    mealRowActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
-    editModal: {
-      flex: 1,
-      ...(Platform.OS === "web" ? { minHeight: 0, height: "100%" as const } : null),
-      backgroundColor: colors.bg,
-      paddingHorizontal: spacing.lg,
-      gap: spacing.lg,
-    },
-    editModalHeader: {
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      justifyContent: "space-between" as const,
-    },
-    editModalTitle: { ...typography.h2, color: colors.text },
-    editFoodName: { ...typography.h3, fontWeight: "600" as const, color: colors.textMuted },
-    foodMacroHint: { ...typography.caption, color: colors.textDim },
-
-    loggerSection: { gap: spacing.md },
-    loggerHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
-    doneLink: { ...typography.body, fontWeight: "700" as const, color: colors.accent },
-    usdaLoadingHint: { ...typography.caption, color: colors.textMuted, fontStyle: "italic" as const },
     errorBox: {
       backgroundColor: colors.dangerMuted,
       borderRadius: radius.lg,

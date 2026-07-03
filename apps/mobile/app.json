@@ -1,13 +1,13 @@
 {
   "expo": {
     "name": "Kak Fit",
-    "slug": "kak-fit",
+    "slug": "kakfit",
     "version": "0.2.1",
     "scheme": "kakfit",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.kakfit.mobile"
@@ -37,10 +37,10 @@
         "expo-build-properties",
         {
           "android": {
-            "newArchEnabled": false
+            "newArchEnabled": true
           },
           "ios": {
-            "newArchEnabled": false
+            "newArchEnabled": true
           }
         }
       ],
@@ -64,15 +64,15 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "9ca51544-16e6-4b85-983f-d6c6eefcd31b"
+        "projectId": "dd9991e3-ad4a-44fa-a372-040744c4b768"
       }
     },
-    "owner": "mukul_katewa",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/9ca51544-16e6-4b85-983f-d6c6eefcd31b"
-    }
+      "url": "https://u.expo.dev/dd9991e3-ad4a-44fa-a372-040744c4b768"
+    },
+    "owner": "kaksaabs-organization"
   }
 }

@@ -1,5 +1,8 @@
 import type { TextStyle } from "react-native";
-import { typography } from "./theme";
+import { fonts, typography } from "./theme";
+
+const sans = (style: TextStyle): TextStyle =>
+  fonts.sans ? { fontFamily: fonts.sans, ...style } : style;
 
 /**
  * Shared workout screen typography — spread with `color` from the active palette.
@@ -7,45 +10,45 @@ import { typography } from "./theme";
  */
 export const workoutTextStyles = {
   /** View detail hero title */
-  titleView: {
-    fontSize: 26, // Hero title - intentional emphasis
-    fontWeight: "800",
-  } as TextStyle,
+  titleView: sans({
+    fontSize: 26,
+    fontWeight: "700",
+  }),
 
   /** Edit screen hero title */
-  titleEdit: {
-    fontSize: 24, // Edit hero title - intentional emphasis
-    fontWeight: "800",
-  } as TextStyle,
+  titleEdit: sans({
+    fontSize: 24,
+    fontWeight: "700",
+  }),
 
   /** Inline title input when renaming */
-  titleInput: {
+  titleInput: sans({
     fontSize: 20,
-    fontWeight: "700",
-  } as TextStyle,
+    fontWeight: "600",
+  }),
 
   renameHint: typography.label,
   date: typography.bodySmall,
   hint: typography.caption,
 
-  statValue: {
-    fontSize: 17, // Stat emphasis - intentional
-    fontWeight: "800",
-  } as TextStyle,
+  statValue: sans({
+    fontSize: 17,
+    fontWeight: "600",
+  }),
 
   statLabel: typography.label,
   saveChipText: { ...typography.body, fontWeight: "700" as const },
   routineBtnText: { ...typography.body, fontWeight: "700" as const },
 
-  exerciseName: {
-    fontSize: 17, // Exercise name emphasis
-    fontWeight: "700",
-  } as TextStyle,
+  exerciseName: sans({
+    fontSize: 17,
+    fontWeight: "600",
+  }),
 
-  setTableHeader: {
-    fontSize: 11, // Compact set table header - intentional for data density
-    fontWeight: "700",
-  } as TextStyle,
+  setTableHeader: sans({
+    fontSize: 11,
+    fontWeight: "600",
+  }),
 
   setCell: typography.body,
   setNumber: { ...typography.bodySmall, fontWeight: "700" as const },
@@ -58,10 +61,10 @@ export const workoutTextStyles = {
   folderEmpty: typography.caption,
   ungroupedLabel: { ...typography.caption, fontWeight: "600" as const },
   actionText: typography.caption,
-  modalTitle: {
-    fontSize: 18, // Modal title emphasis
-    fontWeight: "800",
-  } as TextStyle,
+  modalTitle: sans({
+    fontSize: 17,
+    fontWeight: "600",
+  }),
   modalInput: typography.h3,
   modalCancel: { ...typography.body, fontWeight: "600" as const },
   moveRoutineName: typography.body,

@@ -1767,7 +1767,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginBottom: 6,
   },
   pickerInfoButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
-  pickerText: { ...typography.body, color: colors.text, flex: 1 },
+  pickerText: { ...typography.bodySemibold, color: colors.text, flex: 1 },
   summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   summaryItem: {
     flexGrow: 1,

@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Appearance, Platform, type ViewStyle } from "react-native";
+import { Appearance, Platform, type TextStyle, type ViewStyle } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 // ─── Palettes ─────────────────────────────────────────────────────────────────
@@ -153,63 +153,84 @@ export const radius = {
   full: 999,
 };
 
+/** iOS-style system sans — SF Pro on iOS, Roboto on Android, native UI stack on web. */
+export const fonts = {
+  sans: Platform.select<string | undefined>({
+    ios: undefined,
+    android: "Roboto",
+    web: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    default: undefined,
+  }),
+};
+
+function sans(extra: TextStyle): TextStyle {
+  return fonts.sans ? { fontFamily: fonts.sans, ...extra } : extra;
+}
+
 export const typography = {
   // Page-level titles
-  h1: {
+  h1: sans({
     fontSize: 32,
     lineHeight: 38,
-    fontWeight: "800" as const,
-    letterSpacing: 0,
-  },
-  // Section titles
-  h2: {
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: "700" as const,
-    letterSpacing: 0,
-  },
-  // Card/component titles
-  h3: {
-    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.4,
+  }),
+  // Navigation / modal titles
+  h2: sans({
+    fontSize: 17,
     lineHeight: 22,
-    fontWeight: "700" as const,
-    letterSpacing: 0,
-  },
-  // Body text
-  body: {
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: "500" as const,
-    letterSpacing: 0,
-  },
+    fontWeight: "600",
+    letterSpacing: -0.2,
+  }),
+  // Row titles, card headers
+  h3: sans({
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+  }),
+  // Default body copy
+  body: sans({
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "400",
+    letterSpacing: -0.2,
+  }),
   // Secondary body text
-  bodySmall: {
-    fontSize: 14,
+  bodySmall: sans({
+    fontSize: 15,
     lineHeight: 20,
-    fontWeight: "500" as const,
-    letterSpacing: 0,
-  },
+    fontWeight: "400",
+    letterSpacing: -0.1,
+  }),
+  // Emphasized list / row titles
+  bodySemibold: sans({
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+  }),
   // Captions and metadata
-  caption: {
+  caption: sans({
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: "500" as const,
+    fontWeight: "400",
     letterSpacing: 0,
-  },
+  }),
   // Small labels
-  label: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "600" as const,
-    letterSpacing: 0.3,
-  },
-  // Button text
-  button: {
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: "700" as const,
+  label: sans({
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "400",
     letterSpacing: 0,
-  },
+  }),
+  // Button text
+  button: sans({
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+  }),
 };
 
 /** Platform-aware elevation tokens — use sm/md/lg for hierarchy, glow() for accent CTAs. */

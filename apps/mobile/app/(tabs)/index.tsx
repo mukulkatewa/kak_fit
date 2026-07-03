@@ -4,17 +4,18 @@ import { useRouter } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
+  LayoutAnimation,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  UIManager,
   View,
 } from "react-native";
 import { BoltIcon } from "react-native-heroicons/solid";
 import { ClockIcon } from "react-native-heroicons/outline";
 import { PlusCircleIcon } from "react-native-heroicons/outline";
 import Animated, {
-  FadeInLeft,
   SlideInRight,
   runOnJS,
   useAnimatedReaction,
@@ -70,27 +71,57 @@ function formatDashboardDate(date = new Date()) {
   });
 }
 
-function SectionHeader({
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+function CollapsibleHomeSection({
   title,
+  summary,
+  expanded,
+  onToggle,
   action,
-  delay = 200,
+  children,
 }: {
   title: string;
+  summary: string;
+  expanded: boolean;
+  onToggle: () => void;
   action?: ReactNode;
-  delay?: number;
+  children: ReactNode;
 }) {
+  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
+  const handleToggle = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    onToggle();
+  };
+
   return (
-    <View style={styles.sectionHeaderRow}>
-      <View style={styles.sectionTitleWrap}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        <Animated.View
-          entering={FadeInLeft.delay(delay).springify().damping(16)}
-          style={styles.sectionUnderline}
-        />
-      </View>
-      {action}
+    <View style={styles.collapseSection}>
+      <Pressable
+        onPress={handleToggle}
+        style={({ pressed }) => [styles.collapseHeader, pressed && styles.pressed]}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+      >
+        <View style={styles.collapseHeaderText}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {!expanded ? (
+            <Text style={styles.collapseSummary}>{summary}</Text>
+          ) : null}
+        </View>
+        <View style={styles.collapseHeaderActions}>
+          {expanded ? action : null}
+          <Ionicons
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={18}
+            color={colors.textMuted}
+          />
+        </View>
+      </Pressable>
+      {expanded ? <View style={styles.collapseBody}>{children}</View> : null}
     </View>
   );
 }
@@ -374,6 +405,8 @@ function DashboardScreen() {
   const [startingRoutineId, setStartingRoutineId] = useState<string | null>(
     null,
   );
+  const [recentExpanded, setRecentExpanded] = useState(false);
+  const [routinesExpanded, setRoutinesExpanded] = useState(false);
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -456,6 +489,20 @@ function DashboardScreen() {
   const totalVolumeKg = chartData.reduce((sum, d) => sum + d.value, 0);
   const totalVolume = tonnageFromKg(totalVolumeKg, weightUnit);
   const volumeUnit = weightLabel(weightUnit);
+
+  const recentSummary =
+    recentLoading
+      ? "Loading…"
+      : finished.length === 0
+        ? "No completed workouts yet"
+        : `${finished.length} recent workout${finished.length === 1 ? "" : "s"}`;
+
+  const routinesSummary =
+    routinesLoading
+      ? "Loading…"
+      : (routines?.length ?? 0) === 0
+        ? "No routines yet — tap to create"
+        : `${routines!.length} routine${routines!.length === 1 ? "" : "s"}`;
 
   const statItems = [
     {
@@ -560,10 +607,12 @@ function DashboardScreen() {
           />
         ) : null}
 
-        {/* Recent Activity */}
-        <SectionHeader
+        {/* Recent Activity — collapsed by default */}
+        <CollapsibleHomeSection
           title="Recent Activity"
-          delay={300}
+          summary={recentSummary}
+          expanded={recentExpanded}
+          onToggle={() => setRecentExpanded((v) => !v)}
           action={
             finished.length > 0 ? (
               <Pressable
@@ -574,46 +623,49 @@ function DashboardScreen() {
               </Pressable>
             ) : undefined
           }
-        />
-        {recentError ? (
-          <QueryErrorState
-            message="Couldn't load workouts. Check your connection."
-            onRetry={() => void refetchRecent()}
-          />
-        ) : recentLoading ? (
-          <SkeletonCards count={3} />
-        ) : finished.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No completed workouts yet</Text>
-            <Text style={styles.emptyHint}>
-              Start a workout above, then tap Finish to see it here.
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.cardStack}>
-            {finished.slice(0, 3).map((w, index) => (
-              <ActivityCard
-                key={w.id}
-                index={index}
-                title={w.name ?? "Workout"}
-                subtitle={`${w.exerciseCount} exercises · ${Math.round(tonnageFromKg(w.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
-                onPress={() => router.push(`/workout/${w.id}`)}
-                onLongPress={() =>
-                  setDeleteWorkoutDialog({
-                    visible: true,
-                    workoutId: w.id,
-                    name: w.name ?? "Workout",
-                  })
-                }
-              />
-            ))}
-          </View>
-        )}
+        >
+          {recentError ? (
+            <QueryErrorState
+              message="Couldn't load workouts. Check your connection."
+              onRetry={() => void refetchRecent()}
+            />
+          ) : recentLoading ? (
+            <SkeletonCards count={3} />
+          ) : finished.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No completed workouts yet</Text>
+              <Text style={styles.emptyHint}>
+                Start a workout above, then tap Finish to see it here.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.cardStack}>
+              {finished.slice(0, 3).map((w, index) => (
+                <ActivityCard
+                  key={w.id}
+                  index={index}
+                  title={w.name ?? "Workout"}
+                  subtitle={`${w.exerciseCount} exercises · ${Math.round(tonnageFromKg(w.volume, weightUnit)).toLocaleString()} ${weightLabel(weightUnit)}`}
+                  onPress={() => router.push(`/workout/${w.id}`)}
+                  onLongPress={() =>
+                    setDeleteWorkoutDialog({
+                      visible: true,
+                      workoutId: w.id,
+                      name: w.name ?? "Workout",
+                    })
+                  }
+                />
+              ))}
+            </View>
+          )}
+        </CollapsibleHomeSection>
 
-        {/* My Routines */}
-        <SectionHeader
+        {/* My Routines — collapsed by default */}
+        <CollapsibleHomeSection
           title="My Routines"
-          delay={400}
+          summary={routinesSummary}
+          expanded={routinesExpanded}
+          onToggle={() => setRoutinesExpanded((v) => !v)}
           action={
             !routinesLoading && (routines?.length ?? 0) > 0 ? (
               <Pressable
@@ -624,46 +676,46 @@ function DashboardScreen() {
               </Pressable>
             ) : undefined
           }
-        />
-
-        {routinesError ? (
-          <QueryErrorState
-            message="Couldn't load routines. Check your connection."
-            onRetry={() => void refetchRoutines()}
-          />
-        ) : routinesLoading ? (
-          <SkeletonCards count={2} />
-        ) : (routines ?? []).length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No routines yet</Text>
-            <HevyButton
-              label="Create Routine"
-              variant="secondary"
-              onPress={() => router.push("/routine/create")}
+        >
+          {routinesError ? (
+            <QueryErrorState
+              message="Couldn't load routines. Check your connection."
+              onRetry={() => void refetchRoutines()}
             />
-          </View>
-        ) : (
-          <View style={styles.cardStack}>
-            {routines?.slice(0, 4).map((item, index) => (
-              <Animated.View
-                key={item.id}
-                entering={entranceDown(400 + index * 80)}
-              >
-                <RoutineExpandableCard
-                  routine={item}
-                  expanded={expandedRoutineIds.has(item.id)}
-                  onToggleExpand={() => toggleRoutineExpanded(item.id)}
-                  disabled={startingRoutineId === item.id}
-                  loading={startingRoutineId === item.id}
-                  onStart={() =>
-                    setStartConfirm({ id: item.id, name: item.name })
-                  }
-                  onOpenExercise={(exerciseId) => openExerciseDetail(utils, router, exerciseId)}
-                />
-              </Animated.View>
-            ))}
-          </View>
-        )}
+          ) : routinesLoading ? (
+            <SkeletonCards count={2} />
+          ) : (routines ?? []).length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No routines yet</Text>
+              <HevyButton
+                label="Create Routine"
+                variant="secondary"
+                onPress={() => router.push("/routine/create")}
+              />
+            </View>
+          ) : (
+            <View style={styles.cardStack}>
+              {routines?.slice(0, 4).map((item, index) => (
+                <Animated.View
+                  key={item.id}
+                  entering={entranceDown(400 + index * 80)}
+                >
+                  <RoutineExpandableCard
+                    routine={item}
+                    expanded={expandedRoutineIds.has(item.id)}
+                    onToggleExpand={() => toggleRoutineExpanded(item.id)}
+                    disabled={startingRoutineId === item.id}
+                    loading={startingRoutineId === item.id}
+                    onStart={() =>
+                      setStartConfirm({ id: item.id, name: item.name })
+                    }
+                    onOpenExercise={(exerciseId) => openExerciseDetail(utils, router, exerciseId)}
+                  />
+                </Animated.View>
+              ))}
+            </View>
+          )}
+        </CollapsibleHomeSection>
       </View>
 
       <ThemedDialog
@@ -809,7 +861,8 @@ function ActivityCard({
 const makeStyles = (colors: Palette, shadows: ShadowSet) => {
   return StyleSheet.create({
     pad: {
-      gap: spacing.lg,
+      gap: spacing.md,
+      paddingBottom: spacing.sm,
     },
 
     headerBlock: { gap: spacing.lg },
@@ -995,19 +1048,38 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) => {
     buttonDisabled: { opacity: 0.6 },
 
     sectionTitle: { ...typography.h2, color: colors.text },
-    sectionTitleWrap: { gap: spacing.sm },
-    sectionUnderline: {
-      width: 32,
-      height: 3,
-      borderRadius: 2,
-      backgroundColor: colors.accent,
+    collapseSection: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+      ...shadows.sm,
     },
-    sectionHeaderRow: {
+    collapseHeader: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+      gap: spacing.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      minHeight: 56,
     },
-    viewAll: { ...typography.body, fontWeight: "700", color: colors.accent },
+    collapseHeaderText: { flex: 1, gap: 2 },
+    collapseSummary: { ...typography.caption, color: colors.textMuted },
+    collapseHeaderActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    collapseBody: {
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.lg,
+      gap: spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    viewAll: { ...typography.bodySmall, fontWeight: "600", color: colors.accent },
 
     cardStack: { gap: spacing.md },
     activityCard: {

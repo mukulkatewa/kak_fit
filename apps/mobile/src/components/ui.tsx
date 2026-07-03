@@ -39,6 +39,7 @@ import Animated, {
 import { create } from "zustand";
 import { SPRING_CONFIG } from "../lib/animations";
 import { useScreenBottomInset, useScreenTopInset, type ScreenLayoutVariant } from "../lib/layout-constants";
+import { useWorkoutPillInset } from "../lib/workout-pill-inset";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   radius,
@@ -88,7 +89,11 @@ export function Screen({
 }) {
   const styles = useThemedStyles(makeStyles);
   const topInset = useScreenTopInset(variant);
-  const bottomPad = useScreenBottomInset(variant);
+  const workoutPillVisible = useWorkoutPillInset((s) => s.visible);
+  const bottomPad = useScreenBottomInset(
+    variant,
+    variant === "tab" && workoutPillVisible,
+  );
   const internalScrollRef = useRef<ScrollView>(null);
   const resolvedScrollRef = scrollViewRef ?? internalScrollRef;
 
@@ -108,11 +113,13 @@ export function Screen({
         <ScrollView
           ref={resolvedScrollRef}
           showsVerticalScrollIndicator={false}
+          bounces={Platform.OS === "ios"}
+          overScrollMode={Platform.OS === "android" ? "never" : undefined}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingBottom: bottomPad },
           ]}
-          contentInsetAdjustmentBehavior={Platform.OS === "ios" ? "automatic" : undefined}
+          contentInsetAdjustmentBehavior="never"
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           refreshControl={refreshControl}
@@ -873,8 +880,8 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       paddingHorizontal: spacing.lg,
       gap: spacing.lg,
     },
-    screenInnerFlush: { flex: 1, minHeight: 0, gap: spacing.lg },
-    scrollContent: { flexGrow: 1 },
+    screenInnerFlush: { minHeight: 0, gap: spacing.lg },
+    scrollContent: { flexGrow: 0 },
 
     header: {
       flexDirection: "row",

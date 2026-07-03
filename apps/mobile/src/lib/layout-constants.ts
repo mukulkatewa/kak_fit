@@ -53,12 +53,15 @@ export function useBottomSheetInset(): number {
   return insets.bottom + spacing.md;
 }
 
-/** Bottom scroll padding — tab scenes sit above the tab bar; reserve space for the floating workout pill. */
-export function useScreenBottomInset(variant: ScreenLayoutVariant = "stack"): number {
+/** Bottom scroll padding — tab scenes sit above the tab bar; reserve pill space only when shown. */
+export function useScreenBottomInset(
+  variant: ScreenLayoutVariant = "stack",
+  reserveWorkoutPill = false,
+): number {
   const insets = useSafeAreaInsets();
   if (variant === "tab") {
-    const overlayReserve = ACTIVE_WORKOUT_PILL_HEIGHT + spacing.sm;
-    return spacing.lg + overlayReserve;
+    const pill = reserveWorkoutPill ? ACTIVE_WORKOUT_PILL_HEIGHT + spacing.sm : 0;
+    return spacing.md + pill;
   }
   return Math.max(insets.bottom, spacing.md) + spacing.sm;
 }

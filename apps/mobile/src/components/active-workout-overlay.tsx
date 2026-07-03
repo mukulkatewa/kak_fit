@@ -23,6 +23,7 @@ import { applySetPatchToWorkout, patchSetInWorkout } from "../lib/active-workout
 import { formatElapsedDuration } from "../lib/format-duration";
 import { enqueueWorkoutMutation, isNetworkError } from "../lib/offline-workouts";
 import { isMainTabRoot, TAB_BAR_HEIGHT, ACTIVE_WORKOUT_PILL_HEIGHT } from "../lib/layout-constants";
+import { useWorkoutPillInset } from "../lib/workout-pill-inset";
 import { trpc, queryStaleTime } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
 import { findNextIncompleteSet, getCurrentExerciseName } from "../lib/workout-live-widget-state";
@@ -183,6 +184,12 @@ export function ActiveWorkoutOverlay() {
     pathname === "/login" ||
     pathname.startsWith("/workout/active") ||
     !isMainTabRoot(pathname);
+
+  const setPillVisible = useWorkoutPillInset((s) => s.setVisible);
+  useEffect(() => {
+    setPillVisible(!hiddenRoute);
+    return () => setPillVisible(false);
+  }, [hiddenRoute, setPillVisible]);
 
   if (hiddenRoute) return null;
 

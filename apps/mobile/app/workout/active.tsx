@@ -56,7 +56,8 @@ import { useWorkoutSetMutationQueue } from "../../src/lib/workout-mutation-queue
 import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
 import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import { getExerciseMediaUrl } from "../../src/lib/exercise-media";
-import { requestWorkoutNotificationPermissionOnce } from "../../src/lib/workout-live-notifications";
+import { ensureWorkoutFloatingWidget } from "../../src/lib/workout-native-widget";
+import { buildWorkoutWidgetSummary } from "../../src/lib/workout-live-widget-state";
 import {
   WORKOUT_HISTORY_PAGE_SIZE,
   workoutHistoryInfiniteOptions,
@@ -501,9 +502,9 @@ function ActiveWorkoutScreen() {
   }, [workout?.id, workout?.name, workout?.notes]);
 
   useEffect(() => {
-    if (!workout?.id) return;
-    void requestWorkoutNotificationPermissionOnce();
-  }, [workout?.id]);
+    if (!workout) return;
+    void ensureWorkoutFloatingWidget(buildWorkoutWidgetSummary(workout));
+  }, [workout]);
 
   const openRestTimerSettings = () => {
     setRestSettingsOpen(true);

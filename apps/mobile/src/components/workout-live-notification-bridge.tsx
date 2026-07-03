@@ -9,15 +9,11 @@ import { applySetPatchToWorkout, patchSetInWorkout, type ActiveWorkout } from ".
 import { useAuth } from "../lib/auth-context";
 import { queryStaleTime, trpc } from "../lib/trpc";
 import {
-  addWorkoutNotificationResponseListener,
-  COMPLETE_NEXT_SET_ACTION,
-  consumeLaunchWorkoutNotificationResponse,
-  dismissWorkoutNotification,
-  NOTIFICATION_DEFAULT_ACTION,
-  OPEN_WORKOUT_ACTION,
-  registerWorkoutNotificationSurface,
-  showWorkoutNotification,
-} from "../lib/workout-live-notifications";
+  addWorkoutWidgetCompleteSetListener,
+  clearWorkoutNativeWidget,
+  ensureWorkoutFloatingWidget,
+  updateWorkoutNativeWidget,
+} from "../lib/workout-native-widget";
 import {
   buildWorkoutWidgetSummary,
   findNextIncompleteSet,
@@ -29,7 +25,7 @@ export function WorkoutLiveNotificationBridge() {
   const { isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
   const activeRef = useRef<ActiveWorkout | null | undefined>(undefined);
-  const lastNotificationKeyRef = useRef<string | null>(null);
+  const lastWidgetKeyRef = useRef<string | null>(null);
 
   const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -50,32 +46,31 @@ export function WorkoutLiveNotificationBridge() {
     },
   });
 
-  const notificationSummary = useMemo(
+  const widgetSummary = useMemo(
     () => (activeWorkout ? buildWorkoutWidgetSummary(activeWorkout) : null),
     [activeWorkout],
   );
 
   useEffect(() => {
     if (!isAuthenticated) {
-      lastNotificationKeyRef.current = null;
-      void dismissWorkoutNotification();
-      return;
+      lastWidgetKeyRef.current = null;
+      clearWorkoutNativeWidget();
     }
-    void registerWorkoutNotificationSurface();
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!notificationSummary) {
-      lastNotificationKeyRef.current = null;
-      void dismissWorkoutNotification();
+    if (!widgetSummary) {
+      lastWidgetKeyRef.current = null;
+      clearWorkoutNativeWidget();
       return;
     }
 
-    const key = workoutWidgetSummaryKey(notificationSummary);
-    if (lastNotificationKeyRef.current === key) return;
-    lastNotificationKeyRef.current = key;
-    void showWorkoutNotification(notificationSummary);
-  }, [notificationSummary]);
+    const key = workoutWidgetSummaryKey(widgetSummary);
+    if (lastWidgetKeyRef.current === key) return;
+    lastWidgetKeyRef.current = key;
+    updateWorkoutNativeWidget(widgetSummary);
+    void ensureWorkoutFloatingWidget(widgetSummary);
+  }, [widgetSummary]);
 
   const completeNextSet = useCallback(async () => {
     let workout = activeRef.current;
@@ -103,7 +98,7 @@ export function WorkoutLiveNotificationBridge() {
       });
     } catch (error) {
       if (!isNetworkError(error)) {
-        console.error("Failed to complete workout set from notification", error);
+        console.error("Failed to complete workout set from widget", error);
         return;
       }
       await enqueueWorkoutMutation("updateSet", variables);
@@ -113,26 +108,12 @@ export function WorkoutLiveNotificationBridge() {
   }, [router, updateSet, utils.workout.active]);
 
   useEffect(() => {
-    const subscription = addWorkoutNotificationResponseListener(async (actionIdentifier) => {
-      if (actionIdentifier === COMPLETE_NEXT_SET_ACTION) {
-        await completeNextSet();
-        return;
-      }
-
-      if (
-        actionIdentifier === OPEN_WORKOUT_ACTION ||
-        actionIdentifier === NOTIFICATION_DEFAULT_ACTION
-      ) {
-        router.push("/workout/active");
-      }
+    const subscription = addWorkoutWidgetCompleteSetListener(async () => {
+      await completeNextSet();
     });
 
-    if (consumeLaunchWorkoutNotificationResponse()) {
-      router.push("/workout/active");
-    }
-
     return () => subscription.remove();
-  }, [completeNextSet, router]);
+  }, [completeNextSet]);
 
   return null;
 }

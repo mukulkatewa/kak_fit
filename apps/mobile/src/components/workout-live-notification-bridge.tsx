@@ -1,5 +1,4 @@
 import { useRouter } from "expo-router";
-import * as Notifications from "expo-notifications";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   enqueueWorkoutMutation,
@@ -12,7 +11,9 @@ import { queryStaleTime, trpc } from "../lib/trpc";
 import {
   addWorkoutNotificationResponseListener,
   COMPLETE_NEXT_SET_ACTION,
+  consumeLaunchWorkoutNotificationResponse,
   dismissWorkoutNotification,
+  NOTIFICATION_DEFAULT_ACTION,
   OPEN_WORKOUT_ACTION,
   registerWorkoutNotificationSurface,
   showWorkoutNotification,
@@ -120,15 +121,13 @@ export function WorkoutLiveNotificationBridge() {
 
       if (
         actionIdentifier === OPEN_WORKOUT_ACTION ||
-        actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER
+        actionIdentifier === NOTIFICATION_DEFAULT_ACTION
       ) {
         router.push("/workout/active");
       }
     });
 
-    const lastResponse = Notifications.getLastNotificationResponse?.();
-    if (lastResponse?.notification.request.content.data?.kind === "activeWorkout") {
-      Notifications.clearLastNotificationResponse?.();
+    if (consumeLaunchWorkoutNotificationResponse()) {
       router.push("/workout/active");
     }
 

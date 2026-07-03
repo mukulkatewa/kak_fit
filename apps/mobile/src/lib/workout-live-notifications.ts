@@ -16,15 +16,17 @@ export const OPEN_WORKOUT_ACTION = "OPEN_WORKOUT";
 const PROMPTED_KEY = "@kak_fit/workout_notification_prompted";
 let registered = false;
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    priority: Notifications.AndroidNotificationPriority.DEFAULT,
-  }),
-});
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+      priority: Notifications.AndroidNotificationPriority.DEFAULT,
+    }),
+  });
+}
 
 function notificationsAvailable() {
   return Platform.OS !== "web";
@@ -122,6 +124,8 @@ export async function dismissWorkoutNotification() {
   await Notifications.dismissNotificationAsync(WORKOUT_NOTIFICATION_ID).catch(() => undefined);
 }
 
+export const NOTIFICATION_DEFAULT_ACTION = Notifications.DEFAULT_ACTION_IDENTIFIER;
+
 export function addWorkoutNotificationResponseListener(
   listener: (actionIdentifier: string) => void | Promise<void>,
 ) {
@@ -133,4 +137,15 @@ export function addWorkoutNotificationResponseListener(
       console.error("Failed to handle workout notification action", error);
     });
   });
+}
+
+/** Returns true when the app was opened from an active-workout notification. */
+export function consumeLaunchWorkoutNotificationResponse() {
+  if (!notificationsAvailable()) return false;
+  const lastResponse = Notifications.getLastNotificationResponse();
+  if (lastResponse?.notification.request.content.data?.kind !== "activeWorkout") {
+    return false;
+  }
+  Notifications.clearLastNotificationResponse();
+  return true;
 }

@@ -277,31 +277,69 @@ export const workoutRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const set = await ctx.prisma.workoutSet.findFirst({
-        where: {
-          id: input.setId,
-          workoutExercise: {
-            workout: { userId: ctx.user.id, finishedAt: null },
-          },
-        },
-      });
+      const updates: Prisma.Sql[] = [];
+      if (input.weight !== undefined) updates.push(Prisma.sql`"weight" = ${input.weight}`);
+      if (input.reps !== undefined) updates.push(Prisma.sql`"reps" = ${input.reps}`);
+      if (input.duration !== undefined) updates.push(Prisma.sql`"duration" = ${input.duration}`);
+      if (input.notes !== undefined) updates.push(Prisma.sql`"notes" = ${input.notes}`);
+      if (input.setType !== undefined) updates.push(Prisma.sql`"setType" = ${input.setType}::"SetType"`);
+      if (input.isCompleted !== undefined) updates.push(Prisma.sql`"isCompleted" = ${input.isCompleted}`);
+      if (input.rpe !== undefined) updates.push(Prisma.sql`"rpe" = ${input.rpe}`);
 
-      if (!set) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Set not found" });
+      if (updates.length === 0) {
+        const set = await ctx.prisma.workoutSet.findFirst({
+          where: {
+            id: input.setId,
+            workoutExercise: {
+              workout: { userId: ctx.user.id, finishedAt: null },
+            },
+          },
+        });
+        if (!set) throw new TRPCError({ code: "NOT_FOUND", message: "Set not found" });
+        return set;
       }
 
-      return ctx.prisma.workoutSet.update({
-        where: { id: input.setId },
-        data: {
-          weight: input.weight,
-          reps: input.reps,
-          duration: input.duration,
-          notes: input.notes,
-          setType: input.setType,
-          isCompleted: input.isCompleted,
-          ...(input.rpe !== undefined ? { rpe: input.rpe } : {}),
-        },
-      });
+      const rows = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          workoutExerciseId: string;
+          setNumber: number;
+          weight: number | null;
+          reps: number | null;
+          duration: number | null;
+          rpe: number | null;
+          notes: string | null;
+          setType: "NORMAL" | "WARMUP" | "DROP" | "FAILURE";
+          isCompleted: boolean;
+        }>
+      >(Prisma.sql`
+        UPDATE "WorkoutSet" ws
+        SET ${Prisma.join(updates, ", ")}
+        WHERE ws."id" = ${input.setId}
+          AND EXISTS (
+            SELECT 1
+            FROM "WorkoutExercise" we
+            JOIN "Workout" w ON w."id" = we."workoutId"
+            WHERE we."id" = ws."workoutExerciseId"
+              AND w."userId" = ${ctx.user.id}
+              AND w."finishedAt" IS NULL
+          )
+        RETURNING
+          ws."id",
+          ws."workoutExerciseId",
+          ws."setNumber",
+          ws."weight",
+          ws."reps",
+          ws."duration",
+          ws."rpe",
+          ws."notes",
+          ws."setType",
+          ws."isCompleted"
+      `);
+
+      const updated = rows[0];
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Set not found" });
+      return updated;
     }),
 
 

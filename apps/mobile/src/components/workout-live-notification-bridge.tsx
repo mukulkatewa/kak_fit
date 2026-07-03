@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   enqueueWorkoutMutation,
   isNetworkError,
-  syncQueuedWorkoutMutations,
 } from "../lib/offline-workouts";
 import { applySetPatchToWorkout, patchSetInWorkout, type ActiveWorkout } from "../lib/active-workout-cache";
 import { useAuth } from "../lib/auth-context";
@@ -41,8 +40,6 @@ export function WorkoutLiveNotificationBridge() {
       utils.workout.active.setData(undefined, (current) =>
         current ? patchSetInWorkout(current, updatedSet) : current,
       );
-      void utils.workout.history.invalidate();
-      void utils.personalRecord.list.invalidate();
     },
   });
 
@@ -93,17 +90,12 @@ export function WorkoutLiveNotificationBridge() {
 
     try {
       await updateSet.mutateAsync(variables);
-      await syncQueuedWorkoutMutations({
-        invalidateActiveWorkout: () => utils.workout.active.invalidate(),
-      });
     } catch (error) {
       if (!isNetworkError(error)) {
         console.error("Failed to complete workout set from widget", error);
         return;
       }
       await enqueueWorkoutMutation("updateSet", variables);
-    } finally {
-      void utils.workout.active.invalidate();
     }
   }, [router, updateSet, utils.workout.active]);
 

@@ -245,14 +245,29 @@ export class WorkoutMutationQueue {
       return applySetPatchToWorkout(current, setId, patch);
     });
 
-    this.mutations.push({
-      id: createMutationId(),
-      type: "updateSet",
-      variables: resolvedVariables,
-      baseVersion,
-      retryCount: 0,
-      createdAt: Date.now(),
-    });
+    const firstMergeableIndex = this.processing ? 1 : 0;
+    let pendingUpdate: QueuedSetMutation | null = null;
+    for (let index = this.mutations.length - 1; index >= firstMergeableIndex; index -= 1) {
+      const mutation = this.mutations[index]!;
+      if (mutation.type === "updateSet" && mutation.variables.setId === resolvedVariables.setId) {
+        pendingUpdate = mutation;
+        break;
+      }
+    }
+
+    if (pendingUpdate?.type === "updateSet") {
+      pendingUpdate.variables = { ...pendingUpdate.variables, ...resolvedVariables };
+      pendingUpdate.retryCount = 0;
+    } else {
+      this.mutations.push({
+        id: createMutationId(),
+        type: "updateSet",
+        variables: resolvedVariables,
+        baseVersion,
+        retryCount: 0,
+        createdAt: Date.now(),
+      });
+    }
     await this.persist();
     this.emitState();
     void this.processQueue();
@@ -372,7 +387,7 @@ export class WorkoutMutationQueue {
     try {
       while (this.mutations.length > 0 && !this.destroyed) {
         const mutation = this.mutations[0]!;
-        const hasConflict = this.version > mutation.baseVersion;
+        const hasConflict = mutation.type !== "updateSet" && this.version > mutation.baseVersion;
 
         if (hasConflict) {
           await this.refreshWorkoutFromServer();

@@ -602,16 +602,7 @@ function ActiveWorkoutScreen() {
           <ActivityIndicator color={colors.accent} size="small" />
           <Text style={styles.syncBannerText}>Restoring unsaved changes…</Text>
         </View>
-      ) : isSyncingSets ? (
-        <View style={styles.syncBanner}>
-          <ActivityIndicator color={colors.accent} size="small" />
-          <Text style={styles.syncBannerText}>
-            {totalPendingMutations > 1
-              ? `Syncing ${totalPendingMutations} changes…`
-              : "Syncing changes…"}
-          </Text>
-        </View>
-      ) : totalPendingMutations > 0 ? (
+      ) : totalPendingMutations > 0 && !isSyncingSets ? (
         <Text style={styles.offlineMeta}>
           {totalPendingMutations} change{totalPendingMutations === 1 ? "" : "s"} pending sync
         </Text>

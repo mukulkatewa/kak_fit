@@ -164,9 +164,11 @@ function AnimatedCalorieRing({
 function AiMealPlannerSection() {
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => StyleSheet.create(makePlannerStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
+  const dayInput = useMemo(() => ({ timezoneOffsetMinutes: new Date().getTimezoneOffset() }), []);
   const utils = trpc.useUtils();
   const { showToast } = useToast();
   const [setupOpen, setSetupOpen] = useState(false);
+  const [planExpanded, setPlanExpanded] = useState(false);
   const [customFood, setCustomFood] = useState("");
   const [form, setForm] = useState({
     age: "",
@@ -185,11 +187,19 @@ function AiMealPlannerSection() {
   const { data: profile, isLoading: profileLoading } = trpc.nutrition.getPlannerProfile.useQuery(undefined, {
     staleTime: queryStaleTime.nutritionTargets,
   });
-  const { data: plan, isLoading: planLoading } = trpc.nutrition.todayPlan.useQuery(undefined, {
+  const { data: plan, isLoading: planLoading } = trpc.nutrition.todayPlan.useQuery(dayInput, {
+    staleTime: queryStaleTime.nutritionDaily,
+  });
+  const { data: previousPlan } = trpc.nutrition.previousPlan.useQuery(dayInput, {
+    enabled: Boolean(profile?.complete),
     staleTime: queryStaleTime.nutritionDaily,
   });
 
   const plannedMeals = useMemo(() => parsePlannedMeals(plan?.meals), [plan?.meals]);
+  const planCalories = plannedMeals.reduce((sum, meal) => sum + meal.calories, 0);
+  const planProtein = plannedMeals.reduce((sum, meal) => sum + meal.protein, 0);
+  const loggedCount = plan?.completedMealTypes.length ?? 0;
+  const skippedCount = plan?.skippedMealTypes.length ?? 0;
 
   useEffect(() => {
     if (!profile) return;
@@ -226,7 +236,7 @@ function AiMealPlannerSection() {
     onSuccess: () => {
       utils.nutrition.getPlannerProfile.invalidate();
       utils.nutrition.getTargets.invalidate();
-      utils.nutrition.dailySummary.invalidate();
+      utils.nutrition.dailySummary.invalidate(dayInput);
       setSetupOpen(false);
       showToast("Meal profile saved", "success");
     },
@@ -234,35 +244,47 @@ function AiMealPlannerSection() {
   });
 
   const generatePlan = trpc.nutrition.generatePlan.useMutation({
-    onSuccess: () => {
-      utils.nutrition.todayPlan.invalidate();
-      utils.nutrition.dailySummary.invalidate();
-      showToast("Today's plan is ready", "success");
+    onSuccess: (nextPlan) => {
+      utils.nutrition.todayPlan.setData(dayInput, nextPlan);
+      utils.nutrition.previousPlan.invalidate();
+      utils.nutrition.dailySummary.invalidate(dayInput);
+      setPlanExpanded(true);
+      showToast("Fresh plan ready", "success");
+    },
+    onError: (error) => showToast(error.message, "error"),
+  });
+
+  const reusePreviousPlan = trpc.nutrition.reusePreviousPlan.useMutation({
+    onSuccess: (nextPlan) => {
+      utils.nutrition.todayPlan.setData(dayInput, nextPlan);
+      utils.nutrition.dailySummary.invalidate(dayInput);
+      setPlanExpanded(true);
+      showToast("Previous plan added for today", "success");
     },
     onError: (error) => showToast(error.message, "error"),
   });
 
   const markAte = trpc.nutrition.markPlanMealAte.useMutation({
-    onSuccess: () => {
-      utils.nutrition.todayPlan.invalidate();
-      utils.nutrition.todayMeals.invalidate();
-      utils.nutrition.dailySummary.invalidate();
+    onSuccess: (nextPlan) => {
+      utils.nutrition.todayPlan.setData(dayInput, nextPlan);
+      utils.nutrition.todayMeals.invalidate(dayInput);
+      utils.nutrition.dailySummary.invalidate(dayInput);
       showToast("Meal logged", "success");
     },
     onError: (error) => showToast(error.message, "error"),
   });
 
   const skipMeal = trpc.nutrition.skipPlanMeal.useMutation({
-    onSuccess: () => {
-      utils.nutrition.todayPlan.invalidate();
+    onSuccess: (nextPlan) => {
+      utils.nutrition.todayPlan.setData(dayInput, nextPlan);
       showToast("Meal skipped. Keep protein steady in the next meal.", "info");
     },
     onError: (error) => showToast(error.message, "error"),
   });
 
   const swapMeal = trpc.nutrition.swapPlanMeal.useMutation({
-    onSuccess: () => {
-      utils.nutrition.todayPlan.invalidate();
+    onSuccess: (nextPlan) => {
+      utils.nutrition.todayPlan.setData(dayInput, nextPlan);
       showToast("Meal swapped", "success");
     },
     onError: (error) => showToast(error.message, "error"),
@@ -314,7 +336,7 @@ function AiMealPlannerSection() {
   };
 
   const canGenerate = Boolean(profile?.complete);
-  const isBusy = generatePlan.isPending || saveProfile.isPending;
+  const isBusy = generatePlan.isPending || reusePreviousPlan.isPending || saveProfile.isPending;
 
   if (profileLoading || planLoading) {
     return (
@@ -334,7 +356,7 @@ function AiMealPlannerSection() {
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.eyebrow}>AI meal coach</Text>
-            <Text style={styles.title} numberOfLines={1}>Local food diet plan</Text>
+            <Text style={styles.title} numberOfLines={1}>Today's food plan</Text>
           </View>
           <Pressable onPress={() => setSetupOpen(true)} hitSlop={8} style={styles.smallAction}>
             <Text style={styles.smallActionText}>{profile?.complete ? "Edit" : "Setup"}</Text>
@@ -352,74 +374,124 @@ function AiMealPlannerSection() {
         )}
 
         {!plan ? (
-          <Button
-            label={canGenerate ? "Build today's plan" : "Set up meal coach"}
-            icon={canGenerate ? "sparkles-outline" : "person-outline"}
-            fullWidth
-            loading={isBusy}
-            onPress={() => {
-              if (!canGenerate) {
-                setSetupOpen(true);
-                return;
-              }
-              generatePlan.mutate({ force: true });
-            }}
-          />
+          <View style={styles.emptyPlanBox}>
+            <Text style={styles.emptyPlanTitle}>{canGenerate ? "No plan for today yet" : "Set up meal coach"}</Text>
+            <Text style={styles.bodyText}>
+              {canGenerate
+                ? "Build a fresh plan from your current training and available foods, or reuse a plan you already liked."
+                : "Add your body details and local foods once. After that, meal plans are one tap."}
+            </Text>
+            <View style={styles.emptyActions}>
+              <Pressable
+                style={[styles.planButton, styles.planButtonPrimary]}
+                disabled={isBusy}
+                onPress={() => {
+                  if (!canGenerate) {
+                    setSetupOpen(true);
+                    return;
+                  }
+                  generatePlan.mutate({ ...dayInput, force: true });
+                }}
+              >
+                <Text style={styles.planButtonPrimaryText}>{canGenerate ? "Build fresh" : "Setup"}</Text>
+              </Pressable>
+              {previousPlan ? (
+                <Pressable
+                  style={styles.planButton}
+                  disabled={isBusy}
+                  onPress={() => reusePreviousPlan.mutate(dayInput)}
+                >
+                  <Text style={styles.planButtonText}>Use previous</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
         ) : null}
 
         {plan ? (
           <View style={styles.planStack}>
-            <View style={styles.planMetaRow}>
-              <Text style={styles.planNote} numberOfLines={2}>{plan.notes}</Text>
+            <Pressable style={styles.planSummaryCard} onPress={() => setPlanExpanded((value) => !value)}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.planSummaryLabel}>Today's plan</Text>
+                <Text style={styles.planSummaryTitle} numberOfLines={1}>
+                  {Math.round(planCalories).toLocaleString()} kcal · {Math.round(planProtein)}g protein
+                </Text>
+                <Text style={styles.planSummaryMeta} numberOfLines={1}>
+                  {loggedCount}/{plannedMeals.length} logged{skippedCount > 0 ? ` · ${skippedCount} skipped` : ""}
+                </Text>
+              </View>
+              <Ionicons name={planExpanded ? "chevron-up" : "chevron-down"} size={22} color={colors.textMuted} />
+            </Pressable>
+
+            <View style={styles.planToolbar}>
               <Pressable
                 hitSlop={8}
-                onPress={() => generatePlan.mutate({ force: true })}
+                onPress={() => generatePlan.mutate({ ...dayInput, force: true })}
                 disabled={generatePlan.isPending}
-                style={styles.iconAction}
+                style={styles.toolbarButton}
               >
-                <ArrowPathIcon color={colors.accent} size={18} />
+                <ArrowPathIcon color={colors.accent} size={17} />
+                <Text style={styles.toolbarButtonText}>{generatePlan.isPending ? "Making..." : "New plan"}</Text>
               </Pressable>
+              {previousPlan ? (
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => reusePreviousPlan.mutate(dayInput)}
+                  disabled={reusePreviousPlan.isPending}
+                  style={styles.toolbarButton}
+                >
+                  <Ionicons name="copy-outline" color={colors.accent} size={17} />
+                  <Text style={styles.toolbarButtonText}>Use previous</Text>
+                </Pressable>
+              ) : null}
             </View>
-            {plannedMeals.map((meal) => {
-              const completed = plan.completedMealTypes.includes(meal.mealType);
-              const skipped = plan.skippedMealTypes.includes(meal.mealType);
-              return (
-                <View key={meal.mealType} style={[styles.planMeal, completed && styles.planMealDone, skipped && styles.planMealSkipped]}>
-                  <View style={styles.planMealTop}>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.mealTime}>{meal.time} · {MEAL_TYPES.find((item) => item.key === meal.mealType)?.label}</Text>
-                      <Text style={styles.planMealTitle} numberOfLines={1}>{meal.title}</Text>
+
+            {plan.notes ? <Text style={styles.planNote} numberOfLines={planExpanded ? 3 : 1}>{plan.notes}</Text> : null}
+
+            {planExpanded ? (
+              <View style={styles.planMealList}>
+                {plannedMeals.map((meal) => {
+                  const completed = plan.completedMealTypes.includes(meal.mealType);
+                  const skipped = plan.skippedMealTypes.includes(meal.mealType);
+                  return (
+                    <View key={meal.mealType} style={[styles.planMeal, completed && styles.planMealDone, skipped && styles.planMealSkipped]}>
+                      <View style={styles.planMealTop}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.mealTime}>{meal.time} · {MEAL_TYPES.find((item) => item.key === meal.mealType)?.label}</Text>
+                          <Text style={styles.planMealTitle} numberOfLines={1}>{meal.title}</Text>
+                        </View>
+                        {completed ? <CheckCircleIcon color={colors.success} size={22} /> : skipped ? <ClockIcon color={colors.textMuted} size={22} /> : null}
+                      </View>
+                      <Text style={styles.planMealMeta}>{Math.round(meal.calories)} kcal · {Math.round(meal.protein)}g protein · {meal.prepMinutes} min</Text>
+                      <Text style={styles.planItems} numberOfLines={2}>{meal.items.map((item) => `${item.amount} ${item.name}`).join(" + ")}</Text>
+                      <View style={styles.planActions}>
+                        <Pressable
+                          style={[styles.planButton, styles.planButtonPrimary]}
+                          disabled={completed || markAte.isPending}
+                          onPress={() => markAte.mutate({ planId: plan.id, mealType: meal.mealType })}
+                        >
+                          <Text style={styles.planButtonPrimaryText}>{completed ? "Logged" : "Ate"}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.planButton}
+                          disabled={skipped || skipMeal.isPending}
+                          onPress={() => skipMeal.mutate({ planId: plan.id, mealType: meal.mealType, hunger: "LITTLE" })}
+                        >
+                          <Text style={styles.planButtonText}>{skipped ? "Skipped" : "Skip"}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.planButton}
+                          disabled={swapMeal.isPending}
+                          onPress={() => swapMeal.mutate({ planId: plan.id, mealType: meal.mealType })}
+                        >
+                          <Text style={styles.planButtonText}>Swap</Text>
+                        </Pressable>
+                      </View>
                     </View>
-                    {completed ? <CheckCircleIcon color={colors.success} size={22} /> : skipped ? <ClockIcon color={colors.textMuted} size={22} /> : null}
-                  </View>
-                  <Text style={styles.planMealMeta}>{Math.round(meal.calories)} kcal · {Math.round(meal.protein)}g protein · {meal.prepMinutes} min</Text>
-                  <Text style={styles.planItems} numberOfLines={2}>{meal.items.map((item) => `${item.amount} ${item.name}`).join(" + ")}</Text>
-                  <View style={styles.planActions}>
-                    <Pressable
-                      style={[styles.planButton, styles.planButtonPrimary]}
-                      disabled={completed || markAte.isPending}
-                      onPress={() => plan && markAte.mutate({ planId: plan.id, mealType: meal.mealType })}
-                    >
-                      <Text style={styles.planButtonPrimaryText}>{completed ? "Logged" : "Ate"}</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.planButton}
-                      disabled={skipped || skipMeal.isPending}
-                      onPress={() => plan && skipMeal.mutate({ planId: plan.id, mealType: meal.mealType, hunger: "LITTLE" })}
-                    >
-                      <Text style={styles.planButtonText}>{skipped ? "Skipped" : "Skip"}</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.planButton}
-                      disabled={swapMeal.isPending}
-                      onPress={() => plan && swapMeal.mutate({ planId: plan.id, mealType: meal.mealType })}
-                    >
-                      <Text style={styles.planButtonText}>Swap</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })}
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -520,6 +592,7 @@ export default function NutritionScreen() {
   const router = useRouter();
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => StyleSheet.create(makeStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
+  const dayInput = useMemo(() => ({ timezoneOffsetMinutes: new Date().getTimezoneOffset() }), []);
   const headerText = isDark ? colors.text : "#1A1A1A";
   const gradientColors = isDark
     ? ([colors.bg, colors.bg] as const)
@@ -531,10 +604,10 @@ export default function NutritionScreen() {
     isError: summaryError,
     error: summaryErr,
     refetch: refetchSummary,
-  } = trpc.nutrition.dailySummary.useQuery(undefined, {
+  } = trpc.nutrition.dailySummary.useQuery(dayInput, {
     staleTime: queryStaleTime.nutritionDaily,
   });
-  const { data: meals } = trpc.nutrition.todayMeals.useQuery(undefined, {
+  const { data: meals } = trpc.nutrition.todayMeals.useQuery(dayInput, {
     staleTime: queryStaleTime.nutritionMeals,
   });
   const { data: targets } = trpc.nutrition.getTargets.useQuery(undefined, {
@@ -558,8 +631,8 @@ export default function NutritionScreen() {
   const updateMeal = trpc.nutrition.updateMeal.useMutation({
     onSuccess: () => {
       setEditMealItem({ visible: false });
-      utils.nutrition.dailySummary.invalidate();
-      utils.nutrition.todayMeals.invalidate();
+      utils.nutrition.dailySummary.invalidate(dayInput);
+      utils.nutrition.todayMeals.invalidate(dayInput);
       showToast("Meal updated", "success");
     },
     onError: (error) => showToast(error.message, "error"),
@@ -567,8 +640,8 @@ export default function NutritionScreen() {
   const deleteMealItem = trpc.nutrition.deleteMealItem.useMutation({
     onSuccess: () => {
       setDeleteMealItemDialog({ visible: false });
-      utils.nutrition.dailySummary.invalidate();
-      utils.nutrition.todayMeals.invalidate();
+      utils.nutrition.dailySummary.invalidate(dayInput);
+      utils.nutrition.todayMeals.invalidate(dayInput);
       showToast("Food removed", "success");
     },
     onError: (error) => showToast(error.message, "error"),
@@ -660,6 +733,8 @@ export default function NutritionScreen() {
       </LinearGradient>
 
       <View style={styles.body}>
+        <AiMealPlannerSection />
+
         {summary && !summaryLoading && !summaryError ? (
           goalsUnset ? (
             <View style={styles.goalsCta}>
@@ -698,8 +773,6 @@ export default function NutritionScreen() {
             </View>
           )
         ) : null}
-
-        <AiMealPlannerSection />
 
         {loggedItems.length > 0 ? (
           <View style={styles.loggedSection}>
@@ -890,9 +963,48 @@ function makePlannerStyles(colors: Palette, shadows: ShadowSet, isDark: boolean)
     targetStrip: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: spacing.sm, alignItems: "center" as const },
     targetText: { ...typography.bodySmall, color: colors.text, fontWeight: "800" as const, backgroundColor: colors.accentMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full },
     targetMeta: { ...typography.caption, color: colors.textMuted },
+    emptyPlanBox: {
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      backgroundColor: isDark ? colors.bg : colors.surface,
+      padding: spacing.md,
+      gap: spacing.md,
+    },
+    emptyPlanTitle: { ...typography.h3, color: colors.text },
+    emptyActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.sm },
+    planSummaryCard: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: spacing.md,
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      backgroundColor: colors.accentMuted,
+      padding: spacing.md,
+      minHeight: 88,
+    },
+    planSummaryLabel: { ...typography.caption, color: colors.accent, fontWeight: "900" as const, textTransform: "uppercase" as const },
+    planSummaryTitle: { ...typography.h3, color: colors.text },
+    planSummaryMeta: { ...typography.bodySmall, color: colors.textMuted, marginTop: spacing.xs },
+    planToolbar: { flexDirection: "row" as const, alignItems: "center" as const, flexWrap: "wrap" as const, gap: spacing.sm },
+    toolbarButton: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      gap: spacing.xs,
+      minHeight: 38,
+      borderRadius: radius.full,
+      backgroundColor: colors.surfaceHover,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      paddingHorizontal: spacing.md,
+    },
+    toolbarButtonText: { ...typography.label, color: colors.accent, fontWeight: "800" as const },
     planStack: { gap: spacing.md },
+    planMealList: { gap: spacing.md },
     planMetaRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
-    planNote: { flex: 1, ...typography.bodySmall, color: colors.textMuted, lineHeight: 19 },
+    planNote: { ...typography.bodySmall, color: colors.textMuted, lineHeight: 19 },
     iconAction: { width: 38, height: 38, borderRadius: 19, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: colors.surfaceHover },
     planMeal: { borderRadius: radius.md, backgroundColor: colors.bg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSubtle, padding: spacing.md, gap: spacing.sm },
     planMealDone: { borderColor: colors.success, backgroundColor: colors.successMuted },

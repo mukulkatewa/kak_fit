@@ -14,6 +14,7 @@ import {
 import { protectedProcedure, router } from "../trpc";
 
 const USDA_BASE = "https://api.nal.usda.gov/fdc/v1";
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** USDA nutrient IDs (FoodData Central) */
 const NUTRIENT_IDS = {
@@ -622,6 +623,60 @@ export const nutritionRouter = router({
       });
     }),
 
+  previousPlan: protectedProcedure
+    .input(timezoneOffsetInput.optional())
+    .query(async ({ ctx, input }) => {
+      const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
+      return ctx.prisma.mealPlan.findFirst({
+        where: { userId: ctx.user.id, date: { lt: startOfDay } },
+        orderBy: { date: "desc" },
+        select: dailyPlanSelect(),
+      });
+    }),
+
+  reusePreviousPlan: protectedProcedure
+    .input(timezoneOffsetInput.optional())
+    .mutation(async ({ ctx, input }) => {
+      const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
+      const previous = await ctx.prisma.mealPlan.findFirst({
+        where: { userId: ctx.user.id, date: { lt: startOfDay } },
+        orderBy: { date: "desc" },
+        select: dailyPlanSelect(),
+      });
+      if (!previous) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No previous meal plan found" });
+      }
+
+      return ctx.prisma.mealPlan.upsert({
+        where: { userId_date: { userId: ctx.user.id, date: startOfDay } },
+        create: {
+          userId: ctx.user.id,
+          date: startOfDay,
+          targetCalories: previous.targetCalories,
+          targetProtein: previous.targetProtein,
+          targetCarbs: previous.targetCarbs,
+          targetFat: previous.targetFat,
+          availableFoods: { set: previous.availableFoods },
+          meals: previous.meals as Prisma.InputJsonValue,
+          notes: previous.notes ? `Reused from previous plan. ${previous.notes}` : "Reused from previous plan.",
+          source: "reuse",
+        },
+        update: {
+          targetCalories: previous.targetCalories,
+          targetProtein: previous.targetProtein,
+          targetCarbs: previous.targetCarbs,
+          targetFat: previous.targetFat,
+          availableFoods: { set: previous.availableFoods },
+          meals: previous.meals as Prisma.InputJsonValue,
+          notes: previous.notes ? `Reused from previous plan. ${previous.notes}` : "Reused from previous plan.",
+          skippedMealTypes: { set: [] },
+          completedMealTypes: { set: [] },
+          source: "reuse",
+        },
+        select: dailyPlanSelect(),
+      });
+    }),
+
   generatePlan: protectedProcedure
     .input(timezoneOffsetInput.extend({ force: z.boolean().optional() }).optional())
     .mutation(async ({ ctx, input }) => {
@@ -818,6 +873,7 @@ export const nutritionRouter = router({
     .input(timezoneOffsetInput.optional())
     .query(async ({ ctx, input }) => {
       const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
+      const endOfDay = new Date(startOfDay.getTime() + DAY_MS);
 
       const [summaryRows, user] = await Promise.all([
         ctx.prisma.$queryRaw<
@@ -834,6 +890,7 @@ export const nutritionRouter = router({
           LEFT JOIN "Food" f ON f.id = mi."foodId"
           WHERE ml."userId" = ${ctx.user.id}
             AND ml.date >= ${startOfDay}
+            AND ml.date < ${endOfDay}
         `),
         ctx.prisma.user.findUnique({
           where: { id: ctx.user.id },
@@ -968,9 +1025,10 @@ export const nutritionRouter = router({
     .input(timezoneOffsetInput.optional())
     .query(async ({ ctx, input }) => {
       const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
+      const endOfDay = new Date(startOfDay.getTime() + DAY_MS);
 
       return ctx.prisma.mealLog.findMany({
-        where: { userId: ctx.user.id, date: { gte: startOfDay } },
+        where: { userId: ctx.user.id, date: { gte: startOfDay, lt: endOfDay } },
         include: { items: { include: { food: true } } },
         orderBy: { createdAt: "asc" },
       });

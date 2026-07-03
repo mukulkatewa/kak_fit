@@ -59,7 +59,8 @@
           "color": "#0A84FF",
           "defaultChannel": "active-workout"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "router": {},
@@ -71,7 +72,9 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/dd9991e3-ad4a-44fa-a372-040744c4b768"
+      "url": "https://u.expo.dev/dd9991e3-ad4a-44fa-a372-040744c4b768",
+      "checkAutomatically": "ON_ERROR_RECOVERY",
+      "fallbackToCacheTimeout": 0
     },
     "owner": "kaksaabs-organization"
   }

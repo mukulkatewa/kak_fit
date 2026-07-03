@@ -61,7 +61,8 @@ export function useScreenBottomInset(
   const insets = useSafeAreaInsets();
   if (variant === "tab") {
     const pill = reserveWorkoutPill ? ACTIVE_WORKOUT_PILL_HEIGHT + spacing.sm : 0;
-    return spacing.md + pill;
+    const webClearance = Platform.OS === "web" ? spacing.xxl : 0;
+    return spacing.lg + pill + webClearance;
   }
   return Math.max(insets.bottom, spacing.md) + spacing.sm;
 }

@@ -591,8 +591,6 @@ export default function NutritionScreen() {
       </LinearGradient>
 
       <View style={styles.body}>
-        <AiMealPlannerSection />
-
         {summary && !summaryLoading && !summaryError ? (
           goalsUnset ? (
             <View style={styles.goalsCta}>
@@ -631,6 +629,8 @@ export default function NutritionScreen() {
             </View>
           )
         ) : null}
+
+        <AiMealPlannerSection />
 
         {loggedItems.length > 0 ? (
           <View style={styles.loggedSection}>
@@ -688,24 +688,24 @@ function MacroRingRow({
   const progress = target > 0 ? Math.min(1, value / target) : 0;
   const pct = Math.round(progress * 100);
   return (
-    <Animated.View entering={FadeInRight.delay(index * 100).springify().damping(16)} style={styles.macroRow}>
+    <Animated.View entering={FadeInRight.delay(index * 100).springify().damping(16)} style={styles.macroCol}>
       <ProgressRing
-        size={52}
+        size={48}
         progress={progress}
         color={color}
         track={track}
-        ticks={28}
-        tickLength={7}
+        ticks={24}
+        tickLength={6}
         tickWidth={2}
       >
         <Text style={[styles.macroPct, { color }]}>{pct}%</Text>
       </ProgressRing>
-      <View>
-        <Text style={styles.macroLabel}>{label}</Text>
-        <Text style={styles.macroValue}>
-          {Math.round(value)}g / {target > 0 ? `${target}g` : "—"}
-        </Text>
-      </View>
+      <Text style={styles.macroLabel} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text style={styles.macroValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+        {Math.round(value)}g / {target > 0 ? `${target}g` : "—"}
+      </Text>
     </Animated.View>
   );
 }
@@ -775,10 +775,20 @@ function makePlannerStyles(colors: Palette, shadows: ShadowSet, isDark: boolean)
 
 function makeMacroStyles(colors: Palette, isDark: boolean) {
   return {
-    macroRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
-    macroPct: { ...typography.label, fontWeight: "800" as const },
-    macroLabel: { ...typography.body, fontWeight: "700" as const, color: colors.text },
-    macroValue: { ...typography.caption, color: colors.textMuted },
+    macroCol: {
+      flex: 1,
+      minWidth: 0,
+      alignItems: "center" as const,
+      gap: spacing.xs,
+    },
+    macroPct: { ...typography.caption, fontWeight: "700" as const },
+    macroLabel: { ...typography.caption, fontWeight: "600" as const, color: colors.text, textAlign: "center" as const },
+    macroValue: {
+      ...typography.caption,
+      color: colors.textMuted,
+      textAlign: "center" as const,
+      width: "100%" as const,
+    },
   };
 }
 
@@ -790,7 +800,7 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       borderBottomRightRadius: isDark ? 0 : radius.xl,
     },
     headerInner: { paddingHorizontal: spacing.lg },
-    body: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingTop: spacing.lg },
+    body: { paddingHorizontal: spacing.lg, gap: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
     titleRow: {
       flexDirection: "row" as const,
       alignItems: "center" as const,
@@ -819,13 +829,14 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
 
     macroBlock: {
       flexDirection: "row" as const,
-      justifyContent: "space-between" as const,
-      gap: spacing.sm,
+      alignItems: "flex-start" as const,
+      gap: spacing.xs,
       backgroundColor: isDark ? colors.surface : colors.bgElevated,
       borderRadius: radius.lg,
       borderWidth: isDark ? 1 : 0,
       borderColor: colors.border,
-      padding: spacing.md,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.md,
       ...shadows.md,
     },
     goalsCta: {

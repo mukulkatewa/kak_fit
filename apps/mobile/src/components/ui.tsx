@@ -112,6 +112,7 @@ export function Screen({
       {scroll ? (
         <ScrollView
           ref={resolvedScrollRef}
+          style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           bounces={Platform.OS === "ios"}
           overScrollMode={Platform.OS === "android" ? "never" : undefined}
@@ -881,6 +882,10 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       gap: spacing.lg,
     },
     screenInnerFlush: { minHeight: 0, gap: spacing.lg },
+    scrollView: {
+      flex: 1,
+      ...(Platform.OS === "web" ? { minHeight: 0, overflow: "scroll" as const } : null),
+    },
     scrollContent: { flexGrow: 0 },
 
     header: {

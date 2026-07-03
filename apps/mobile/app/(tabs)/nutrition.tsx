@@ -8,7 +8,9 @@ import {
   ArrowPathIcon,
   CheckCircleIcon,
   ClockIcon,
+  PencilSquareIcon,
   SparklesIcon,
+  TrashIcon,
 } from "react-native-heroicons/outline";
 import Animated, {
   FadeInRight,
@@ -23,6 +25,7 @@ import {
   ListGroup,
   ListRow,
   Screen,
+  ThemedDialog,
   useToast,
 } from "../../src/components/ui";
 import { ProgressRing } from "../../src/components/charts";
@@ -84,6 +87,30 @@ const COMMON_FOODS = [
 
 function parsePlannedMeals(value: unknown): PlannedMeal[] {
   return Array.isArray(value) ? (value as PlannedMeal[]) : [];
+}
+
+function parseAiFoodName(name: string) {
+  const match = name.match(/^\[AI:[^\]]+\]\s*(.+?)(?:\s+-\s+(.+))?$/);
+  if (!match) return { name, amount: null as string | null };
+  return { name: match[1]?.trim() || name, amount: match[2]?.trim() || null };
+}
+
+function displayFoodName(food: { name: string }) {
+  return parseAiFoodName(food.name).name;
+}
+
+function displayPortion(item: { quantity: number; unit: string; food: { name: string; brand: string | null; servingSize: number | null; servingUnit: string | null } }) {
+  const legacyAmount = parseAiFoodName(item.food.name).amount;
+  if (legacyAmount && item.quantity === 1) return legacyAmount;
+
+  const servingUnit = item.food.servingUnit?.trim();
+  if (item.quantity === 1 && servingUnit && servingUnit !== "g" && servingUnit !== "serving") {
+    return servingUnit;
+  }
+  if (item.quantity === 1 && item.food.brand) return item.food.brand;
+
+  const unit = item.unit || servingUnit || "g";
+  return `${Math.round(item.quantity * 10) / 10}${unit === "g" ? "g" : ` ${unit}`}`;
 }
 
 function AnimatedCalorieRing({
@@ -513,6 +540,48 @@ export default function NutritionScreen() {
   const { data: targets } = trpc.nutrition.getTargets.useQuery(undefined, {
     staleTime: queryStaleTime.nutritionTargets,
   });
+  const utils = trpc.useUtils();
+  const { showToast } = useToast();
+  const [editMealItem, setEditMealItem] = useState<{
+    visible: boolean;
+    mealItemId?: string;
+    foodName?: string;
+    quantity?: string;
+    portion?: string;
+  }>({ visible: false });
+  const [deleteMealItemDialog, setDeleteMealItemDialog] = useState<{
+    visible: boolean;
+    mealItemId?: string;
+    foodName?: string;
+  }>({ visible: false });
+
+  const updateMeal = trpc.nutrition.updateMeal.useMutation({
+    onSuccess: () => {
+      setEditMealItem({ visible: false });
+      utils.nutrition.dailySummary.invalidate();
+      utils.nutrition.todayMeals.invalidate();
+      showToast("Meal updated", "success");
+    },
+    onError: (error) => showToast(error.message, "error"),
+  });
+  const deleteMealItem = trpc.nutrition.deleteMealItem.useMutation({
+    onSuccess: () => {
+      setDeleteMealItemDialog({ visible: false });
+      utils.nutrition.dailySummary.invalidate();
+      utils.nutrition.todayMeals.invalidate();
+      showToast("Food removed", "success");
+    },
+    onError: (error) => showToast(error.message, "error"),
+  });
+
+  const saveEditedMealItem = () => {
+    const qty = Number(editMealItem.quantity);
+    if (!editMealItem.mealItemId || !Number.isFinite(qty) || qty <= 0) {
+      showToast("Enter a valid quantity", "error");
+      return;
+    }
+    updateMeal.mutate({ mealItemId: editMealItem.mealItemId, quantity: qty });
+  };
 
   const cals = summary?.calories ?? 0;
   const macroTargets = summary?.targets ?? targets;
@@ -641,6 +710,8 @@ export default function NutritionScreen() {
                 const cal = Math.round(item.food.calories * ratio);
                 const protein = Math.round(item.food.protein * ratio);
                 const mealLabel = MEAL_TYPES.find((m) => m.key === meal.mealType)?.label ?? meal.mealType;
+                const portion = displayPortion(item);
+                const title = displayFoodName(item.food);
                 const isLast = flatIndex === loggedItems.length - 1;
                 return (
                   <Animated.View
@@ -648,10 +719,44 @@ export default function NutritionScreen() {
                     entering={entranceDown(flatIndex * 60)}
                   >
                     <ListRow
-                      title={item.food.name}
-                      subtitle={`${mealLabel} · ${Math.round(item.quantity)}g · ${cal} cal`}
+                      title={title}
+                      subtitle={`${mealLabel} · ${portion} · ${cal} cal`}
                       icon="restaurant-outline"
-                      right={<Text style={styles.loggedProtein}>{protein}g P</Text>}
+                      right={
+                        <View style={styles.loggedActions}>
+                          <View style={styles.loggedProteinPill}>
+                            <Text style={styles.loggedProtein}>{protein}g P</Text>
+                          </View>
+                          <Pressable
+                            hitSlop={8}
+                            style={styles.loggedIconButton}
+                            onPress={() =>
+                              setEditMealItem({
+                                visible: true,
+                                mealItemId: item.id,
+                                foodName: title,
+                                quantity: String(item.quantity),
+                                portion,
+                              })
+                            }
+                          >
+                            <PencilSquareIcon color={colors.accent} size={18} />
+                          </Pressable>
+                          <Pressable
+                            hitSlop={8}
+                            style={styles.loggedIconButton}
+                            onPress={() =>
+                              setDeleteMealItemDialog({
+                                visible: true,
+                                mealItemId: item.id,
+                                foodName: title,
+                              })
+                            }
+                          >
+                            <TrashIcon color={colors.textMuted} size={18} />
+                          </Pressable>
+                        </View>
+                      }
                       last={isLast}
                     />
                   </Animated.View>
@@ -661,6 +766,53 @@ export default function NutritionScreen() {
           </View>
         ) : null}
       </View>
+
+      <ThemedDialog
+        visible={deleteMealItemDialog.visible}
+        title="Remove food?"
+        message={deleteMealItemDialog.foodName ? `Remove ${deleteMealItemDialog.foodName} from today?` : undefined}
+        onDismiss={() => setDeleteMealItemDialog({ visible: false })}
+        buttons={[
+          { label: "Cancel" },
+          {
+            label: deleteMealItem.isPending ? "Removing..." : "Remove",
+            variant: "destructive",
+            onPress: () => {
+              if (deleteMealItemDialog.mealItemId) {
+                deleteMealItem.mutate({ mealItemId: deleteMealItemDialog.mealItemId });
+              }
+            },
+          },
+        ]}
+      />
+
+      <Modal
+        visible={editMealItem.visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => !updateMeal.isPending && setEditMealItem({ visible: false })}
+      >
+        <Screen style={styles.editMealScreen}>
+          <View style={styles.editMealHeader}>
+            <Text style={styles.editMealTitle}>Edit food</Text>
+            <Pressable hitSlop={8} onPress={() => setEditMealItem({ visible: false })} disabled={updateMeal.isPending}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+          <View style={styles.editMealCard}>
+            <Text style={styles.editMealName}>{editMealItem.foodName}</Text>
+            {editMealItem.portion ? <Text style={styles.editMealHint}>Current portion: {editMealItem.portion}</Text> : null}
+            <Input
+              placeholder="Quantity"
+              value={editMealItem.quantity ?? ""}
+              keyboardType="decimal-pad"
+              onChangeText={(quantity) => setEditMealItem((current) => ({ ...current, quantity }))}
+              autoFocus
+            />
+            <Button label="Save" fullWidth loading={updateMeal.isPending} onPress={saveEditedMealItem} />
+          </View>
+        </Screen>
+      </Modal>
     </Screen>
   );
 }
@@ -856,7 +1008,38 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       textAlign: "center" as const,
     },
     loggedSection: { gap: spacing.md },
+    loggedActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.xs },
+    loggedProteinPill: {
+      minWidth: 50,
+      minHeight: 30,
+      borderRadius: radius.full,
+      backgroundColor: colors.accentMuted,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      paddingHorizontal: spacing.sm,
+    },
     loggedProtein: { ...typography.label, color: colors.accent, fontWeight: "800" as const },
+    loggedIconButton: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      backgroundColor: colors.surfaceHover,
+    },
+    editMealScreen: { gap: spacing.lg, paddingBottom: spacing.xxl },
+    editMealHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
+    editMealTitle: { ...typography.h2, color: colors.text },
+    editMealCard: {
+      gap: spacing.md,
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      backgroundColor: colors.surface,
+      padding: spacing.lg,
+    },
+    editMealName: { ...typography.h3, color: colors.text },
+    editMealHint: { ...typography.bodySmall, color: colors.textMuted },
 
     sectionTitle: isDark
       ? { ...typography.h2, color: colors.text }

@@ -430,6 +430,8 @@ function ActiveWorkoutScreen() {
 
   const cancel = trpc.workout.discardActive.useMutation({
     onSuccess: () => {
+      stop();
+      setElapsedSeconds(0);
       setDiscardConfirmOpen(false);
       setDiscardError(null);
       utils.workout.active.setData(undefined, null);
@@ -471,6 +473,7 @@ function ActiveWorkoutScreen() {
       if (mounted.current) {
         setElapsedSeconds(0);
       }
+      stop();
       return;
     }
 
@@ -488,7 +491,7 @@ function ActiveWorkoutScreen() {
     return () => {
       clearInterval(id);
     };
-  }, [workout?.id, workout?.startedAt]);
+  }, [workout?.id, workout?.startedAt, stop]);
 
   useEffect(() => {
     if (!workout) return;

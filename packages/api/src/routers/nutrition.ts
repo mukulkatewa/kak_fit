@@ -397,8 +397,8 @@ function parsePlanPayload(meals: unknown, notes: string | null): MealPlanPayload
   return MealPlanPayloadSchema.parse({ meals, notes: notes || "Personalized meal plan." });
 }
 
-function plannedFoodName(planId: string, mealType: string, itemName: string, amount: string) {
-  return `[AI:${planId}:${mealType}] ${itemName} - ${amount}`.slice(0, 120);
+function plannedFoodName(_planId: string, _mealType: string, itemName: string, _amount: string) {
+  return itemName.trim().slice(0, 120);
 }
 
 function dailyPlanSelect() {
@@ -771,45 +771,23 @@ export const nutritionRouter = router({
       if (completed.has(input.mealType)) return plan;
 
       return ctx.prisma.$transaction(async (tx) => {
-        const foodNames = plannedMeal.items.map((item) =>
-          plannedFoodName(plan.id, input.mealType, item.name, item.amount),
-        );
-        const existingFoods = await tx.food.findMany({
-          where: { userId: ctx.user.id, isCustom: true, name: { in: foodNames } },
-          select: { id: true, name: true },
-        });
-        const existingByName = new Map(existingFoods.map((food) => [food.name, food]));
         const foods = await Promise.all(
-          plannedMeal.items.map(async (item) => {
-            const name = plannedFoodName(plan.id, input.mealType, item.name, item.amount);
-            const existing = existingByName.get(name);
-            if (existing) {
-              return tx.food.update({
-                where: { id: existing.id },
-                data: {
-                  calories: item.calories,
-                  protein: item.protein,
-                  carbs: item.carbs,
-                  fat: item.fat,
-                  servingSize: 1,
-                  servingUnit: "serving",
-                },
-              });
-            }
-            return tx.food.create({
+          plannedMeal.items.map((item) =>
+            tx.food.create({
               data: {
-                name,
+                name: plannedFoodName(plan.id, input.mealType, item.name, item.amount),
+                brand: item.amount.trim().slice(0, 120) || null,
                 calories: item.calories,
                 protein: item.protein,
                 carbs: item.carbs,
                 fat: item.fat,
                 servingSize: 1,
-                servingUnit: "serving",
+                servingUnit: item.amount.trim().slice(0, 24) || "serving",
                 isCustom: true,
                 userId: ctx.user.id,
               },
-            });
-          }),
+            }),
+          ),
         );
 
         await tx.mealLog.create({

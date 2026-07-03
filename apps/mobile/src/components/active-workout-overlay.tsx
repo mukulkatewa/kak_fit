@@ -26,6 +26,7 @@ import { isMainTabRoot, TAB_BAR_HEIGHT, ACTIVE_WORKOUT_PILL_HEIGHT } from "../li
 import { useWorkoutPillInset } from "../lib/workout-pill-inset";
 import { trpc, queryStaleTime } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
+import { useRestTimer } from "../lib/rest-timer";
 import { findNextIncompleteSet, getCurrentExerciseName } from "../lib/workout-live-widget-state";
 
 function PulsingDot({ color }: { color: string }) {
@@ -99,6 +100,7 @@ export function ActiveWorkoutOverlay() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [discardError, setDiscardError] = useState<string | null>(null);
+  const stopRestTimer = useRestTimer((state) => state.stop);
   const borderGlow = useSharedValue(0.35);
 
   const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
@@ -132,6 +134,9 @@ export function ActiveWorkoutOverlay() {
     onSuccess: () => {
       setDiscardOpen(false);
       setDiscardError(null);
+      setElapsedSeconds(0);
+      stopRestTimer();
+      utils.workout.active.setData(undefined, null);
       utils.workout.active.invalidate();
     },
     onError: (e) => {
@@ -141,7 +146,10 @@ export function ActiveWorkoutOverlay() {
   });
 
   useEffect(() => {
-    if (!activeWorkout) return;
+    if (!activeWorkout) {
+      setElapsedSeconds(0);
+      return undefined;
+    }
 
     const startedAt = activeWorkout.startedAt;
     setElapsedSeconds(Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)));

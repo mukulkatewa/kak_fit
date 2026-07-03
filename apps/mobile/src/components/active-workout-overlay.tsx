@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { ChevronUpIcon, TrashIcon } from "react-native-heroicons/outline";
+import { CheckIcon, ChevronUpIcon, TrashIcon } from "react-native-heroicons/outline";
 import Animated, {
   SlideInDown,
   useAnimatedStyle,
@@ -19,23 +19,13 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedDialog } from "./ui";
 import { useAuth } from "../lib/auth-context";
-import type { ActiveWorkout } from "../lib/active-workout-cache";
+import { applySetPatchToWorkout, patchSetInWorkout } from "../lib/active-workout-cache";
 import { formatElapsedDuration } from "../lib/format-duration";
+import { enqueueWorkoutMutation, isNetworkError } from "../lib/offline-workouts";
 import { isMainTabRoot, TAB_BAR_HEIGHT, ACTIVE_WORKOUT_PILL_HEIGHT } from "../lib/layout-constants";
 import { trpc, queryStaleTime } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
-
-function getCurrentExerciseName(workout: ActiveWorkout): string {
-  for (const exercise of workout.exercises) {
-    if (exercise.sets.some((set) => !set.isCompleted)) {
-      return exercise.exercise.name;
-    }
-  }
-
-  const lastExercise = workout.exercises.at(-1);
-  if (lastExercise) return lastExercise.exercise.name;
-  return "Active Workout";
-}
+import { findNextIncompleteSet, getCurrentExerciseName } from "../lib/workout-live-widget-state";
 
 function PulsingDot({ color }: { color: string }) {
   const scale = useSharedValue(1);
@@ -117,6 +107,26 @@ export function ActiveWorkoutOverlay() {
     enabled: isAuthenticated,
   });
 
+  const completeSet = trpc.workout.updateSet.useMutation({
+    onMutate: (variables) => {
+      if (variables.isCompleted === undefined) return;
+      utils.workout.active.setData(undefined, (current) =>
+        current
+          ? applySetPatchToWorkout(current, variables.setId, { isCompleted: variables.isCompleted })
+          : current,
+      );
+    },
+    onSuccess: (updatedSet) => {
+      utils.workout.active.setData(undefined, (current) =>
+        current ? patchSetInWorkout(current, updatedSet) : current,
+      );
+    },
+    onError: async (error, variables) => {
+      if (!isNetworkError(error)) return;
+      await enqueueWorkoutMutation("updateSet", variables);
+    },
+  });
+
   const discardActive = trpc.workout.discardActive.useMutation({
     onSuccess: () => {
       setDiscardOpen(false);
@@ -156,6 +166,10 @@ export function ActiveWorkoutOverlay() {
 
   const exerciseName = useMemo(
     () => (activeWorkout ? getCurrentExerciseName(activeWorkout) : ""),
+    [activeWorkout],
+  );
+  const nextSet = useMemo(
+    () => (activeWorkout ? findNextIncompleteSet(activeWorkout) : null),
     [activeWorkout],
   );
 
@@ -207,17 +221,39 @@ export function ActiveWorkoutOverlay() {
 
         <Pressable
           onPress={() => {
+            if (!nextSet) {
+              router.push("/workout/active");
+              return;
+            }
+            completeSet.mutate({ setId: nextSet.setId, isCompleted: true });
+          }}
+          disabled={!nextSet || completeSet.isPending}
+          style={[
+            styles.circleBtn,
+            { backgroundColor: nextSet ? colors.success : colors.bgElevated },
+          ]}
+          hitSlop={4}
+        >
+          {completeSet.isPending ? (
+            <ActivityIndicator size="small" color={colors.onAccent} />
+          ) : (
+            <CheckIcon color={nextSet ? colors.onAccent : colors.textMuted} size={20} />
+          )}
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
             setDiscardError(null);
             setDiscardOpen(true);
           }}
           disabled={discardActive.isPending}
-          style={[styles.circleBtn, { backgroundColor: colors.bgElevated }]}
+          style={[styles.circleBtnCompact, { backgroundColor: colors.bgElevated }]}
           hitSlop={4}
         >
           {discardActive.isPending ? (
             <ActivityIndicator size="small" color={colors.danger} />
           ) : (
-            <TrashIcon color={colors.danger} size={20} />
+            <TrashIcon color={colors.danger} size={18} />
           )}
         </Pressable>
       </Animated.View>
@@ -258,7 +294,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
-    gap: 8,
+    gap: 6,
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -270,6 +306,14 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  circleBtnCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,

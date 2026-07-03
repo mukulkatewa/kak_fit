@@ -21,7 +21,6 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "permissions": [
-        "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -53,7 +52,14 @@
           "photosPermission": "Allow Kak Fit to add progress photos from your library."
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "expo-notifications",
+        {
+          "color": "#0A84FF",
+          "defaultChannel": "active-workout"
+        }
+      ]
     ],
     "extra": {
       "router": {},

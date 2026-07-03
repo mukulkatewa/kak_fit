@@ -16,11 +16,13 @@ import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActiveWorkoutOverlay } from "../src/components/active-workout-overlay";
+import { OfflineWorkoutSync } from "../src/components/offline-workout-sync";
 import { DevApiBanner } from "../src/components/dev-api-banner";
 import { QueryErrorBoundary } from "../src/components/query-error-boundary";
 import { StartupErrorBoundary } from "../src/components/startup-error-boundary";
 import { TokenRefreshBadge } from "../src/components/token-refresh-badge";
 import { TrpcPrefetchBootstrap } from "../src/components/trpc-prefetch-bootstrap";
+import { WorkoutLiveNotificationBridge } from "../src/components/workout-live-notification-bridge";
 import { ToastContainer, ToastProvider } from "../src/components/ui";
 import { AuthProvider, useAuth } from "../src/lib/auth-context";
 import { AuthSessionValidator } from "../src/lib/auth-session-validator";
@@ -155,6 +157,8 @@ function ThemedApp() {
           <AuthLoadingOverlay />
           <DevApiBanner />
           <TokenRefreshBadge />
+          <OfflineWorkoutSync />
+          <WorkoutLiveNotificationBridge />
           <ActiveWorkoutOverlay />
           <ToastContainer />
         </ToastProvider>

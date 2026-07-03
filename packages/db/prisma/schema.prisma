@@ -60,6 +60,17 @@ model User {
   fatGoal              Int?
   weightUnit           WeightUnit @default(KG)
   defaultRestSeconds   Int        @default(90)
+  nutritionAge          Int?
+  nutritionSex          String?
+  heightCm              Float?
+  weightKg              Float?
+  nutritionGoal         String?
+  activityLevel         String?
+  dietPreference        String?
+  cookingAccess         String?
+  foodAvailability      String[]   @default([])
+  foodAvoidances        String[]   @default([])
+  mealReminderEnabled   Boolean    @default(true)
   exerciseReminderEnabled Boolean  @default(true)
   exerciseReminderLastSentAt DateTime?
   createdAt            DateTime   @default(now())
@@ -78,6 +89,7 @@ model User {
   personalRecords  PersonalRecord[]
   bodyMeasurements BodyMeasurement[]
   mealLogs         MealLog[]
+  mealPlans        MealPlan[]
   customFoods      Food[]           @relation("CustomFoods")
   progressPhotos   ProgressPhoto[]
   apiKeys          ApiKey[]
@@ -530,6 +542,29 @@ model MealLog {
 
   @@index([userId, date])
   @@index([userId, mealType, date])
+}
+
+model MealPlan {
+  id                 String   @id @default(cuid())
+  userId             String
+  date               DateTime
+  targetCalories     Int
+  targetProtein      Int
+  targetCarbs        Int
+  targetFat          Int
+  availableFoods     String[] @default([])
+  meals              Json
+  notes              String?
+  skippedMealTypes   String[] @default([])
+  completedMealTypes String[] @default([])
+  source             String   @default("nova-lite")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
 }
 
 model MealItem {

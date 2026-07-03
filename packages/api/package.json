@@ -20,6 +20,7 @@
     "send:daily-reminders:dry": "dotenv -o -e ../../.env -- tsx scripts/send-daily-exercise-reminders.ts --dry-run"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1079.0",
     "@kak-fit/db": "workspace:*",
     "@react-email/components": "^1.0.12",
     "@trpc/server": "^11.0.2",

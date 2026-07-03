@@ -6,6 +6,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TOUCH_TARGET_MIN, useBottomSheetInset } from "../../src/lib/layout-constants";
 import {
+  ArrowPathIcon,
+  CheckCircleIcon,
+  ClockIcon,
   FireIcon,
   MoonIcon,
   PencilSquareIcon,
@@ -36,6 +39,7 @@ import {
 import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
 import { entranceDown, useSpringPress } from "../../src/lib/animations";
+import { scheduleMealPlanNotifications } from "../../src/lib/meal-plan-notifications";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { radius, spacing, typography, useTheme, type Palette, type ShadowSet } from "../../src/lib/theme";
 
@@ -69,6 +73,29 @@ type FoodSearchItem = {
   source: "local" | "usda";
 };
 
+type PlannedMealItem = {
+  name: string;
+  amount: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
+
+type PlannedMeal = {
+  mealType: MealKey;
+  title: string;
+  time: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  prepMinutes: number;
+  items: PlannedMealItem[];
+  instructions: string;
+  swapIdeas: string[];
+};
+
 type FoodInputModalState = {
   visible: boolean;
   mealItemId?: string;
@@ -78,6 +105,27 @@ type FoodInputModalState = {
 };
 
 const DEFAULT_FOOD_QUANTITY_G = 100;
+
+const COMMON_FOODS = [
+  "roti",
+  "rice",
+  "dal",
+  "curd",
+  "milk",
+  "paneer",
+  "eggs",
+  "chicken",
+  "soy chunks",
+  "chana",
+  "peanuts",
+  "banana",
+  "potato",
+  "seasonal sabzi",
+];
+
+function parsePlannedMeals(value: unknown): PlannedMeal[] {
+  return Array.isArray(value) ? (value as PlannedMeal[]) : [];
+}
 
 function AnimatedCalorieRing({
   progress,
@@ -207,6 +255,361 @@ function AnimatedFoodRow({
   );
 }
 
+function AiMealPlannerSection() {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => StyleSheet.create(makePlannerStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
+  const utils = trpc.useUtils();
+  const { showToast } = useToast();
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [customFood, setCustomFood] = useState("");
+  const [form, setForm] = useState({
+    age: "",
+    sex: "male" as "male" | "female" | "other",
+    heightCm: "",
+    weightKg: "",
+    goal: "gain_muscle" as "lose_fat" | "maintain" | "gain_muscle",
+    activityLevel: "moderate" as "low" | "moderate" | "high",
+    dietPreference: "Indian home food",
+    cookingAccess: "stove and basic utensils",
+    availableFoods: ["roti", "rice", "dal", "curd", "banana"],
+    avoidances: "",
+    mealReminderEnabled: true,
+  });
+
+  const { data: profile, isLoading: profileLoading } = trpc.nutrition.getPlannerProfile.useQuery(undefined, {
+    staleTime: queryStaleTime.nutritionTargets,
+  });
+  const { data: plan, isLoading: planLoading } = trpc.nutrition.todayPlan.useQuery(undefined, {
+    staleTime: queryStaleTime.nutritionDaily,
+  });
+
+  const plannedMeals = useMemo(() => parsePlannedMeals(plan?.meals), [plan?.meals]);
+
+  useEffect(() => {
+    if (!profile) return;
+    setForm({
+      age: profile.age ? String(profile.age) : "",
+      sex: (profile.sex as "male" | "female" | "other") ?? "male",
+      heightCm: profile.heightCm ? String(profile.heightCm) : "",
+      weightKg: profile.weightKg ? String(profile.weightKg) : "",
+      goal: (profile.goal as "lose_fat" | "maintain" | "gain_muscle") ?? "gain_muscle",
+      activityLevel: (profile.activityLevel as "low" | "moderate" | "high") ?? "moderate",
+      dietPreference: profile.dietPreference ?? "Indian home food",
+      cookingAccess: profile.cookingAccess ?? "stove and basic utensils",
+      availableFoods: profile.availableFoods.length > 0 ? profile.availableFoods : ["roti", "rice", "dal", "curd", "banana"],
+      avoidances: profile.avoidances.join(", "),
+      mealReminderEnabled: profile.mealReminderEnabled,
+    });
+  }, [profile]);
+
+  useEffect(() => {
+    if (!plan || !profile?.mealReminderEnabled || plannedMeals.length === 0) return;
+    void scheduleMealPlanNotifications({
+      id: plan.id,
+      date: plan.date,
+      meals: plannedMeals.map((meal) => ({
+        mealType: meal.mealType,
+        title: meal.title,
+        time: meal.time,
+        protein: meal.protein,
+      })),
+    });
+  }, [plan, plannedMeals, profile?.mealReminderEnabled]);
+
+  const saveProfile = trpc.nutrition.savePlannerProfile.useMutation({
+    onSuccess: () => {
+      utils.nutrition.getPlannerProfile.invalidate();
+      utils.nutrition.getTargets.invalidate();
+      utils.nutrition.dailySummary.invalidate();
+      setSetupOpen(false);
+      showToast("Meal profile saved", "success");
+    },
+    onError: (error) => showToast(error.message, "error"),
+  });
+
+  const generatePlan = trpc.nutrition.generatePlan.useMutation({
+    onSuccess: () => {
+      utils.nutrition.todayPlan.invalidate();
+      utils.nutrition.dailySummary.invalidate();
+      showToast("Today's plan is ready", "success");
+    },
+    onError: (error) => showToast(error.message, "error"),
+  });
+
+  const markAte = trpc.nutrition.markPlanMealAte.useMutation({
+    onSuccess: () => {
+      utils.nutrition.todayPlan.invalidate();
+      utils.nutrition.todayMeals.invalidate();
+      utils.nutrition.dailySummary.invalidate();
+      showToast("Meal logged", "success");
+    },
+    onError: (error) => showToast(error.message, "error"),
+  });
+
+  const skipMeal = trpc.nutrition.skipPlanMeal.useMutation({
+    onSuccess: () => {
+      utils.nutrition.todayPlan.invalidate();
+      showToast("Meal skipped. Keep protein steady in the next meal.", "info");
+    },
+    onError: (error) => showToast(error.message, "error"),
+  });
+
+  const swapMeal = trpc.nutrition.swapPlanMeal.useMutation({
+    onSuccess: () => {
+      utils.nutrition.todayPlan.invalidate();
+      showToast("Meal swapped", "success");
+    },
+    onError: (error) => showToast(error.message, "error"),
+  });
+
+  const toggleFood = (food: string) => {
+    setForm((current) => {
+      const exists = current.availableFoods.includes(food);
+      return {
+        ...current,
+        availableFoods: exists
+          ? current.availableFoods.filter((item) => item !== food)
+          : [...current.availableFoods, food],
+      };
+    });
+  };
+
+  const addCustomFood = () => {
+    const value = customFood.trim();
+    if (!value) return;
+    setForm((current) => ({
+      ...current,
+      availableFoods: current.availableFoods.includes(value) ? current.availableFoods : [...current.availableFoods, value],
+    }));
+    setCustomFood("");
+  };
+
+  const handleSaveProfile = () => {
+    const age = Number(form.age);
+    const heightCm = Number(form.heightCm);
+    const weightKg = Number(form.weightKg);
+    if (!Number.isFinite(age) || !Number.isFinite(heightCm) || !Number.isFinite(weightKg)) {
+      showToast("Add valid age, height, and weight", "error");
+      return;
+    }
+    saveProfile.mutate({
+      age: Math.round(age),
+      sex: form.sex,
+      heightCm,
+      weightKg,
+      goal: form.goal,
+      activityLevel: form.activityLevel,
+      dietPreference: form.dietPreference.trim() || "Home food",
+      cookingAccess: form.cookingAccess.trim() || "basic cooking",
+      availableFoods: form.availableFoods,
+      avoidances: form.avoidances.split(",").map((item) => item.trim()).filter(Boolean),
+      mealReminderEnabled: form.mealReminderEnabled,
+    });
+  };
+
+  const canGenerate = Boolean(profile?.complete);
+  const isBusy = generatePlan.isPending || saveProfile.isPending;
+
+  if (profileLoading || planLoading) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.eyebrow}>AI meal coach</Text>
+        <Text style={styles.title}>Loading your plan...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <View style={styles.card}>
+        <View style={styles.coachHeader}>
+          <View style={styles.coachIcon}>
+            <SparklesIcon color={colors.accent} size={22} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.eyebrow}>AI meal coach</Text>
+            <Text style={styles.title} numberOfLines={1}>Local food diet plan</Text>
+          </View>
+          <Pressable onPress={() => setSetupOpen(true)} hitSlop={8} style={styles.smallAction}>
+            <Text style={styles.smallActionText}>{profile?.complete ? "Edit" : "Setup"}</Text>
+          </Pressable>
+        </View>
+
+        {profile?.complete && profile.estimatedTargets ? (
+          <View style={styles.targetStrip}>
+            <Text style={styles.targetText}>{profile.estimatedTargets.calories.toLocaleString()} kcal</Text>
+            <Text style={styles.targetText}>{profile.estimatedTargets.protein}g protein</Text>
+            <Text style={styles.targetMeta}>{profile.recentWorkoutCount} workouts / 14d</Text>
+          </View>
+        ) : (
+          <Text style={styles.bodyText}>Add body details and foods available around you. We will build a practical plan from that.</Text>
+        )}
+
+        {!plan ? (
+          <Button
+            label={canGenerate ? "Build today's plan" : "Set up meal coach"}
+            icon={canGenerate ? "sparkles-outline" : "person-outline"}
+            fullWidth
+            loading={isBusy}
+            onPress={() => {
+              if (!canGenerate) {
+                setSetupOpen(true);
+                return;
+              }
+              generatePlan.mutate({ force: true });
+            }}
+          />
+        ) : null}
+
+        {plan ? (
+          <View style={styles.planStack}>
+            <View style={styles.planMetaRow}>
+              <Text style={styles.planNote} numberOfLines={2}>{plan.notes}</Text>
+              <Pressable
+                hitSlop={8}
+                onPress={() => generatePlan.mutate({ force: true })}
+                disabled={generatePlan.isPending}
+                style={styles.iconAction}
+              >
+                <ArrowPathIcon color={colors.accent} size={18} />
+              </Pressable>
+            </View>
+            {plannedMeals.map((meal) => {
+              const completed = plan.completedMealTypes.includes(meal.mealType);
+              const skipped = plan.skippedMealTypes.includes(meal.mealType);
+              return (
+                <View key={meal.mealType} style={[styles.planMeal, completed && styles.planMealDone, skipped && styles.planMealSkipped]}>
+                  <View style={styles.planMealTop}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.mealTime}>{meal.time} · {MEAL_TYPES.find((item) => item.key === meal.mealType)?.label}</Text>
+                      <Text style={styles.planMealTitle} numberOfLines={1}>{meal.title}</Text>
+                    </View>
+                    {completed ? <CheckCircleIcon color={colors.success} size={22} /> : skipped ? <ClockIcon color={colors.textMuted} size={22} /> : null}
+                  </View>
+                  <Text style={styles.planMealMeta}>{Math.round(meal.calories)} kcal · {Math.round(meal.protein)}g protein · {meal.prepMinutes} min</Text>
+                  <Text style={styles.planItems} numberOfLines={2}>{meal.items.map((item) => `${item.amount} ${item.name}`).join(" + ")}</Text>
+                  <View style={styles.planActions}>
+                    <Pressable
+                      style={[styles.planButton, styles.planButtonPrimary]}
+                      disabled={completed || markAte.isPending}
+                      onPress={() => plan && markAte.mutate({ planId: plan.id, mealType: meal.mealType })}
+                    >
+                      <Text style={styles.planButtonPrimaryText}>{completed ? "Logged" : "Ate"}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.planButton}
+                      disabled={skipped || skipMeal.isPending}
+                      onPress={() => plan && skipMeal.mutate({ planId: plan.id, mealType: meal.mealType, hunger: "LITTLE" })}
+                    >
+                      <Text style={styles.planButtonText}>{skipped ? "Skipped" : "Skip"}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.planButton}
+                      disabled={swapMeal.isPending}
+                      onPress={() => plan && swapMeal.mutate({ planId: plan.id, mealType: meal.mealType })}
+                    >
+                      <Text style={styles.planButtonText}>Swap</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+      </View>
+
+      <Modal visible={setupOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSetupOpen(false)}>
+        <Screen scroll style={styles.setupScreen}>
+          <View style={styles.setupHeader}>
+            <Text style={styles.setupTitle}>Meal coach setup</Text>
+            <Pressable onPress={() => setSetupOpen(false)} hitSlop={8}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <View style={styles.formGrid}>
+            <Input placeholder="Age" value={form.age} keyboardType="number-pad" onChangeText={(age) => setForm((current) => ({ ...current, age }))} />
+            <Input placeholder="Height cm" value={form.heightCm} keyboardType="decimal-pad" onChangeText={(heightCm) => setForm((current) => ({ ...current, heightCm }))} />
+            <Input placeholder="Weight kg" value={form.weightKg} keyboardType="decimal-pad" onChangeText={(weightKg) => setForm((current) => ({ ...current, weightKg }))} />
+          </View>
+
+          <SegmentedChips
+            label="Sex"
+            values={["male", "female", "other"]}
+            selected={form.sex}
+            onSelect={(sex) => setForm((current) => ({ ...current, sex: sex as typeof form.sex }))}
+          />
+          <SegmentedChips
+            label="Goal"
+            values={["lose_fat", "maintain", "gain_muscle"]}
+            selected={form.goal}
+            onSelect={(goal) => setForm((current) => ({ ...current, goal: goal as typeof form.goal }))}
+          />
+          <SegmentedChips
+            label="Activity"
+            values={["low", "moderate", "high"]}
+            selected={form.activityLevel}
+            onSelect={(activityLevel) => setForm((current) => ({ ...current, activityLevel: activityLevel as typeof form.activityLevel }))}
+          />
+
+          <Input placeholder="Diet preference" value={form.dietPreference} onChangeText={(dietPreference) => setForm((current) => ({ ...current, dietPreference }))} />
+          <Input placeholder="Cooking access" value={form.cookingAccess} onChangeText={(cookingAccess) => setForm((current) => ({ ...current, cookingAccess }))} />
+          <Input placeholder="Avoidances / allergies, comma separated" value={form.avoidances} onChangeText={(avoidances) => setForm((current) => ({ ...current, avoidances }))} />
+
+          <Text style={styles.setupLabel}>Foods available around you</Text>
+          <View style={styles.foodChips}>
+            {COMMON_FOODS.map((food) => {
+              const selected = form.availableFoods.includes(food);
+              return (
+                <Pressable key={food} onPress={() => toggleFood(food)} style={[styles.foodChip, selected && styles.foodChipSelected]}>
+                  <Text style={[styles.foodChipText, selected && styles.foodChipTextSelected]}>{food}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={styles.customFoodRow}>
+            <View style={{ flex: 1 }}><Input placeholder="Add food" value={customFood} onChangeText={setCustomFood} /></View>
+            <Pressable onPress={addCustomFood} style={styles.addFoodBtn}>
+              <Ionicons name="add" size={20} color={colors.onAccent} />
+            </Pressable>
+          </View>
+
+          <Pressable
+            onPress={() => setForm((current) => ({ ...current, mealReminderEnabled: !current.mealReminderEnabled }))}
+            style={styles.reminderRow}
+          >
+            <Ionicons name={form.mealReminderEnabled ? "notifications" : "notifications-off"} size={20} color={colors.accent} />
+            <Text style={styles.reminderText}>Meal reminders</Text>
+            <Text style={styles.reminderState}>{form.mealReminderEnabled ? "On" : "Off"}</Text>
+          </Pressable>
+
+          <Button label="Save meal profile" fullWidth loading={saveProfile.isPending} onPress={handleSaveProfile} />
+        </Screen>
+      </Modal>
+    </>
+  );
+}
+
+function SegmentedChips({ label, values, selected, onSelect }: { label: string; values: string[]; selected: string; onSelect: (value: string) => void }) {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => StyleSheet.create(makePlannerStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Text style={styles.setupLabel}>{label}</Text>
+      <View style={styles.foodChips}>
+        {values.map((value) => {
+          const active = selected === value;
+          return (
+            <Pressable key={value} onPress={() => onSelect(value)} style={[styles.foodChip, active && styles.foodChipSelected]}>
+              <Text style={[styles.foodChipText, active && styles.foodChipTextSelected]}>{value.replace("_", " ")}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export default function NutritionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -223,7 +626,7 @@ export default function NutritionScreen() {
   const [logging, setLogging] = useState(false);
   const [deleteMealDialog, setDeleteMealDialog] = useState<{
     visible: boolean;
-    mealId?: string;
+    mealItemId?: string;
     label?: string;
   }>({ visible: false });
   const [foodInputModal, setFoodInputModal] = useState<FoodInputModalState>({ visible: false });
@@ -298,7 +701,7 @@ export default function NutritionScreen() {
     onError: (err) => showToast(err.message, "error"),
   });
 
-  const deleteMeal = trpc.nutrition.deleteMeal.useMutation({
+  const deleteMealItem = trpc.nutrition.deleteMealItem.useMutation({
     onSuccess: () => {
       setDeleteMealDialog({ visible: false });
       utils.nutrition.dailySummary.invalidate();
@@ -345,8 +748,8 @@ export default function NutritionScreen() {
     });
   };
 
-  const confirmDeleteMeal = (mealId: string, label: string) => {
-    setDeleteMealDialog({ visible: true, mealId, label });
+  const confirmDeleteMealItem = (mealItemId: string, label: string) => {
+    setDeleteMealDialog({ visible: true, mealItemId, label });
   };
 
   const openEditFood = (mealItemId: string, foodName: string, quantity: number) => {
@@ -477,6 +880,8 @@ export default function NutritionScreen() {
       </LinearGradient>
 
       <View style={styles.body}>
+        <AiMealPlannerSection />
+
         {summary && !summaryLoading && !summaryError ? (
           goalsUnset ? (
             <View style={styles.goalsCta}>
@@ -516,7 +921,7 @@ export default function NutritionScreen() {
           )
         ) : null}
 
-        <Text style={styles.sectionTitle}>Today&apos;s Meals</Text>
+        <Text style={styles.sectionTitle}>Today's Meals</Text>
         <View style={styles.mealStack}>
           {MEAL_TYPES.map((meal, index) => {
             const total = mealTotals[meal.key];
@@ -567,7 +972,7 @@ export default function NutritionScreen() {
                           </Pressable>
                           <Pressable
                             hitSlop={8}
-                            onPress={() => confirmDeleteMeal(meal.id, item.food.name)}
+                            onPress={() => confirmDeleteMealItem(item.id, item.food.name)}
                           >
                             <TrashIcon color={colors.textDim} size={18} />
                           </Pressable>
@@ -654,8 +1059,8 @@ export default function NutritionScreen() {
             label: "Remove",
             variant: "destructive",
             onPress: () => {
-              if (deleteMealDialog.mealId) {
-                deleteMeal.mutate({ id: deleteMealDialog.mealId });
+              if (deleteMealDialog.mealItemId) {
+                deleteMealItem.mutate({ mealItemId: deleteMealDialog.mealItemId });
               }
             },
           },
@@ -747,6 +1152,69 @@ function MacroRingRow({
       </View>
     </Animated.View>
   );
+}
+
+function makePlannerStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
+  return {
+    card: {
+      backgroundColor: isDark ? colors.surface : colors.bgElevated,
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      padding: spacing.lg,
+      gap: spacing.md,
+      ...shadows.md,
+    },
+    coachHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
+    coachIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: radius.md,
+      backgroundColor: colors.accentMuted,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
+    eyebrow: { ...typography.caption, color: colors.textMuted, fontWeight: "800" as const, textTransform: "uppercase" as const },
+    title: { ...typography.h2, color: colors.text },
+    bodyText: { ...typography.bodySmall, color: colors.textMuted, lineHeight: 20 },
+    smallAction: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full, backgroundColor: colors.surfaceHover },
+    smallActionText: { ...typography.label, color: colors.accent, fontWeight: "800" as const },
+    targetStrip: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: spacing.sm, alignItems: "center" as const },
+    targetText: { ...typography.bodySmall, color: colors.text, fontWeight: "800" as const, backgroundColor: colors.accentMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full },
+    targetMeta: { ...typography.caption, color: colors.textMuted },
+    planStack: { gap: spacing.md },
+    planMetaRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
+    planNote: { flex: 1, ...typography.bodySmall, color: colors.textMuted, lineHeight: 19 },
+    iconAction: { width: 38, height: 38, borderRadius: 19, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: colors.surfaceHover },
+    planMeal: { borderRadius: radius.md, backgroundColor: colors.bg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSubtle, padding: spacing.md, gap: spacing.sm },
+    planMealDone: { borderColor: colors.success, backgroundColor: colors.successMuted },
+    planMealSkipped: { opacity: 0.72 },
+    planMealTop: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
+    mealTime: { ...typography.caption, color: colors.textMuted, fontWeight: "700" as const },
+    planMealTitle: { ...typography.h3, color: colors.text },
+    planMealMeta: { ...typography.caption, color: colors.accent, fontWeight: "700" as const },
+    planItems: { ...typography.bodySmall, color: colors.textMuted, lineHeight: 19 },
+    planActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.sm, marginTop: spacing.xs },
+    planButton: { flex: 1, minHeight: 38, borderRadius: radius.md, backgroundColor: colors.surfaceHover, alignItems: "center" as const, justifyContent: "center" as const, paddingHorizontal: spacing.sm },
+    planButtonPrimary: { backgroundColor: colors.accent },
+    planButtonText: { ...typography.label, color: colors.text, fontWeight: "800" as const },
+    planButtonPrimaryText: { ...typography.label, color: colors.onAccent, fontWeight: "800" as const },
+    setupScreen: { gap: spacing.lg, paddingBottom: spacing.xxl },
+    setupHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
+    setupTitle: { ...typography.h2, color: colors.text },
+    setupLabel: { ...typography.caption, color: colors.textMuted, fontWeight: "800" as const, textTransform: "uppercase" as const },
+    formGrid: { gap: spacing.md },
+    foodChips: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: spacing.sm },
+    foodChip: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full, backgroundColor: colors.surfaceHover, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSubtle },
+    foodChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+    foodChipText: { ...typography.label, color: colors.text, fontWeight: "700" as const },
+    foodChipTextSelected: { color: colors.onAccent },
+    customFoodRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.sm },
+    addFoodBtn: { width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: "center" as const, justifyContent: "center" as const },
+    reminderRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md, minHeight: 48, borderRadius: radius.md, backgroundColor: colors.surfaceHover, paddingHorizontal: spacing.md },
+    reminderText: { flex: 1, ...typography.bodySmall, color: colors.text, fontWeight: "700" as const },
+    reminderState: { ...typography.label, color: colors.accent, fontWeight: "800" as const },
+  };
 }
 
 function makeMacroStyles(colors: Palette, isDark: boolean) {

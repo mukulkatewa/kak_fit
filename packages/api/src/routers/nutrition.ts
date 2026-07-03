@@ -3,6 +3,14 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { fetchExternal } from "../fetch-external";
 import { startOfUserDay } from "../lib/timezone";
+import {
+  MealPlanPayloadSchema,
+  MealTypeSchema,
+  calculateNutritionTargets,
+  generateNovaMealPlan,
+  type MealPlanPayload,
+  type NutritionProfileInput,
+} from "../services/nutrition-planner";
 import { protectedProcedure, router } from "../trpc";
 
 const USDA_BASE = "https://api.nal.usda.gov/fdc/v1";
@@ -299,6 +307,120 @@ function resolveTargets(user: {
   };
 }
 
+const plannerProfileInput = z.object({
+  age: z.number().int().min(13).max(90),
+  sex: z.enum(["male", "female", "other"]),
+  heightCm: z.number().min(100).max(250),
+  weightKg: z.number().min(30).max(300),
+  goal: z.enum(["lose_fat", "maintain", "gain_muscle"]),
+  activityLevel: z.enum(["low", "moderate", "high"]),
+  dietPreference: z.string().min(2).max(80),
+  cookingAccess: z.string().min(2).max(120),
+  availableFoods: z.array(z.string().min(1).max(80)).min(3).max(40),
+  avoidances: z.array(z.string().min(1).max(80)).max(30).default([]),
+  mealReminderEnabled: z.boolean().default(true),
+});
+
+function uniqueClean(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+async function recentWorkoutCount(ctx: { prisma: import("@kak-fit/db").PrismaClient; user: { id: string } }) {
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  return ctx.prisma.workout.count({
+    where: { userId: ctx.user.id, finishedAt: { gte: since } },
+  });
+}
+
+function profileComplete(user: {
+  nutritionAge: number | null;
+  nutritionSex: string | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  nutritionGoal: string | null;
+  activityLevel: string | null;
+  dietPreference: string | null;
+  cookingAccess: string | null;
+  foodAvailability: string[];
+}) {
+  return Boolean(
+    user.nutritionAge &&
+      user.nutritionSex &&
+      user.heightCm &&
+      user.weightKg &&
+      user.nutritionGoal &&
+      user.activityLevel &&
+      user.dietPreference &&
+      user.cookingAccess &&
+      user.foodAvailability.length >= 3,
+  );
+}
+
+function toNutritionProfile(
+  user: {
+    nutritionAge: number | null;
+    nutritionSex: string | null;
+    heightCm: number | null;
+    weightKg: number | null;
+    nutritionGoal: string | null;
+    activityLevel: string | null;
+    dietPreference: string | null;
+    cookingAccess: string | null;
+    foodAvailability: string[];
+    foodAvoidances: string[];
+  },
+  workoutCount: number,
+): NutritionProfileInput {
+  if (!profileComplete(user)) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Add body details and at least 3 available foods first.",
+    });
+  }
+
+  return {
+    age: user.nutritionAge!,
+    sex: user.nutritionSex as NutritionProfileInput["sex"],
+    heightCm: user.heightCm!,
+    weightKg: user.weightKg!,
+    goal: user.nutritionGoal as NutritionProfileInput["goal"],
+    activityLevel: user.activityLevel as NutritionProfileInput["activityLevel"],
+    dietPreference: user.dietPreference!,
+    cookingAccess: user.cookingAccess!,
+    availableFoods: user.foodAvailability,
+    avoidances: user.foodAvoidances,
+    recentWorkoutCount: workoutCount,
+  };
+}
+
+function parsePlanPayload(meals: unknown, notes: string | null): MealPlanPayload {
+  return MealPlanPayloadSchema.parse({ meals, notes: notes || "Personalized meal plan." });
+}
+
+function plannedFoodName(planId: string, mealType: string, itemName: string, amount: string) {
+  return `[AI:${planId}:${mealType}] ${itemName} - ${amount}`.slice(0, 120);
+}
+
+function dailyPlanSelect() {
+  return {
+    id: true,
+    userId: true,
+    date: true,
+    targetCalories: true,
+    targetProtein: true,
+    targetCarbs: true,
+    targetFat: true,
+    availableFoods: true,
+    meals: true,
+    notes: true,
+    skippedMealTypes: true,
+    completedMealTypes: true,
+    source: true,
+    createdAt: true,
+    updatedAt: true,
+  } satisfies Prisma.MealPlanSelect;
+}
+
 export const nutritionRouter = router({
   listCustomFoods: protectedProcedure.query(async ({ ctx }) => {
     return ctx.prisma.food.findMany({
@@ -401,6 +523,317 @@ export const nutritionRouter = router({
         },
       });
       return input;
+    }),
+
+
+  getPlannerProfile: protectedProcedure.query(async ({ ctx }) => {
+    const [user, workoutCount] = await Promise.all([
+      ctx.prisma.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: {
+          nutritionAge: true,
+          nutritionSex: true,
+          heightCm: true,
+          weightKg: true,
+          nutritionGoal: true,
+          activityLevel: true,
+          dietPreference: true,
+          cookingAccess: true,
+          foodAvailability: true,
+          foodAvoidances: true,
+          mealReminderEnabled: true,
+          calorieGoal: true,
+          proteinGoal: true,
+          carbGoal: true,
+          fatGoal: true,
+        },
+      }),
+      recentWorkoutCount(ctx),
+    ]);
+
+    const complete = profileComplete(user);
+    const estimatedTargets = complete
+      ? calculateNutritionTargets(toNutritionProfile(user, workoutCount))
+      : null;
+
+    return {
+      ...user,
+      age: user.nutritionAge,
+      sex: user.nutritionSex,
+      goal: user.nutritionGoal,
+      availableFoods: user.foodAvailability,
+      avoidances: user.foodAvoidances,
+      recentWorkoutCount: workoutCount,
+      complete,
+      estimatedTargets,
+    };
+  }),
+
+  savePlannerProfile: protectedProcedure
+    .input(plannerProfileInput)
+    .mutation(async ({ ctx, input }) => {
+      const workoutCount = await recentWorkoutCount(ctx);
+      const profile: NutritionProfileInput = {
+        age: input.age,
+        sex: input.sex,
+        heightCm: input.heightCm,
+        weightKg: input.weightKg,
+        goal: input.goal,
+        activityLevel: input.activityLevel,
+        dietPreference: input.dietPreference.trim(),
+        cookingAccess: input.cookingAccess.trim(),
+        availableFoods: uniqueClean(input.availableFoods),
+        avoidances: uniqueClean(input.avoidances),
+        recentWorkoutCount: workoutCount,
+      };
+      const targets = calculateNutritionTargets(profile);
+
+      await ctx.prisma.user.update({
+        where: { id: ctx.user.id },
+        data: {
+          nutritionAge: profile.age,
+          nutritionSex: profile.sex,
+          heightCm: profile.heightCm,
+          weightKg: profile.weightKg,
+          nutritionGoal: profile.goal,
+          activityLevel: profile.activityLevel,
+          dietPreference: profile.dietPreference,
+          cookingAccess: profile.cookingAccess,
+          foodAvailability: { set: profile.availableFoods },
+          foodAvoidances: { set: profile.avoidances },
+          mealReminderEnabled: input.mealReminderEnabled,
+          calorieGoal: targets.calories,
+          proteinGoal: targets.protein,
+          carbGoal: targets.carbs,
+          fatGoal: targets.fat,
+        },
+      });
+
+      return { success: true, targets };
+    }),
+
+  todayPlan: protectedProcedure
+    .input(timezoneOffsetInput.optional())
+    .query(async ({ ctx, input }) => {
+      const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
+      return ctx.prisma.mealPlan.findUnique({
+        where: { userId_date: { userId: ctx.user.id, date: startOfDay } },
+        select: dailyPlanSelect(),
+      });
+    }),
+
+  generatePlan: protectedProcedure
+    .input(timezoneOffsetInput.extend({ force: z.boolean().optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+      const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
+      if (!input?.force) {
+        const existing = await ctx.prisma.mealPlan.findUnique({
+          where: { userId_date: { userId: ctx.user.id, date: startOfDay } },
+          select: dailyPlanSelect(),
+        });
+        if (existing) return existing;
+      }
+
+      const [user, workoutCount] = await Promise.all([
+        ctx.prisma.user.findUniqueOrThrow({
+          where: { id: ctx.user.id },
+          select: {
+            nutritionAge: true,
+            nutritionSex: true,
+            heightCm: true,
+            weightKg: true,
+            nutritionGoal: true,
+            activityLevel: true,
+            dietPreference: true,
+            cookingAccess: true,
+            foodAvailability: true,
+            foodAvoidances: true,
+          },
+        }),
+        recentWorkoutCount(ctx),
+      ]);
+      const profile = toNutritionProfile(user, workoutCount);
+      const targets = calculateNutritionTargets(profile);
+      const generated = await generateNovaMealPlan(profile, targets);
+
+      return ctx.prisma.mealPlan.upsert({
+        where: { userId_date: { userId: ctx.user.id, date: startOfDay } },
+        create: {
+          userId: ctx.user.id,
+          date: startOfDay,
+          targetCalories: targets.calories,
+          targetProtein: targets.protein,
+          targetCarbs: targets.carbs,
+          targetFat: targets.fat,
+          availableFoods: { set: profile.availableFoods },
+          meals: generated.payload.meals as unknown as Prisma.InputJsonValue,
+          notes: generated.payload.notes,
+          source: generated.source,
+        },
+        update: {
+          targetCalories: targets.calories,
+          targetProtein: targets.protein,
+          targetCarbs: targets.carbs,
+          targetFat: targets.fat,
+          availableFoods: { set: profile.availableFoods },
+          meals: generated.payload.meals as unknown as Prisma.InputJsonValue,
+          notes: generated.payload.notes,
+          skippedMealTypes: { set: [] },
+          completedMealTypes: { set: [] },
+          source: generated.source,
+        },
+        select: dailyPlanSelect(),
+      });
+    }),
+
+  skipPlanMeal: protectedProcedure
+    .input(z.object({ planId: z.string(), mealType: MealTypeSchema, hunger: z.enum(["NO", "LITTLE", "YES"]).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const plan = await ctx.prisma.mealPlan.findFirst({
+        where: { id: input.planId, userId: ctx.user.id },
+        select: { skippedMealTypes: true, completedMealTypes: true },
+      });
+      if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "Meal plan not found" });
+      const skipped = new Set(plan.skippedMealTypes);
+      skipped.add(input.mealType);
+      const completed = plan.completedMealTypes.filter((mealType) => mealType !== input.mealType);
+      return ctx.prisma.mealPlan.update({
+        where: { id: input.planId },
+        data: {
+          skippedMealTypes: { set: [...skipped] },
+          completedMealTypes: { set: completed },
+        },
+        select: dailyPlanSelect(),
+      });
+    }),
+
+  swapPlanMeal: protectedProcedure
+    .input(z.object({ planId: z.string(), mealType: MealTypeSchema }))
+    .mutation(async ({ ctx, input }) => {
+      const [plan, user, workoutCount] = await Promise.all([
+        ctx.prisma.mealPlan.findFirst({
+          where: { id: input.planId, userId: ctx.user.id },
+          select: dailyPlanSelect(),
+        }),
+        ctx.prisma.user.findUniqueOrThrow({
+          where: { id: ctx.user.id },
+          select: {
+            nutritionAge: true,
+            nutritionSex: true,
+            heightCm: true,
+            weightKg: true,
+            nutritionGoal: true,
+            activityLevel: true,
+            dietPreference: true,
+            cookingAccess: true,
+            foodAvailability: true,
+            foodAvoidances: true,
+          },
+        }),
+        recentWorkoutCount(ctx),
+      ]);
+      if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "Meal plan not found" });
+      const profile = toNutritionProfile(user, workoutCount);
+      const targets = calculateNutritionTargets(profile);
+      const current = parsePlanPayload(plan.meals, plan.notes);
+      const generated = await generateNovaMealPlan(profile, targets, { swapMealType: input.mealType });
+      const replacement = generated.payload.meals.find((meal) => meal.mealType === input.mealType);
+      if (!replacement) throw new TRPCError({ code: "BAD_GATEWAY", message: "Could not generate a meal swap" });
+      const meals = current.meals.map((meal) => (meal.mealType === input.mealType ? replacement : meal));
+
+      return ctx.prisma.mealPlan.update({
+        where: { id: plan.id },
+        data: {
+          meals: meals as unknown as Prisma.InputJsonValue,
+          notes: generated.payload.notes,
+          skippedMealTypes: { set: plan.skippedMealTypes.filter((mealType) => mealType !== input.mealType) },
+          completedMealTypes: { set: plan.completedMealTypes.filter((mealType) => mealType !== input.mealType) },
+          source: generated.source,
+        },
+        select: dailyPlanSelect(),
+      });
+    }),
+
+  markPlanMealAte: protectedProcedure
+    .input(z.object({ planId: z.string(), mealType: MealTypeSchema }))
+    .mutation(async ({ ctx, input }) => {
+      const plan = await ctx.prisma.mealPlan.findFirst({
+        where: { id: input.planId, userId: ctx.user.id },
+        select: dailyPlanSelect(),
+      });
+      if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "Meal plan not found" });
+
+      const payload = parsePlanPayload(plan.meals, plan.notes);
+      const plannedMeal = payload.meals.find((meal) => meal.mealType === input.mealType);
+      if (!plannedMeal) throw new TRPCError({ code: "NOT_FOUND", message: "Planned meal not found" });
+
+      const completed = new Set(plan.completedMealTypes);
+      if (completed.has(input.mealType)) return plan;
+
+      return ctx.prisma.$transaction(async (tx) => {
+        const foodNames = plannedMeal.items.map((item) =>
+          plannedFoodName(plan.id, input.mealType, item.name, item.amount),
+        );
+        const existingFoods = await tx.food.findMany({
+          where: { userId: ctx.user.id, isCustom: true, name: { in: foodNames } },
+          select: { id: true, name: true },
+        });
+        const existingByName = new Map(existingFoods.map((food) => [food.name, food]));
+        const foods = await Promise.all(
+          plannedMeal.items.map(async (item) => {
+            const name = plannedFoodName(plan.id, input.mealType, item.name, item.amount);
+            const existing = existingByName.get(name);
+            if (existing) {
+              return tx.food.update({
+                where: { id: existing.id },
+                data: {
+                  calories: item.calories,
+                  protein: item.protein,
+                  carbs: item.carbs,
+                  fat: item.fat,
+                  servingSize: 1,
+                  servingUnit: "serving",
+                },
+              });
+            }
+            return tx.food.create({
+              data: {
+                name,
+                calories: item.calories,
+                protein: item.protein,
+                carbs: item.carbs,
+                fat: item.fat,
+                servingSize: 1,
+                servingUnit: "serving",
+                isCustom: true,
+                userId: ctx.user.id,
+              },
+            });
+          }),
+        );
+
+        await tx.mealLog.create({
+          data: {
+            userId: ctx.user.id,
+            mealType: input.mealType,
+            name: plannedMeal.title,
+            notes: `From AI plan ${plan.id}`,
+            items: {
+              create: foods.map((food) => ({ foodId: food.id, quantity: 1, unit: "serving" })),
+            },
+          },
+        });
+
+        completed.add(input.mealType);
+        return tx.mealPlan.update({
+          where: { id: input.planId },
+          data: {
+            completedMealTypes: { set: [...completed] },
+            skippedMealTypes: { set: plan.skippedMealTypes.filter((mealType) => mealType !== input.mealType) },
+          },
+          select: dailyPlanSelect(),
+        });
+      });
     }),
 
   dailySummary: protectedProcedure
@@ -563,6 +996,25 @@ export const nutritionRouter = router({
         include: { items: { include: { food: true } } },
         orderBy: { createdAt: "asc" },
       });
+    }),
+
+  deleteMealItem: protectedProcedure
+    .input(z.object({ mealItemId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const item = await ctx.prisma.mealItem.findFirst({
+        where: { id: input.mealItemId, meal: { userId: ctx.user.id } },
+        select: { id: true, mealId: true, meal: { select: { _count: { select: { items: true } } } } },
+      });
+      if (!item) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Meal item not found" });
+      }
+
+      if (item.meal._count.items <= 1) {
+        await ctx.prisma.mealLog.delete({ where: { id: item.mealId } });
+      } else {
+        await ctx.prisma.mealItem.delete({ where: { id: input.mealItemId } });
+      }
+      return { success: true };
     }),
 
   deleteMeal: protectedProcedure

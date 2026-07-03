@@ -1,0 +1,42 @@
+ALTER TABLE "User"
+  ADD COLUMN IF NOT EXISTS "nutritionAge" INTEGER,
+  ADD COLUMN IF NOT EXISTS "nutritionSex" TEXT,
+  ADD COLUMN IF NOT EXISTS "heightCm" DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS "weightKg" DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS "nutritionGoal" TEXT,
+  ADD COLUMN IF NOT EXISTS "activityLevel" TEXT,
+  ADD COLUMN IF NOT EXISTS "dietPreference" TEXT,
+  ADD COLUMN IF NOT EXISTS "cookingAccess" TEXT,
+  ADD COLUMN IF NOT EXISTS "foodAvailability" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  ADD COLUMN IF NOT EXISTS "foodAvoidances" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  ADD COLUMN IF NOT EXISTS "mealReminderEnabled" BOOLEAN NOT NULL DEFAULT true;
+
+CREATE TABLE IF NOT EXISTS "MealPlan" (
+  "id" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "date" TIMESTAMP(3) NOT NULL,
+  "targetCalories" INTEGER NOT NULL,
+  "targetProtein" INTEGER NOT NULL,
+  "targetCarbs" INTEGER NOT NULL,
+  "targetFat" INTEGER NOT NULL,
+  "availableFoods" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  "meals" JSONB NOT NULL,
+  "notes" TEXT,
+  "skippedMealTypes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  "completedMealTypes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  "source" TEXT NOT NULL DEFAULT 'nova-lite',
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT "MealPlan_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "MealPlan_userId_date_key" ON "MealPlan"("userId", "date");
+CREATE INDEX IF NOT EXISTS "MealPlan_userId_date_idx" ON "MealPlan"("userId", "date");
+
+DO $$ BEGIN
+  ALTER TABLE "MealPlan" ADD CONSTRAINT "MealPlan_userId_fkey"
+    FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;

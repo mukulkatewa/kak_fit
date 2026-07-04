@@ -167,10 +167,17 @@ function WorkoutDetailScreen() {
   }
 
   const totalVolume = sumWorkoutSetVolume(workout.exercises, weightUnit);
-  const totalSets = workout.exercises.reduce(
+  const completedSets = workout.exercises.reduce(
     (sum, ex) => sum + ex.sets.filter((s) => s.isCompleted).length,
     0,
   );
+  const totalSets = workout.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
+  const loggedExercises = workout.exercises
+    .map((ex) => ({
+      ...ex,
+      sets: ex.sets.filter((set) => set.isCompleted),
+    }))
+    .filter((ex) => ex.sets.length > 0);
 
   return (
     <>
@@ -251,7 +258,7 @@ function WorkoutDetailScreen() {
           label="Volume"
           value={`${Math.round(totalVolume).toLocaleString()} ${weightLabel(weightUnit)}`}
         />
-        <Stat label="Sets" value={String(totalSets)} />
+        <Stat label="Sets done" value={`${completedSets} / ${totalSets}`} />
       </View>
 
       {workout.finishedAt && workout.exercises.length > 0 ? (
@@ -267,7 +274,12 @@ function WorkoutDetailScreen() {
         </Pressable>
       ) : null}
 
-      {workout.exercises.map((ex) => (
+      {loggedExercises.length === 0 ? (
+        <View style={styles.exerciseCard}>
+          <Text style={styles.photosEmpty}>No completed sets were logged in this workout.</Text>
+        </View>
+      ) : (
+        loggedExercises.map((ex) => (
         <View key={ex.id} style={styles.exerciseCard}>
           <Text style={styles.exerciseName}>{ex.exercise.name}</Text>
           <View style={styles.setHeader}>
@@ -287,7 +299,8 @@ function WorkoutDetailScreen() {
             </View>
           ))}
         </View>
-      ))}
+        ))
+      )}
 
       {/* Workout photos */}
       {storage?.enabled === false ? (

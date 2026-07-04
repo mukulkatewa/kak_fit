@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "2.6.2";
+const WIDGET_VERSION = "2.6.3";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -159,6 +159,7 @@ class KakWorkoutWidgetState {
   final int completedSetsCount;
   final int totalSetsCount;
   final int defaultRestSeconds;
+  final long startedAtMs;
 
   private KakWorkoutWidgetState(SharedPreferences prefs) {
     active = prefs.getBoolean("active", false);
@@ -178,6 +179,7 @@ class KakWorkoutWidgetState {
     completedSetsCount = prefs.getInt("completedSetsCount", 0);
     totalSetsCount = prefs.getInt("totalSetsCount", 0);
     defaultRestSeconds = Math.max(0, prefs.getInt("defaultRestSeconds", 90));
+    startedAtMs = prefs.getLong("startedAtMs", 0L);
   }
 
   static KakWorkoutWidgetState read(Context context) {
@@ -342,7 +344,7 @@ class KakWorkoutWidgetState {
   String barTitle() {
     if (!active) return "Kak Fit";
     if (isResting()) return "Rest • " + formatRest(restSecondsLeft());
-    return workoutName + " • " + elapsedLabel;
+    return workoutName + " • " + liveElapsedLabel();
   }
 
   String barSubtitle() {
@@ -365,7 +367,7 @@ class KakWorkoutWidgetState {
   /** "Push Day A  ·  3:24" — small header line in notification big view. */
   String workoutHeaderLabel() {
     if (!active) return "";
-    return workoutName + "  ·  " + elapsedLabel;
+    return workoutName + "  ·  " + liveElapsedLabel();
   }
 
   /** Exercise name for the notification big view title line. */
@@ -418,6 +420,21 @@ class KakWorkoutWidgetState {
     int secs = seconds % 60;
     if (minutes > 0) return minutes + ":" + (secs < 10 ? "0" + secs : String.valueOf(secs));
     return seconds + "s";
+  }
+
+  private static String formatElapsed(long startedAtMs) {
+    if (startedAtMs <= 0L) return "0s";
+    int seconds = Math.max(0, (int) ((System.currentTimeMillis() - startedAtMs) / 1000L));
+    int hours = seconds / 3600;
+    int minutes = (seconds % 3600) / 60;
+    if (hours > 0) return hours + "h " + minutes + "m";
+    if (minutes > 0) return minutes + "m";
+    return seconds + "s";
+  }
+
+  String liveElapsedLabel() {
+    if (startedAtMs > 0L) return formatElapsed(startedAtMs);
+    return elapsedLabel != null && elapsedLabel.length() > 0 ? elapsedLabel : "0s";
   }
 }
 `,
@@ -487,6 +504,7 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       KakWorkoutWidgetState.setControlsVisible(context, true);
       KakWorkoutWidgetProvider.updateAll(context);
     }
+    refreshNotification(context);
     refreshBackgroundSurfacesIfVisible(context);
   }
 
@@ -533,6 +551,11 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       .putInt("nextSetReps", nextSetReps)
       .putFloat("nextSetWeight", (float) nextSetWeight)
       .putBoolean("complete", summary.hasKey("isComplete") && summary.getBoolean("isComplete"));
+
+    if (summary.hasKey("elapsedSeconds")) {
+      int elapsedSeconds = Math.max(0, summary.getInt("elapsedSeconds"));
+      editor.putLong("startedAtMs", System.currentTimeMillis() - elapsedSeconds * 1000L);
+    }
 
     if (summary.hasKey("remainingSets") && !summary.isNull("remainingSets")) {
       ReadableArray remaining = summary.getArray("remainingSets");
@@ -649,6 +672,7 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       .putBoolean("active", false)
       .putBoolean("controlsVisible", false)
       .remove("nextSetId")
+      .remove("startedAtMs")
       .apply();
     KakWorkoutWidgetProvider.updateAll(context);
     stopNotification(context);
@@ -799,21 +823,6 @@ public class KakWorkoutWidgetProvider extends AppWidgetProvider {
     KakWorkoutWidgetState state = KakWorkoutWidgetState.read(context);
     RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.kak_workout_widget);
 
-    if (state.active && !state.controlsVisible) {
-      views.setTextViewText(R.id.kak_widget_title, state.workoutName + " • " + state.elapsedLabel);
-      views.setTextViewText(R.id.kak_widget_detail, "Minimize app for quick controls");
-      views.setTextViewText(R.id.kak_widget_progress, state.progressLabel);
-      views.setViewVisibility(R.id.kak_bar_btn_rep, android.view.View.GONE);
-      views.setViewVisibility(R.id.kak_bar_btn_set, android.view.View.GONE);
-      views.setViewVisibility(R.id.kak_bar_btn_skip, android.view.View.GONE);
-      views.setViewVisibility(R.id.kak_bar_btn_open, android.view.View.VISIBLE);
-      int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-      Intent open = new Intent(context, KakWorkoutWidgetActionReceiver.class).setAction(KakWorkoutWidgetState.ACTION_OPEN);
-      views.setOnClickPendingIntent(R.id.kak_bar_btn_open, PendingIntent.getBroadcast(context, 1104, open, flags));
-      views.setOnClickPendingIntent(R.id.kak_widget_root, PendingIntent.getBroadcast(context, 1105, open, flags));
-      return views;
-    }
-
     views.setTextViewText(R.id.kak_widget_title, state.barTitle());
     views.setTextViewText(R.id.kak_widget_detail, state.barSubtitle());
     views.setTextViewText(R.id.kak_widget_progress, state.active ? state.progressLabel : "Ready");
@@ -886,7 +895,7 @@ import ${packageName}.R;
  * that surface is always the MediaStyle card when a MediaSession is active.
  */
 public class KakWorkoutOverlayService extends Service {
-  private static final String CHANNEL_ID = "kak_workout_live_v7";
+  private static final String CHANNEL_ID = "kak_workout_live_v8";
   private static final int NOTIFICATION_ID = 9001;
   private static volatile boolean running = false;
 
@@ -895,19 +904,14 @@ public class KakWorkoutOverlayService extends Service {
   private MediaSession mediaSession;
   private final Handler handler = new Handler(Looper.getMainLooper());
 
-  /** Ticks every second during rest to update the countdown in the notification. */
+  /** Ticks every second while a workout is active to refresh elapsed time + rest countdown. */
   private final Runnable tickRunnable = new Runnable() {
     @Override public void run() {
       KakWorkoutWidgetState state = KakWorkoutWidgetState.read(KakWorkoutOverlayService.this);
       if (!state.active) { stopSelf(); return; }
       postNotification(state);
-      if (state.isResting()) {
-        handler.postDelayed(this, 1000L);
-      } else {
-        // Rest just expired — push one final widget refresh so the home-screen buttons
-        // switch back from "Skip rest" mode to "Done set / +Rep" mode immediately.
-        KakWorkoutWidgetProvider.updateAll(KakWorkoutOverlayService.this);
-      }
+      KakWorkoutWidgetProvider.updateAll(KakWorkoutOverlayService.this);
+      handler.postDelayed(this, 1000L);
     }
   };
 
@@ -949,7 +953,7 @@ public class KakWorkoutOverlayService extends Service {
       startForeground(NOTIFICATION_ID, buildNotification(state));
     }
     handler.removeCallbacks(tickRunnable);
-    if (state.isResting()) handler.post(tickRunnable);
+    handler.post(tickRunnable);
     return START_STICKY;
   }
 
@@ -1132,7 +1136,7 @@ public class KakWorkoutOverlayService extends Service {
   private void createNotificationChannel() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       NotificationChannel ch = new NotificationChannel(
-        CHANNEL_ID, "Active workout", NotificationManager.IMPORTANCE_DEFAULT);
+        CHANNEL_ID, "Active workout", NotificationManager.IMPORTANCE_LOW);
       ch.setDescription("Workout controls in notification shade and on lock screen");
       ch.setShowBadge(false);
       ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);

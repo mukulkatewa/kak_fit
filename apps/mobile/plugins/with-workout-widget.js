@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "2.6.0";
+const WIDGET_VERSION = "2.6.1";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -454,7 +454,7 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   private void registerActivityLifecycleCallbacks(ReactApplicationContext context) {
     if (lifecycleRegistered) return;
     lifecycleRegistered = true;
-    context.getApplicationContext().registerActivityLifecycleCallbacks(
+    ((Application) context.getApplicationContext()).registerActivityLifecycleCallbacks(
       new Application.ActivityLifecycleCallbacks() {
         @Override public void onActivityCreated(Activity activity, android.os.Bundle savedInstanceState) {}
         @Override public void onActivityStarted(Activity activity) {
@@ -465,7 +465,7 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
         @Override public void onActivityResumed(Activity activity) {}
         @Override public void onActivityPaused(Activity activity) {}
         @Override public void onActivityStopped(Activity activity) {
-          isChangingConfigurations = activity.isChangingConfiguration();
+          isChangingConfigurations = activity.isChangingConfigurations();
           if (--activityReferences == 0 && !isChangingConfigurations) {
             onAppBackground(activity.getApplicationContext());
           }

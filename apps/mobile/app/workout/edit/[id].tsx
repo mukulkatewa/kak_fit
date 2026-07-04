@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { HevyStackHeader } from "../../../src/components/hevy-ui";
 import { EmptyState, Screen, ThemedDialog } from "../../../src/components/ui";
-import { flexFill } from "../../../src/lib/layout-constants";
+import { flexFill, iconButtonStyle, TOUCH_TARGET_MIN } from "../../../src/lib/layout-constants";
 import { trpc } from "../../../src/lib/trpc";
 import { parseOptionalNumber } from "../../../src/lib/workout-errors";
 import { useUserPreferences } from "../../../src/lib/use-preferences";
@@ -230,7 +230,7 @@ function EditableSetRow({
       >
         {set.isCompleted ? <Ionicons name="checkmark" size={18} color={colors.accent} /> : null}
       </Pressable>
-      <Pressable onPress={onDelete} hitSlop={8}>
+      <Pressable onPress={onDelete} style={styles.removeSetBtn} hitSlop={8}>
         <Ionicons name="close" size={18} color={colors.danger} />
       </Pressable>
     </View>
@@ -255,28 +255,36 @@ const makeStyles = (colors: Palette) =>
     headerText: { ...workoutTextStyles.setTableHeader, color: colors.textDim },
     setRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.xs },
     setRowDone: { opacity: 0.9 },
-    colSet: { width: 36, alignItems: "center" },
+    colSet: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
     colVal: { flex: 1 },
-    colCheck: { width: 36, textAlign: "center" },
+    colCheck: { width: TOUCH_TARGET_MIN, textAlign: "center" },
     setNumber: { ...workoutTextStyles.setNumber, color: colors.textMuted },
     setInput: {
       backgroundColor: colors.surfaceHover,
       borderRadius: radius.sm,
       ...workoutTextStyles.setInput,
       color: colors.text,
-      paddingVertical: 8,
-      paddingHorizontal: 6,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.sm,
       textAlign: "center",
     },
     check: {
-      width: 36,
-      height: 36,
+      width: TOUCH_TARGET_MIN,
+      height: TOUCH_TARGET_MIN,
       borderRadius: radius.sm,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: colors.surfaceHover,
     },
     checkDone: { backgroundColor: colors.accentMuted },
-    addSetBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.xs },
+    removeSetBtn: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
+    addSetBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      minHeight: TOUCH_TARGET_MIN,
+      marginTop: spacing.xs,
+      paddingVertical: spacing.xs,
+    },
     addSetText: { ...workoutTextStyles.addSetText, color: colors.accent },
   });

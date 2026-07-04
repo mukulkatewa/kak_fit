@@ -109,7 +109,6 @@ export function ActiveWorkoutOverlay() {
 
   const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
     staleTime: queryStaleTime.workoutActive,
-    refetchInterval: 60_000,
     retry: false,
     enabled: isAuthenticated,
   });

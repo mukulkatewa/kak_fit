@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { Image } from "expo-image";
 import { HevyStackHeader } from "../../src/components/hevy-ui";
 import { Button, EmptyState, Screen } from "../../src/components/ui";
+import { TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
 import { trpc } from "../../src/lib/trpc";
 import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../../src/lib/theme";
 
@@ -168,7 +169,13 @@ const makeStyles = (colors: Palette) =>
     delta: { ...typography.bodySmall, fontWeight: "700", color: colors.accent, textAlign: "center", marginTop: spacing.sm },
     hint: { ...typography.label, color: colors.textDim, textAlign: "center", marginVertical: spacing.md },
     thumbGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-    thumb: { width: "30%", gap: 2, borderRadius: radius.md, padding: 2 },
+    thumb: {
+      width: "30%",
+      gap: spacing.xs,
+      borderRadius: radius.md,
+      padding: spacing.xs,
+      minHeight: TOUCH_TARGET_MIN + spacing.xl,
+    },
     thumbActive: { borderWidth: 2, borderColor: colors.accent },
     thumbImg: { width: "100%", aspectRatio: 1, borderRadius: radius.sm, backgroundColor: colors.surface },
     thumbDate: { ...typography.label, fontSize: 10, color: colors.textDim, textAlign: "center" }, // compact thumbnail label

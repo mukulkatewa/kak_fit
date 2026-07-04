@@ -9,44 +9,39 @@ const sans = (style: TextStyle): TextStyle =>
  * Keeps view/edit/list flows visually consistent.
  */
 export const workoutTextStyles = {
-  /** View detail hero title */
+  /** View detail hero title — intentional emphasis above h1 scale */
   titleView: sans({
+    ...typography.h1,
     fontSize: 26,
-    fontWeight: "700",
   }),
 
-  /** Edit screen hero title */
+  /** Edit screen hero title — intentional emphasis */
   titleEdit: sans({
+    ...typography.h1,
     fontSize: 24,
-    fontWeight: "700",
   }),
 
   /** Inline title input when renaming */
   titleInput: sans({
+    ...typography.h2,
     fontSize: 20,
-    fontWeight: "600",
   }),
 
   renameHint: typography.label,
   date: typography.bodySmall,
   hint: typography.caption,
 
-  statValue: sans({
-    fontSize: 17,
-    fontWeight: "600",
-  }),
+  statValue: typography.bodySemibold,
 
   statLabel: typography.label,
   saveChipText: { ...typography.body, fontWeight: "700" as const },
   routineBtnText: { ...typography.body, fontWeight: "700" as const },
 
-  exerciseName: sans({
-    fontSize: 17,
-    fontWeight: "600",
-  }),
+  exerciseName: typography.h3,
 
   setTableHeader: sans({
-    fontSize: 11,
+    ...typography.label,
+    fontSize: 11, // Compact set table column header — intentional for data density
     fontWeight: "600",
   }),
 
@@ -61,10 +56,7 @@ export const workoutTextStyles = {
   folderEmpty: typography.caption,
   ungroupedLabel: { ...typography.caption, fontWeight: "600" as const },
   actionText: typography.caption,
-  modalTitle: sans({
-    fontSize: 17,
-    fontWeight: "600",
-  }),
+  modalTitle: typography.h2,
   modalInput: typography.h3,
   modalCancel: { ...typography.body, fontWeight: "600" as const },
   moveRoutineName: typography.body,

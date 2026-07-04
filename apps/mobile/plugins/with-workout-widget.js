@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "2.4.0";
+const WIDGET_VERSION = "2.6.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -33,15 +33,22 @@ function addWorkoutManifestEntries(androidManifest) {
     "android:exported": "false",
   }, "android:name");
 
-  // mediaPlayback foreground service type — no SYSTEM_ALERT_WINDOW or specialUse needed
+  // Notification foreground service (lock screen + notification shade)
   addManifestChildOnce(app, "service", {
     "android:name": ".widget.KakWorkoutOverlayService",
     "android:exported": "false",
     "android:foregroundServiceType": "mediaPlayback",
   }, "android:name");
 
+  // Draggable floating overlay (Spotify-style) when app is minimized
+  addManifestChildOnce(app, "service", {
+    "android:name": ".widget.KakWorkoutFloatingOverlayService",
+    "android:exported": "false",
+  }, "android:name");
+
   const permissions = ensureArray(androidManifest.manifest["uses-permission"]);
   const requiredPerms = [
+    "android.permission.SYSTEM_ALERT_WINDOW",
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
     "android.permission.POST_NOTIFICATIONS",
@@ -51,10 +58,8 @@ function addWorkoutManifestEntries(androidManifest) {
       permissions.push({ $: { "android:name": perm } });
     }
   }
-  // Remove legacy SYSTEM_ALERT_WINDOW and FOREGROUND_SERVICE_SPECIAL_USE if present
   androidManifest.manifest["uses-permission"] = permissions.filter(
-    (p) => p.$?.["android:name"] !== "android.permission.SYSTEM_ALERT_WINDOW" &&
-            p.$?.["android:name"] !== "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
+    (p) => p.$?.["android:name"] !== "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
   );
 }
 
@@ -131,8 +136,14 @@ class KakWorkoutWidgetState {
   static final String ACTION_TICK_REP = "${packageName}.widget.TICK_REP";
   static final String ACTION_SKIP_REST = "${packageName}.widget.SKIP_REST";
   static final String ACTION_OPEN = "${packageName}.widget.OPEN";
+  static final String ACTION_STOP = "${packageName}.widget.STOP";
+  static final String ACTION_FLOATING_SHOW = "${packageName}.widget.FLOATING_SHOW";
+  static final String ACTION_FLOATING_HIDE = "${packageName}.widget.FLOATING_HIDE";
+  static final String ACTION_FLOATING_UPDATE = "${packageName}.widget.FLOATING_UPDATE";
+  static final String ACTION_FLOATING_DISMISS = "${packageName}.widget.FLOATING_DISMISS";
 
   final boolean active;
+  final boolean controlsVisible;
   final String workoutName;
   final String elapsedLabel;
   final String progressLabel;
@@ -151,6 +162,7 @@ class KakWorkoutWidgetState {
 
   private KakWorkoutWidgetState(SharedPreferences prefs) {
     active = prefs.getBoolean("active", false);
+    controlsVisible = prefs.getBoolean("controlsVisible", false);
     workoutName = prefs.getString("workoutName", "Workout");
     elapsedLabel = prefs.getString("elapsedLabel", "0s");
     progressLabel = prefs.getString("progressLabel", "0/0 sets");
@@ -170,6 +182,28 @@ class KakWorkoutWidgetState {
 
   static KakWorkoutWidgetState read(Context context) {
     return new KakWorkoutWidgetState(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE));
+  }
+
+  static void setControlsVisible(Context context, boolean visible) {
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+      .edit()
+      .putBoolean("controlsVisible", visible)
+      .apply();
+    if (visible) {
+      setOverlayDismissed(context, false);
+    }
+  }
+
+  static boolean isOverlayDismissed(Context context) {
+    return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+      .getBoolean("overlayDismissed", false);
+  }
+
+  static void setOverlayDismissed(Context context, boolean dismissed) {
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+      .edit()
+      .putBoolean("overlayDismissed", dismissed)
+      .apply();
   }
 
   static void resetRepProgress(Context context) {
@@ -260,8 +294,30 @@ class KakWorkoutWidgetState {
   private static void appendPendingSync(SharedPreferences.Editor editor, SharedPreferences prefs, String setId) {
     if (setId == null || setId.length() == 0) return;
     String existing = prefs.getString("pendingSyncSetIds", "");
-    if (existing.contains(setId)) return;
+    if (hasPendingSyncSetId(existing, setId)) return;
     editor.putString("pendingSyncSetIds", existing.length() == 0 ? setId : existing + "," + setId);
+  }
+
+  private static boolean hasPendingSyncSetId(String existing, String setId) {
+    if (existing == null || existing.length() == 0) return false;
+    for (String part : existing.split(",")) {
+      if (setId.equals(part)) return true;
+    }
+    return false;
+  }
+
+  static void removePendingSyncSetId(Context context, String setId) {
+    if (setId == null || setId.length() == 0) return;
+    SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    String raw = prefs.getString("pendingSyncSetIds", "");
+    if (raw == null || raw.length() == 0) return;
+    StringBuilder next = new StringBuilder();
+    for (String part : raw.split(",")) {
+      if (part == null || part.length() == 0 || setId.equals(part)) continue;
+      if (next.length() > 0) next.append(",");
+      next.append(part);
+    }
+    prefs.edit().putString("pendingSyncSetIds", next.toString()).apply();
   }
 
   static String[] getPendingSyncSetIds(Context context) {
@@ -367,6 +423,8 @@ class KakWorkoutWidgetState {
 `,
     "KakWorkoutWidgetModule.java": `package ${pkg};
 
+import android.app.Activity;
+import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -383,10 +441,58 @@ import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   private static ReactApplicationContext reactContext;
+  private static boolean lifecycleRegistered = false;
+  private static int activityReferences = 0;
+  private static boolean isChangingConfigurations = false;
 
   KakWorkoutWidgetModule(ReactApplicationContext context) {
     super(context);
     reactContext = context;
+    registerActivityLifecycleCallbacks(context);
+  }
+
+  private void registerActivityLifecycleCallbacks(ReactApplicationContext context) {
+    if (lifecycleRegistered) return;
+    lifecycleRegistered = true;
+    context.getApplicationContext().registerActivityLifecycleCallbacks(
+      new Application.ActivityLifecycleCallbacks() {
+        @Override public void onActivityCreated(Activity activity, android.os.Bundle savedInstanceState) {}
+        @Override public void onActivityStarted(Activity activity) {
+          if (++activityReferences == 1 && !isChangingConfigurations) {
+            onAppForeground(activity.getApplicationContext());
+          }
+        }
+        @Override public void onActivityResumed(Activity activity) {}
+        @Override public void onActivityPaused(Activity activity) {}
+        @Override public void onActivityStopped(Activity activity) {
+          isChangingConfigurations = activity.isChangingConfiguration();
+          if (--activityReferences == 0 && !isChangingConfigurations) {
+            onAppBackground(activity.getApplicationContext());
+          }
+        }
+        @Override public void onActivitySaveInstanceState(Activity activity, android.os.Bundle outState) {}
+        @Override public void onActivityDestroyed(Activity activity) {}
+      }
+    );
+  }
+
+  private static void onAppForeground(Context context) {
+    KakWorkoutFloatingOverlayService.hide(context);
+  }
+
+  private static void onAppBackground(Context context) {
+    SharedPreferences prefs = context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
+    if (!prefs.getBoolean("active", false)) return;
+    if (!prefs.getBoolean("controlsVisible", false)) {
+      KakWorkoutWidgetState.setControlsVisible(context, true);
+      KakWorkoutWidgetProvider.updateAll(context);
+    }
+    refreshBackgroundSurfacesIfVisible(context);
+  }
+
+  static void refreshBackgroundSurfacesIfVisible(Context context) {
+    refreshNotificationIfVisible(context);
+    KakWorkoutFloatingOverlayService.update(context);
   }
 
   @Override
@@ -464,7 +570,31 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
     editor.apply();
 
     KakWorkoutWidgetProvider.updateAll(context);
+    refreshBackgroundSurfacesIfVisible(context);
+  }
+
+  /** Refresh lockscreen/notification only when controls are visible (app minimized). */
+  static void refreshNotificationIfVisible(Context context) {
+    SharedPreferences prefs = context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
+    if (!prefs.getBoolean("active", false)) return;
+    if (!prefs.getBoolean("controlsVisible", false)) return;
     refreshNotification(context);
+  }
+
+  @ReactMethod
+  public void setControlsVisible(boolean visible) {
+    Context context = getReactApplicationContext();
+    SharedPreferences prefs = context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
+    if (prefs.getBoolean("controlsVisible", false) == visible) return;
+    KakWorkoutWidgetState.setControlsVisible(context, visible);
+    KakWorkoutWidgetProvider.updateAll(context);
+    if (visible) {
+      refreshNotification(context);
+      KakWorkoutFloatingOverlayService.show(context);
+    } else {
+      stopNotification(context);
+      KakWorkoutFloatingOverlayService.hide(context);
+    }
   }
 
   @ReactMethod
@@ -492,22 +622,32 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       .putLong("restEndsAtMs", System.currentTimeMillis() + seconds * 1000L)
       .putInt("repsCompleted", 0)
       .apply();
-    refreshNotification(context);
-    KakWorkoutWidgetProvider.updateAll(context); // sync home-screen widget to rest mode
+    refreshBackgroundSurfacesIfVisible(context);
+    KakWorkoutWidgetProvider.updateAll(context);
   }
 
-  /** Start or refresh the foreground notification service. */
+  /** Start or refresh the foreground notification service (only when controls visible). */
   static void refreshNotification(Context context) {
     SharedPreferences prefs = context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
     if (!prefs.getBoolean("active", false)) return;
+    if (!prefs.getBoolean("controlsVisible", false)) return;
     try {
       Intent intent = new Intent(context, KakWorkoutOverlayService.class)
         .setAction(KakWorkoutWidgetState.ACTION_REFRESH);
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      if (KakWorkoutOverlayService.isRunning()) {
+        context.startService(intent);
+      } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(intent);
       } else {
         context.startService(intent);
       }
+    } catch (Exception ignored) {}
+  }
+
+  static void stopNotification(Context context) {
+    try {
+      context.startService(new Intent(context, KakWorkoutOverlayService.class)
+        .setAction(KakWorkoutWidgetState.ACTION_STOP));
     } catch (Exception ignored) {}
   }
 
@@ -517,15 +657,17 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
     context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE)
       .edit()
       .putBoolean("active", false)
+      .putBoolean("controlsVisible", false)
       .remove("nextSetId")
       .apply();
     KakWorkoutWidgetProvider.updateAll(context);
-    try { context.stopService(new Intent(context, KakWorkoutOverlayService.class)); } catch (Exception ignored) {}
+    stopNotification(context);
+    KakWorkoutFloatingOverlayService.hide(context);
   }
 
   @ReactMethod
   public void refreshLockscreen() {
-    refreshNotification(getReactApplicationContext());
+    refreshNotificationIfVisible(getReactApplicationContext());
   }
 
   @ReactMethod
@@ -545,6 +687,11 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   @ReactMethod
   public void clearPendingSyncSetIds() {
     KakWorkoutWidgetState.clearPendingSyncSetIds(getReactApplicationContext());
+  }
+
+  @ReactMethod
+  public void removePendingSyncSetId(String setId) {
+    KakWorkoutWidgetState.removePendingSyncSetId(getReactApplicationContext(), setId);
   }
 
   static void emitCompleteSet(Context context, String setId) {
@@ -583,7 +730,7 @@ public class KakWorkoutWidgetActionReceiver extends BroadcastReceiver {
         String setId = KakWorkoutWidgetState.completeCurrentSetLocally(context, updated.nextSetId);
         if (setId != null) KakWorkoutWidgetModule.emitCompleteSet(context, setId);
       }
-      KakWorkoutWidgetModule.refreshNotification(context);
+      KakWorkoutWidgetModule.refreshBackgroundSurfacesIfVisible(context);
       KakWorkoutWidgetProvider.updateAll(context);
       return;
     }
@@ -593,7 +740,7 @@ public class KakWorkoutWidgetActionReceiver extends BroadcastReceiver {
         String setId = KakWorkoutWidgetState.completeCurrentSetLocally(context, state.nextSetId);
         if (setId != null) KakWorkoutWidgetModule.emitCompleteSet(context, setId);
       }
-      KakWorkoutWidgetModule.refreshNotification(context);
+      KakWorkoutWidgetModule.refreshBackgroundSurfacesIfVisible(context);
       KakWorkoutWidgetProvider.updateAll(context);
       return;
     }
@@ -602,7 +749,7 @@ public class KakWorkoutWidgetActionReceiver extends BroadcastReceiver {
       if (!state.active || !state.isResting()) return;
       KakWorkoutWidgetState.skipRest(context);
       KakWorkoutWidgetModule.emitSkipRest(context);
-      KakWorkoutWidgetModule.refreshNotification(context);
+      KakWorkoutWidgetModule.refreshBackgroundSurfacesIfVisible(context);
       KakWorkoutWidgetProvider.updateAll(context);
       return;
     }
@@ -646,6 +793,22 @@ public class KakWorkoutWidgetProvider extends AppWidgetProvider {
   private static RemoteViews buildViews(Context context) {
     KakWorkoutWidgetState state = KakWorkoutWidgetState.read(context);
     RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.kak_workout_widget);
+
+    if (state.active && !state.controlsVisible) {
+      views.setTextViewText(R.id.kak_widget_title, state.workoutName + " • " + state.elapsedLabel);
+      views.setTextViewText(R.id.kak_widget_detail, "Minimize app for quick controls");
+      views.setTextViewText(R.id.kak_widget_progress, state.progressLabel);
+      views.setViewVisibility(R.id.kak_bar_btn_rep, android.view.View.GONE);
+      views.setViewVisibility(R.id.kak_bar_btn_set, android.view.View.GONE);
+      views.setViewVisibility(R.id.kak_bar_btn_skip, android.view.View.GONE);
+      views.setViewVisibility(R.id.kak_bar_btn_open, android.view.View.VISIBLE);
+      int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+      Intent open = new Intent(context, KakWorkoutWidgetActionReceiver.class).setAction(KakWorkoutWidgetState.ACTION_OPEN);
+      views.setOnClickPendingIntent(R.id.kak_bar_btn_open, PendingIntent.getBroadcast(context, 1104, open, flags));
+      views.setOnClickPendingIntent(R.id.kak_widget_root, PendingIntent.getBroadcast(context, 1105, open, flags));
+      return views;
+    }
+
     views.setTextViewText(R.id.kak_widget_title, state.barTitle());
     views.setTextViewText(R.id.kak_widget_detail, state.barSubtitle());
     views.setTextViewText(R.id.kak_widget_progress, state.active ? state.progressLabel : "Ready");
@@ -689,6 +852,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.graphics.Color;
 import android.media.MediaMetadata;
@@ -717,8 +881,11 @@ import ${packageName}.R;
  * that surface is always the MediaStyle card when a MediaSession is active.
  */
 public class KakWorkoutOverlayService extends Service {
-  private static final String CHANNEL_ID = "kak_workout_live_v6";
+  private static final String CHANNEL_ID = "kak_workout_live_v7";
   private static final int NOTIFICATION_ID = 9001;
+  private static volatile boolean running = false;
+
+  static boolean isRunning() { return running; }
 
   private MediaSession mediaSession;
   private final Handler handler = new Handler(Looper.getMainLooper());
@@ -727,7 +894,7 @@ public class KakWorkoutOverlayService extends Service {
   private final Runnable tickRunnable = new Runnable() {
     @Override public void run() {
       KakWorkoutWidgetState state = KakWorkoutWidgetState.read(KakWorkoutOverlayService.this);
-      if (!state.active) { stopSelf(); return; }
+      if (!state.active || !state.controlsVisible) { stopSelf(); return; }
       postNotification(state);
       if (state.isResting()) {
         handler.postDelayed(this, 1000L);
@@ -744,14 +911,32 @@ public class KakWorkoutOverlayService extends Service {
   @Override
   public void onCreate() {
     super.onCreate();
+    running = true;
     createNotificationChannel();
     setupMediaSession();
   }
 
   @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
+    String action = intent != null ? intent.getAction() : null;
+    if (KakWorkoutWidgetState.ACTION_STOP.equals(action)) {
+      handler.removeCallbacks(tickRunnable);
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        stopForeground(STOP_FOREGROUND_REMOVE);
+      } else {
+        stopForeground(true);
+      }
+      stopSelf();
+      return START_NOT_STICKY;
+    }
+
+    SharedPreferences prefs = getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
     KakWorkoutWidgetState state = KakWorkoutWidgetState.read(this);
-    if (!state.active) { stopSelf(); return START_NOT_STICKY; }
+    if (!state.active || !prefs.getBoolean("controlsVisible", false)) {
+      handler.removeCallbacks(tickRunnable);
+      stopSelf();
+      return START_NOT_STICKY;
+    }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       startForeground(NOTIFICATION_ID, buildNotification(state),
           ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
@@ -784,9 +969,10 @@ public class KakWorkoutOverlayService extends Service {
 
   private void updateMediaSession(KakWorkoutWidgetState state) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP || mediaSession == null) return;
-    long actions = PlaybackState.ACTION_PLAY |
-                   PlaybackState.ACTION_REWIND |
-                   PlaybackState.ACTION_SKIP_TO_NEXT;
+    long actions = PlaybackState.ACTION_PLAY | PlaybackState.ACTION_REWIND;
+    if (state.isResting()) {
+      actions |= PlaybackState.ACTION_SKIP_TO_NEXT;
+    }
     int pbState = state.isResting() ? PlaybackState.STATE_PAUSED : PlaybackState.STATE_PLAYING;
     mediaSession.setPlaybackState(new PlaybackState.Builder()
       .setActions(actions)
@@ -954,6 +1140,7 @@ public class KakWorkoutOverlayService extends Service {
 
   @Override
   public void onDestroy() {
+    running = false;
     handler.removeCallbacks(tickRunnable);
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && mediaSession != null) {
       mediaSession.setActive(false);
@@ -961,6 +1148,310 @@ public class KakWorkoutOverlayService extends Service {
       mediaSession = null;
     }
     super.onDestroy();
+  }
+}
+`,
+    "KakWorkoutFloatingOverlayService.java": `package ${pkg};
+
+import android.app.Service;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.PixelFormat;
+import android.os.Build;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+import android.provider.Settings;
+import android.util.DisplayMetrics;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+import ${packageName}.R;
+
+/**
+ * Draggable SYSTEM_ALERT_WINDOW overlay shown when the workout is active and the app is minimized.
+ * Complements KakWorkoutOverlayService (notification shade / lock screen MediaStyle card).
+ */
+public class KakWorkoutFloatingOverlayService extends Service {
+  private WindowManager windowManager;
+  private View overlayRoot;
+  private WindowManager.LayoutParams layoutParams;
+  private final Handler handler = new Handler(Looper.getMainLooper());
+
+  private float dragStartX;
+  private float dragStartY;
+  private int paramStartX;
+  private int paramStartY;
+  private float swipeStartX;
+  private boolean dragging = false;
+
+  private final Runnable tickRunnable = new Runnable() {
+    @Override public void run() {
+      if (overlayRoot == null) return;
+      KakWorkoutWidgetState state = KakWorkoutWidgetState.read(KakWorkoutFloatingOverlayService.this);
+      if (!shouldShow(state)) {
+        hideOverlay();
+        stopSelf();
+        return;
+      }
+      bindState(state);
+      if (state.isResting()) {
+        handler.postDelayed(this, 1000L);
+      }
+    }
+  };
+
+  @Override public IBinder onBind(Intent intent) { return null; }
+
+  @Override
+  public int onStartCommand(Intent intent, int flags, int startId) {
+    String action = intent != null && intent.getAction() != null
+      ? intent.getAction()
+      : KakWorkoutWidgetState.ACTION_FLOATING_UPDATE;
+
+    if (KakWorkoutWidgetState.ACTION_FLOATING_HIDE.equals(action)) {
+      hideOverlay();
+      stopSelf();
+      return START_NOT_STICKY;
+    }
+
+    if (KakWorkoutWidgetState.ACTION_FLOATING_DISMISS.equals(action)) {
+      KakWorkoutWidgetState.setOverlayDismissed(this, true);
+      hideOverlay();
+      stopSelf();
+      return START_NOT_STICKY;
+    }
+
+    KakWorkoutWidgetState state = KakWorkoutWidgetState.read(this);
+    if (!shouldShow(state)) {
+      hideOverlay();
+      stopSelf();
+      return START_NOT_STICKY;
+    }
+
+    if (KakWorkoutWidgetState.ACTION_FLOATING_SHOW.equals(action)) {
+      KakWorkoutWidgetState.setOverlayDismissed(this, false);
+    }
+
+    if (overlayRoot == null) {
+      if (!showOverlay()) {
+        stopSelf();
+        return START_NOT_STICKY;
+      }
+    } else {
+      bindState(state);
+    }
+
+    handler.removeCallbacks(tickRunnable);
+    if (state.isResting()) handler.post(tickRunnable);
+
+    return START_STICKY;
+  }
+
+  @Override
+  public void onDestroy() {
+    handler.removeCallbacks(tickRunnable);
+    hideOverlay();
+    super.onDestroy();
+  }
+
+  private boolean shouldShow(KakWorkoutWidgetState state) {
+    return canDraw(this) && state.active && state.controlsVisible
+      && !KakWorkoutWidgetState.isOverlayDismissed(this);
+  }
+
+  static boolean canDraw(Context context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      return Settings.canDrawOverlays(context);
+    }
+    return true;
+  }
+
+  static void show(Context context) {
+    if (!canDraw(context)) return;
+    SharedPreferences prefs = context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
+    if (!prefs.getBoolean("active", false)) return;
+    try {
+      context.startService(new Intent(context, KakWorkoutFloatingOverlayService.class)
+        .setAction(KakWorkoutWidgetState.ACTION_FLOATING_SHOW));
+    } catch (Exception ignored) {}
+  }
+
+  static void hide(Context context) {
+    try {
+      context.startService(new Intent(context, KakWorkoutFloatingOverlayService.class)
+        .setAction(KakWorkoutWidgetState.ACTION_FLOATING_HIDE));
+    } catch (Exception ignored) {}
+  }
+
+  static void update(Context context) {
+    SharedPreferences prefs = context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
+    if (!prefs.getBoolean("active", false)) return;
+    if (!prefs.getBoolean("controlsVisible", false)) return;
+    if (!canDraw(context)) return;
+    try {
+      context.startService(new Intent(context, KakWorkoutFloatingOverlayService.class)
+        .setAction(KakWorkoutWidgetState.ACTION_FLOATING_UPDATE));
+    } catch (Exception ignored) {}
+  }
+
+  private boolean showOverlay() {
+    if (!canDraw(this)) return false;
+    KakWorkoutWidgetState state = KakWorkoutWidgetState.read(this);
+    if (!shouldShow(state)) return false;
+
+    windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+    if (windowManager == null) return false;
+
+    LayoutInflater inflater = LayoutInflater.from(this);
+    overlayRoot = inflater.inflate(R.layout.kak_workout_overlay, null);
+
+    int overlayType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+      ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+      : WindowManager.LayoutParams.TYPE_PHONE;
+
+    layoutParams = new WindowManager.LayoutParams(
+      WindowManager.LayoutParams.WRAP_CONTENT,
+      WindowManager.LayoutParams.WRAP_CONTENT,
+      overlayType,
+      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+      PixelFormat.TRANSLUCENT
+    );
+    layoutParams.gravity = Gravity.TOP | Gravity.START;
+
+    DisplayMetrics metrics = getResources().getDisplayMetrics();
+    overlayRoot.measure(
+      View.MeasureSpec.makeMeasureSpec(metrics.widthPixels, View.MeasureSpec.AT_MOST),
+      View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+    );
+    int margin = (int) (16 * metrics.density);
+    layoutParams.x = Math.max(margin, metrics.widthPixels - overlayRoot.getMeasuredWidth() - margin);
+    layoutParams.y = Math.max(margin, metrics.heightPixels - overlayRoot.getMeasuredHeight() - margin * 4);
+
+    wireActions();
+    bindState(state);
+    windowManager.addView(overlayRoot, layoutParams);
+    return true;
+  }
+
+  private void wireActions() {
+    View complete = overlayRoot.findViewById(R.id.kak_overlay_complete);
+    View open = overlayRoot.findViewById(R.id.kak_overlay_open);
+    View dismiss = overlayRoot.findViewById(R.id.kak_overlay_dismiss);
+    View dragHandle = overlayRoot.findViewById(R.id.kak_overlay_drag_handle);
+
+    if (complete != null) {
+      complete.setOnClickListener(v -> sendWidgetAction(KakWorkoutWidgetState.ACTION_COMPLETE_SET));
+    }
+    if (open != null) {
+      open.setOnClickListener(v -> sendWidgetAction(KakWorkoutWidgetState.ACTION_OPEN));
+    }
+    if (dismiss != null) {
+      dismiss.setOnClickListener(v -> {
+        KakWorkoutWidgetState.setOverlayDismissed(KakWorkoutFloatingOverlayService.this, true);
+        hideOverlay();
+        stopSelf();
+      });
+    }
+    if (dragHandle != null) {
+      dragHandle.setOnTouchListener(this::onHandleTouch);
+    }
+  }
+
+  private boolean onHandleTouch(View v, MotionEvent event) {
+    if (layoutParams == null || windowManager == null || overlayRoot == null) return false;
+    switch (event.getActionMasked()) {
+      case MotionEvent.ACTION_DOWN:
+        dragStartX = event.getRawX();
+        dragStartY = event.getRawY();
+        swipeStartX = event.getRawX();
+        paramStartX = layoutParams.x;
+        paramStartY = layoutParams.y;
+        dragging = false;
+        return true;
+      case MotionEvent.ACTION_MOVE:
+        float dx = event.getRawX() - dragStartX;
+        float dy = event.getRawY() - dragStartY;
+        if (!dragging && (Math.abs(dx) > 8f || Math.abs(dy) > 8f)) dragging = true;
+        if (dragging) {
+          layoutParams.x = paramStartX + (int) dx;
+          layoutParams.y = paramStartY + (int) dy;
+          windowManager.updateViewLayout(overlayRoot, layoutParams);
+        }
+        return true;
+      case MotionEvent.ACTION_UP:
+        if (!dragging && Math.abs(event.getRawX() - swipeStartX) > 120f) {
+          KakWorkoutWidgetState.setOverlayDismissed(this, true);
+          hideOverlay();
+          stopSelf();
+        }
+        dragging = false;
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private void sendWidgetAction(String action) {
+    sendBroadcast(new Intent(this, KakWorkoutWidgetActionReceiver.class)
+      .setAction(action)
+      .setPackage(getPackageName()));
+  }
+
+  private void bindState(KakWorkoutWidgetState state) {
+    if (overlayRoot == null) return;
+
+    TextView title = overlayRoot.findViewById(R.id.kak_overlay_title);
+    TextView subtitle = overlayRoot.findViewById(R.id.kak_overlay_subtitle);
+    TextView progress = overlayRoot.findViewById(R.id.kak_overlay_progress);
+    LinearLayout restRow = overlayRoot.findViewById(R.id.kak_overlay_rest_row);
+    ProgressBar restBar = overlayRoot.findViewById(R.id.kak_overlay_rest_bar);
+    TextView restTimer = overlayRoot.findViewById(R.id.kak_overlay_rest_timer);
+    View complete = overlayRoot.findViewById(R.id.kak_overlay_complete);
+
+    if (title != null) {
+      title.setText(state.complete ? "Workout complete" : state.shortExerciseName);
+    }
+    if (subtitle != null) {
+      subtitle.setText(state.complete ? state.progressLabel : state.barSubtitle());
+    }
+    if (progress != null) progress.setText(state.progressLabel);
+
+    if (restRow != null) {
+      if (state.isResting()) {
+        restRow.setVisibility(View.VISIBLE);
+        if (restTimer != null) restTimer.setText(state.restTimerLabel());
+        if (restBar != null) {
+          restBar.setMax(100);
+          restBar.setProgress(state.restTimerProgressPct());
+        }
+      } else {
+        restRow.setVisibility(View.GONE);
+      }
+    }
+
+    if (complete != null) {
+      boolean canComplete = state.active && !state.complete && !state.isResting()
+        && state.nextSetId != null && state.nextSetId.length() > 0;
+      complete.setVisibility(canComplete ? View.VISIBLE : View.GONE);
+    }
+  }
+
+  private void hideOverlay() {
+    handler.removeCallbacks(tickRunnable);
+    if (windowManager != null && overlayRoot != null) {
+      try { windowManager.removeView(overlayRoot); } catch (Exception ignored) {}
+    }
+    overlayRoot = null;
+    layoutParams = null;
   }
 }
 `,
@@ -1196,6 +1687,170 @@ function writeNativeFiles(projectRoot, packageName) {
         </clip>
     </item>
 </layer-list>
+`);
+
+  // Floating overlay layout (Spotify-style draggable pill)
+  write(path.join(res, "layout/kak_workout_overlay.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="310dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingLeft="14dp"
+    android:paddingRight="14dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
+    android:background="@drawable/kak_widget_bg"
+    android:elevation="8dp">
+
+    <LinearLayout
+        android:id="@+id/kak_overlay_drag_handle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/kak_overlay_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#F1F5F9"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/kak_overlay_subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#94A3B8"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/kak_overlay_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="10dp"
+            android:paddingLeft="9dp"
+            android:paddingRight="9dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:background="@drawable/kak_widget_progress_bg"
+            android:textColor="#60A5FA"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/kak_overlay_dismiss"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginLeft="8dp"
+            android:gravity="center"
+            android:text="✕"
+            android:textColor="#94A3B8"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/kak_overlay_rest_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:orientation="vertical"
+        android:background="@drawable/kak_widget_rest_bg"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:id="@+id/kak_overlay_rest_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:progressDrawable="@drawable/kak_widget_rest_progress"
+            android:max="100"
+            android:progress="100" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="REST"
+                android:textColor="#6EE7B7"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.12" />
+
+            <TextView
+                android:id="@+id/kak_overlay_rest_timer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#10B981"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="2dp"
+        android:background="#1E293B" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/kak_overlay_complete"
+            android:layout_width="52dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:background="@drawable/kak_widget_primary_button"
+            android:text="✓"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/kak_overlay_open"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginLeft="8dp"
+            android:gravity="center"
+            android:background="@drawable/kak_widget_secondary_button"
+            android:text="Open Workout  →"
+            android:textColor="#CBD5E1"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>
 `);
 
   // Notification shade big-content layout

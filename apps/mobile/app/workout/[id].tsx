@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { flexFill } from "../../src/lib/layout-constants";
+import { flexFill, iconButtonStyle, TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -416,15 +416,17 @@ const makeStyles = (colors: Palette) =>
       backgroundColor: colors.surface,
       borderRadius: radius.md,
       paddingHorizontal: spacing.md,
-      paddingVertical: 10,
+      paddingVertical: spacing.sm,
       color: colors.text,
       ...workoutTextStyles.titleInput,
     },
     saveChip: {
       backgroundColor: colors.accent,
       borderRadius: radius.md,
+      minHeight: TOUCH_TARGET_MIN,
       paddingHorizontal: spacing.lg,
-      paddingVertical: 10,
+      paddingVertical: spacing.sm,
+      justifyContent: "center",
     },
     saveChipText: { ...workoutTextStyles.saveChipText, color: colors.onAccent },
     date: { ...workoutTextStyles.date, color: colors.textMuted, marginTop: spacing.xs },
@@ -478,8 +480,11 @@ const makeStyles = (colors: Palette) =>
     photosSection: { marginTop: spacing.sm },
     photosHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
     photoAddBtn: {
-      width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accent,
-      alignItems: "center", justifyContent: "center",
+      ...iconButtonStyle,
+      width: TOUCH_TARGET_MIN,
+      height: TOUCH_TARGET_MIN,
+      borderRadius: TOUCH_TARGET_MIN / 2,
+      backgroundColor: colors.accent,
     },
     photosEmpty: { ...workoutTextStyles.photosEmpty, color: colors.textDim },
     photosRow: { gap: spacing.sm, paddingVertical: spacing.xs },

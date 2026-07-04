@@ -6,6 +6,7 @@ import { Screen } from "../src/components/ui";
 import { calculatePlates, generateWarmupSets } from "../src/lib/calculators";
 import { useUserPreferences } from "../src/lib/use-preferences";
 import { formatWeight, fromKg, toKg, weightLabel } from "../src/lib/units";
+import { TOUCH_TARGET_MIN } from "../src/lib/layout-constants";
 import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
 
 type Tab = "plates" | "warmup";
@@ -163,9 +164,9 @@ const makeStyles = (colors: Palette) =>
     numLabel: { ...typography.body, fontWeight: "600", color: colors.text },
     numControls: { flexDirection: "row", alignItems: "center", gap: spacing.md },
     stepBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: TOUCH_TARGET_MIN,
+      height: TOUCH_TARGET_MIN,
+      borderRadius: TOUCH_TARGET_MIN / 2,
       backgroundColor: colors.surfaceHover,
       alignItems: "center",
       justifyContent: "center",
@@ -193,9 +194,9 @@ const makeStyles = (colors: Palette) =>
       color: colors.accent,
       ...typography.bodySmall,
       fontWeight: "700",
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 999,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.full,
       overflow: "hidden",
     },
     warn: { ...typography.caption, color: colors.gold, marginTop: spacing.sm },

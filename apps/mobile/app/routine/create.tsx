@@ -22,7 +22,13 @@ import { useUserPreferences } from "../../src/lib/use-preferences";
 import { fromKg, toKg, weightLabel } from "../../src/lib/units";
 import { parseOptionalNumber } from "../../src/lib/workout-errors";
 import { ExerciseAvatar } from "../../src/components/exercise-avatar";
-import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
+import {
+  BUTTON_HEIGHT_SECONDARY,
+  flexFill,
+  iconButtonStyle,
+  TOUCH_TARGET_MIN,
+  webFlexScreen,
+} from "../../src/lib/layout-constants";
 import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import { getExerciseMediaUrl } from "../../src/lib/exercise-media";
 
@@ -270,7 +276,7 @@ function ExerciseCard({
             disabled={isFirst}
             pointerEvents={isFirst ? "none" : "auto"}
             hitSlop={isFirst ? undefined : 6}
-            style={isFirst && styles.dimmed}
+            style={[styles.cardIconBtn, isFirst && styles.dimmed]}
           >
             <Ionicons name="chevron-up" size={19} color={colors.textMuted} />
           </Pressable>
@@ -279,11 +285,11 @@ function ExerciseCard({
             disabled={isLast}
             pointerEvents={isLast ? "none" : "auto"}
             hitSlop={isLast ? undefined : 6}
-            style={isLast && styles.dimmed}
+            style={[styles.cardIconBtn, isLast && styles.dimmed]}
           >
             <Ionicons name="chevron-down" size={19} color={colors.textMuted} />
           </Pressable>
-          <Pressable onPress={onRemove} hitSlop={12}>
+          <Pressable onPress={onRemove} hitSlop={12} style={styles.cardIconBtn}>
             <Ionicons name="close-circle" size={22} color={colors.danger} />
           </Pressable>
         </View>
@@ -847,8 +853,7 @@ const makeStyles = (colors: Palette) =>
       paddingBottom: spacing.xxl,
     },
     errorTitle: {
-      fontSize: 18, // Error state title emphasis
-      fontWeight: "700",
+      ...typography.h3,
       color: colors.text,
       textAlign: "center",
     },
@@ -862,10 +867,12 @@ const makeStyles = (colors: Palette) =>
     nameSuggestionChip: {
       backgroundColor: colors.surface,
       borderRadius: radius.full,
-      paddingVertical: 6,
-      paddingHorizontal: 12,
+      minHeight: TOUCH_TARGET_MIN,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.separator,
+      justifyContent: "center",
     },
     nameSuggestionChipActive: {
       backgroundColor: colors.accentMuted,
@@ -890,11 +897,12 @@ const makeStyles = (colors: Palette) =>
     addBtn: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
+      gap: spacing.sm,
       backgroundColor: colors.accent,
       borderRadius: radius.full,
-      paddingVertical: 14,
-      paddingHorizontal: 28,
+      minHeight: BUTTON_HEIGHT_SECONDARY,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
     },
     addBtnText: { ...typography.button, color: "#fff", fontWeight: "600" },
 
@@ -902,9 +910,10 @@ const makeStyles = (colors: Palette) =>
     supersetRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 5,
+      gap: spacing.xs,
       paddingLeft: spacing.sm,
-      paddingVertical: 4,
+      minHeight: TOUCH_TARGET_MIN,
+      paddingVertical: spacing.xs,
     },
     supersetText: { ...typography.label, color: colors.textDim, fontWeight: "600" },
     supersetTextActive: { color: colors.accent },
@@ -917,6 +926,7 @@ const makeStyles = (colors: Palette) =>
     },
     cardLinked: { borderLeftWidth: 3, borderLeftColor: colors.accent },
     cardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    cardIconBtn: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
     exerciseTitleTap: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm, minWidth: 0 },
     exerciseName: { flex: 1, minWidth: 0, ...typography.h3, color: colors.accent },
     dimmed: { opacity: 0.3 },
@@ -927,7 +937,13 @@ const makeStyles = (colors: Palette) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.separator,
     },
-    restRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    restRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      minHeight: TOUCH_TARGET_MIN,
+      paddingVertical: spacing.xs,
+    },
     restLabel: { ...typography.caption, color: colors.textDim },
     restValue: { ...typography.caption, color: colors.textDim, fontWeight: "600" },
     restValueActive: { color: colors.accent },
@@ -947,13 +963,13 @@ const makeStyles = (colors: Palette) =>
       textAlign: "center",
     },
     setColNarrow: { flex: 0, width: 32 },
-    setColRemove: { width: 28 },
+    setColRemove: { width: TOUCH_TARGET_MIN },
     setRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: spacing.xs,
     },
-    setTypeBtn: { width: 32, alignItems: "center" },
+    setTypeBtn: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
     setNumber: { ...typography.caption, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
     setTypeBadge: { ...typography.caption, fontWeight: "700", textAlign: "center" },
     setInput: {
@@ -963,16 +979,18 @@ const makeStyles = (colors: Palette) =>
       borderRadius: radius.sm,
       ...typography.body,
       color: colors.text,
-      paddingVertical: 7,
-      paddingHorizontal: 6,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.sm,
       textAlign: "center",
     },
-    removeSetBtn: { width: 28, alignItems: "center" },
+    removeSetBtn: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
     addSetBtn: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
-      paddingTop: spacing.xs,
+      gap: spacing.xs,
+      minHeight: TOUCH_TARGET_MIN,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xs,
     },
     addSetText: { ...typography.bodySmall, color: colors.accent, fontWeight: "600" },
 

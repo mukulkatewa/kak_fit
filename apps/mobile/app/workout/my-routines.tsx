@@ -27,7 +27,7 @@ import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { useUserPreferences } from "../../src/lib/use-preferences";
 import { useTheme, useThemedStyles, spacing, radius, typography, type Palette } from "../../src/lib/theme";
 import { workoutTextStyles } from "../../src/lib/workout-common";
-import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
+import { flexFill, TOUCH_TARGET_MIN, webFlexScreen } from "../../src/lib/layout-constants";
 import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import { getExerciseMediaUrl } from "../../src/lib/exercise-media";
 import type { RouterOutputs } from "@kak-fit/api/router";
@@ -532,15 +532,22 @@ const makeStyles = (colors: Palette) =>
       color: colors.textMuted,
       backgroundColor: colors.surfaceHover,
       borderRadius: radius.full,
-      paddingHorizontal: 8,
-      paddingVertical: 2,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
       overflow: "hidden",
     },
     folderEmpty: { ...workoutTextStyles.folderEmpty, color: colors.textDim, paddingLeft: spacing.sm },
     ungroupedLabel: { ...workoutTextStyles.ungroupedLabel, color: colors.textMuted },
     routineWrap: { gap: spacing.sm },
     actions: { flexDirection: "row", gap: spacing.lg, paddingHorizontal: spacing.sm, flexWrap: "wrap" },
-    actionBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+    actionBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      minHeight: TOUCH_TARGET_MIN,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.xs,
+    },
     actionText: { ...workoutTextStyles.actionText, color: colors.textMuted },
     danger: { color: colors.danger },
     emptyWrap: { gap: spacing.lg, alignItems: "center", marginTop: spacing.xl },
@@ -565,7 +572,7 @@ const makeStyles = (colors: Palette) =>
       backgroundColor: colors.surface,
       borderRadius: radius.md,
       paddingHorizontal: spacing.md,
-      paddingVertical: 12,
+      paddingVertical: spacing.sm,
       ...workoutTextStyles.modalInput,
       color: colors.text,
     },
@@ -584,7 +591,14 @@ const makeStyles = (colors: Palette) =>
     },
     moveOptionText: { ...workoutTextStyles.moveOptionText, color: colors.text },
     moveCancel: { alignItems: "flex-end", paddingTop: spacing.sm },
-    modalSave: { backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 10 },
+    modalSave: {
+      backgroundColor: colors.accent,
+      borderRadius: radius.md,
+      minHeight: TOUCH_TARGET_MIN,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      justifyContent: "center",
+    },
     modalSaveText: { ...workoutTextStyles.modalSaveText, color: colors.onAccent },
     previewSheet: {
       ...flexFill,

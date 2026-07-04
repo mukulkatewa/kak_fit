@@ -53,7 +53,13 @@ import {
 } from "../../src/lib/offline-workouts";
 import { formatElapsedDuration } from "../../src/lib/format-duration";
 import { useWorkoutSetMutationQueue } from "../../src/lib/workout-mutation-queue";
-import { flexFill, webFlexScreen } from "../../src/lib/layout-constants";
+import {
+  BUTTON_HEIGHT_SECONDARY,
+  flexFill,
+  iconButtonStyle,
+  TOUCH_TARGET_MIN,
+  webFlexScreen,
+} from "../../src/lib/layout-constants";
 import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import { getExerciseMediaUrl } from "../../src/lib/exercise-media";
 import {
@@ -532,7 +538,7 @@ function ActiveWorkoutScreen() {
     return (
       <Screen>
         <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
             <Ionicons name="chevron-down" size={24} color={colors.accent} />
           </Pressable>
         </View>
@@ -638,7 +644,11 @@ function ActiveWorkoutScreen() {
       ) : (
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, styles.contentPad]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          styles.contentPad,
+          { paddingBottom: insets.bottom + spacing.xxl },
+        ]}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
         showsVerticalScrollIndicator={Platform.OS !== "web"}
@@ -1088,9 +1098,10 @@ function WorkoutFooterActions({
   onAddExercise?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.workoutActions}>
+    <View style={[styles.workoutActions, { paddingBottom: insets.bottom + spacing.md }]}>
       {showAddExercise && onAddExercise ? (
         <Button
           label="Add Exercise"
@@ -1443,7 +1454,7 @@ function SetRow({
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
   topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  backBtn: { padding: 4 },
+  backBtn: iconButtonStyle,
   header: {
     minHeight: 52,
     flexDirection: "row",
@@ -1454,7 +1465,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.separator,
   },
-  headerSide: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  headerSide: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
   headerTitle: {
     flex: 1,
     textAlign: "left",
@@ -1468,7 +1479,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     justifyContent: "flex-end",
     gap: spacing.md,
   },
-  headerIconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  headerIconBtn: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
   statsBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -1560,14 +1571,14 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   restHint: { ...typography.label, color: colors.textDim },
   restAdjustBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minWidth: 44,
-    alignItems: "center",
+    ...iconButtonStyle,
+    minWidth: TOUCH_TARGET_MIN,
+    minHeight: TOUCH_TARGET_MIN,
+    paddingHorizontal: spacing.md,
   },
   restAdjustText: { ...typography.bodySmall, fontWeight: "600", color: colors.accent },
   scroll: { flex: 1, minHeight: 0 },
-  scrollContent: { flexGrow: 1, paddingBottom: spacing.xxl },
+  scrollContent: { flexGrow: 1 },
   emptyWorkoutShell: {
     flex: 1,
     minHeight: 0,
@@ -1618,12 +1629,10 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   exerciseName: {
     flex: 1,
     minWidth: 0,
-    fontSize: 18, // Exercise name emphasis
-    lineHeight: 22,
-    fontWeight: "600",
+    ...typography.h3,
     color: colors.accent,
   },
-  iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  iconBtn: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
   supersetBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginBottom: 4 },
   supersetBadgeText: { ...typography.label, color: colors.accent, fontWeight: "700" },
   prevMeta: { ...typography.label, color: colors.textDim, marginTop: spacing.sm },
@@ -1673,7 +1682,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   setRowDone: { backgroundColor: colors.successMuted },
   setNumber: { ...typography.bodySmall, fontWeight: "700", textAlign: "center" },
-  setTypeBtn: { alignItems: "center", justifyContent: "center" },
+  setTypeBtn: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
   rpeCell: {
     minHeight: 44,
     alignItems: "center",
@@ -1686,8 +1695,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     minWidth: 0,
     ...typography.body,
     color: colors.text,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     fontWeight: "600",
     textAlign: "center",
     backgroundColor: colors.surfaceHover,
@@ -1754,7 +1763,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderRadius: radius.md,
     marginBottom: 6,
   },
-  pickerInfoButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
+  pickerInfoButton: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
   pickerText: { ...typography.bodySemibold, color: colors.text, flex: 1 },
   summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   summaryItem: {
@@ -1836,6 +1845,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   confirmAction: {
     alignItems: "center",
     justifyContent: "center",
+    minHeight: TOUCH_TARGET_MIN,
     paddingVertical: spacing.md,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceHover,
@@ -1869,7 +1879,6 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   workoutActions: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.md,
     gap: spacing.md,
     width: "100%",
     maxWidth: 360,
@@ -1878,7 +1887,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   secondaryActionsRow: { flexDirection: "row", gap: spacing.md },
   secondaryActionBtn: {
     flex: 1,
-    minHeight: 50,
+    minHeight: BUTTON_HEIGHT_SECONDARY,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceHover,
     alignItems: "center",

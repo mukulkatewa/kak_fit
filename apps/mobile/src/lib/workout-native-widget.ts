@@ -11,8 +11,10 @@ type NativeWorkoutWidget = {
   skipRest?: () => void;
   startRestTimer?: (seconds: number) => void;
   refreshLockscreen?: () => void;
+  setControlsVisible?: (visible: boolean) => void;
   getPendingSyncSetIds?: () => Promise<string[]>;
   clearPendingSyncSetIds?: () => void;
+  removePendingSyncSetId?: (setId: string) => void;
   addListener?: (eventName: string) => void;
   removeListeners?: (count: number) => void;
 };
@@ -26,7 +28,7 @@ export function workoutNativeWidgetAvailable() {
   return Boolean(nativeModule());
 }
 
-/** Sync workout state to native prefs + home-screen widget + foreground notification. */
+/** Sync workout state to native prefs + home-screen widget (does not start lockscreen). */
 export function updateWorkoutNativeWidget(summary: WorkoutWidgetSummary) {
   nativeModule()?.update?.(summary);
 }
@@ -36,7 +38,12 @@ export function clearWorkoutNativeWidget() {
   nativeModule()?.clear?.();
 }
 
-/** Refresh the MediaStyle lockscreen notification with latest state. */
+/** Show or hide lockscreen notification + widget action buttons. */
+export function setWorkoutNativeWidgetControlsVisible(visible: boolean) {
+  nativeModule()?.setControlsVisible?.(visible);
+}
+
+/** Refresh lockscreen notification if controls are visible (app minimized). */
 export function refreshWorkoutNativeLockscreen() {
   nativeModule()?.refreshLockscreen?.();
 }
@@ -53,6 +60,11 @@ export async function getPendingWorkoutWidgetSyncSetIds() {
 
 export function clearPendingWorkoutWidgetSyncSetIds() {
   nativeModule()?.clearPendingSyncSetIds?.();
+}
+
+export function removePendingWorkoutWidgetSyncSetId(setId: string) {
+  if (!setId) return;
+  nativeModule()?.removePendingSyncSetId?.(setId);
 }
 
 export function tickWorkoutNativeWidgetRep() {

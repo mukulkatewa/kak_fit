@@ -18,7 +18,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { Screen } from "../src/components/ui";
+import { Screen, useToast } from "../src/components/ui";
 import { HevyStackHeader } from "../src/components/hevy-ui";
 import { useSpringPress } from "../src/lib/animations";
 import { useAuth } from "../src/lib/auth-context";
@@ -199,6 +199,7 @@ export default function SettingsScreen() {
   const { colors, mode, setMode } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const utils = trpc.useUtils();
+  const { showToast } = useToast();
   const { data: user } = trpc.auth.me.useQuery();
 
   const [weightUnit, setWeightUnit] = useState<"KG" | "LBS">("KG");
@@ -215,7 +216,7 @@ export default function SettingsScreen() {
 
   const savePrefs = trpc.auth.updatePreferences.useMutation({
     onSuccess: () => utils.auth.me.invalidate(),
-    onError: (e) => alert(e.message),
+    onError: (e) => showToast(e.message, "error"),
   });
 
   const persist = (patch: {

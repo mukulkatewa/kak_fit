@@ -51,10 +51,10 @@ import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { radius, spacing, typography, useTheme, type Palette, type ShadowSet } from "../../src/lib/theme";
 
 const MEAL_TYPES = [
-  { key: "BREAKFAST" as const, label: "Breakfast" },
-  { key: "LUNCH" as const, label: "Lunch" },
-  { key: "DINNER" as const, label: "Dinner" },
-  { key: "SNACK" as const, label: "Snacks" },
+  { key: "BREAKFAST" as const, label: "Breakfast", icon: "sunny-outline" as const, short: "AM" },
+  { key: "LUNCH" as const, label: "Lunch", icon: "restaurant-outline" as const, short: "Mid" },
+  { key: "DINNER" as const, label: "Dinner", icon: "moon-outline" as const, short: "PM" },
+  { key: "SNACK" as const, label: "Snacks", icon: "cafe-outline" as const, short: "Snack" },
 ];
 
 type MealKey = (typeof MEAL_TYPES)[number]["key"];
@@ -428,11 +428,9 @@ function AiMealPlannerSection() {
   };
 
   const togglePlanExpanded = () => {
-    setPlanExpanded((current) => {
-      const next = !current;
-      void AsyncStorage.setItem(PLAN_EXPANDED_KEY, next ? "1" : "0");
-      return next;
-    });
+    const next = !planExpanded;
+    setPlanExpanded(next);
+    void AsyncStorage.setItem(PLAN_EXPANDED_KEY, next ? "1" : "0");
   };
 
   useEffect(() => {
@@ -464,7 +462,10 @@ function AiMealPlannerSection() {
         protein: meal.protein,
       })),
     });
-  }, [plan, plannedMeals, profile?.mealReminderEnabled]);
+    // Only re-schedule when the plan itself changes or reminder pref toggles.
+    // Using plan.id avoids re-running on background refetches that return new object refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan?.id, profile?.mealReminderEnabled]);
 
   const saveProfile = trpc.nutrition.savePlannerProfile.useMutation({
     onSuccess: async () => {
@@ -534,7 +535,9 @@ function AiMealPlannerSection() {
     () => () => {
       pendingSkipsRef.current.forEach((timer) => clearTimeout(timer));
     },
-    [],
+    // Clear pending skip timers when the plan changes so stale planId callbacks don't fire.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [plan?.id],
   );
 
   const handleSkip = (mealType: MealKey) => {
@@ -1131,67 +1134,125 @@ function LogFoodSheet({
   };
 
   const showAddCustom = debouncedSearch.length > 2 && !searchFetching && !searchError && searchResults.length === 0;
+  const selectedMealLabel = MEAL_TYPES.find((m) => m.key === logMealType)?.label ?? "Meal";
+
+  const renderMacroPills = (food: FoodSearchResult) => (
+    <View style={styles.macroPillRow}>
+      <View style={[styles.macroPill, { backgroundColor: `${colors.accent}22` }]}>
+        <Text style={[styles.macroPillText, { color: colors.accent }]}>{Math.round(food.calories)} kcal</Text>
+      </View>
+      <View style={[styles.macroPill, { backgroundColor: `${colors.proteinColor}22` }]}>
+        <Text style={[styles.macroPillText, { color: colors.proteinColor }]}>{Math.round(food.protein)}g P</Text>
+      </View>
+      <View style={[styles.macroPill, { backgroundColor: `${colors.carbsColor}22` }]}>
+        <Text style={[styles.macroPillText, { color: colors.carbsColor }]}>{Math.round(food.carbs)}g C</Text>
+      </View>
+      <View style={[styles.macroPill, { backgroundColor: `${colors.fatColor}22` }]}>
+        <Text style={[styles.macroPillText, { color: colors.fatColor }]}>{Math.round(food.fat)}g F</Text>
+      </View>
+    </View>
+  );
+
+  const listEmpty = showAddCustom ? null : debouncedSearch.length > 1 && !searchFetching && !searchError && searchResults.length === 0 ? (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIconWrap}>
+        <Ionicons name="search-outline" size={28} color={colors.textMuted} />
+      </View>
+      <Text style={styles.emptyTitle}>No matching foods</Text>
+      <Text style={styles.emptySubtitle}>Try a different search or add a custom food</Text>
+    </View>
+  ) : logSearch.trim().length === 0 ? (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIconWrap}>
+        <Ionicons name="nutrition-outline" size={28} color={colors.textMuted} />
+      </View>
+      <Text style={styles.emptyTitle}>Find something to log</Text>
+      <Text style={styles.emptySubtitle}>Search by name — e.g. banana, oats, chicken breast</Text>
+    </View>
+  ) : debouncedSearch.length <= 1 && logSearch.trim().length > 0 ? (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptySubtitle}>Keep typing to search…</Text>
+    </View>
+  ) : null;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={[styles.sheet, { paddingTop: insets.top }]}>
+      <View style={[styles.sheet, { paddingTop: Math.max(insets.top, spacing.md) }]}>
+        <View style={styles.sheetHandle} />
+
         <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>Log Food</Text>
-          <Pressable hitSlop={8} onPress={onClose} disabled={logMeal.isPending}>
-            <Ionicons name="close" size={24} color={colors.text} />
+          <View style={styles.sheetHeaderText}>
+            <Text style={styles.sheetTitle}>Log Food</Text>
+            <Text style={styles.sheetSubtitle}>Adding to {selectedMealLabel.toLowerCase()}</Text>
+          </View>
+          <Pressable
+            hitSlop={8}
+            onPress={onClose}
+            disabled={logMeal.isPending}
+            style={styles.closeBtn}
+          >
+            <Ionicons name="close" size={20} color={colors.textMuted} />
           </Pressable>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.mealTypeRow}
-          keyboardShouldPersistTaps="handled"
-        >
+        <View style={styles.mealTypeGrid}>
           {MEAL_TYPES.map((meal) => {
             const selected = logMealType === meal.key;
+            const accent = mealAccentColor(meal.key, colors);
             return (
               <Pressable
                 key={meal.key}
                 onPress={() => setLogMealType(meal.key)}
-                style={[styles.mealTypePill, selected && styles.mealTypePillSelected]}
+                style={[
+                  styles.mealTypeChip,
+                  selected && { backgroundColor: accent, borderColor: accent },
+                ]}
               >
-                <Text style={[styles.mealTypePillText, selected && styles.mealTypePillTextSelected]}>
+                <Ionicons
+                  name={meal.icon}
+                  size={16}
+                  color={selected ? colors.onAccent : colors.textMuted}
+                />
+                <Text
+                  style={[styles.mealTypeChipText, selected && styles.mealTypeChipTextSelected]}
+                  numberOfLines={1}
+                >
                   {meal.label}
                 </Text>
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
 
         <View style={styles.searchWrap}>
           <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color={colors.textDim} />
+            <Ionicons name="search" size={20} color={colors.textDim} />
             <TextInput
               value={logSearch}
               onChangeText={setLogSearch}
-              placeholder="Search foods (e.g. banana, chicken breast)"
+              placeholder="Search foods…"
               placeholderTextColor={colors.textDim}
               style={styles.searchInput}
               autoFocus
+              returnKeyType="search"
             />
-            {logSearch.length > 0 ? (
+            {searchFetching ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : logSearch.length > 0 ? (
               <Pressable hitSlop={8} onPress={() => setLogSearch("")}>
-                <Ionicons name="close-circle" size={18} color={colors.textDim} />
+                <Ionicons name="close-circle" size={20} color={colors.textDim} />
               </Pressable>
             ) : null}
           </View>
         </View>
 
-        {searchFetching ? (
-          <View style={styles.searchStatus}>
-            <ActivityIndicator color={colors.accent} />
-          </View>
-        ) : null}
-
         {showAddCustom ? (
           <View style={styles.emptyResults}>
-            <Text style={styles.emptyResultsText}>No foods found for "{logSearch.trim()}"</Text>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="add-circle-outline" size={28} color={colors.textMuted} />
+            </View>
+            <Text style={styles.emptyTitle}>No foods found</Text>
+            <Text style={styles.emptySubtitle}>Nothing matched "{logSearch.trim()}"</Text>
             <Button
               label="Add custom food"
               onPress={() => {
@@ -1208,15 +1269,18 @@ function LogFoodSheet({
           keyExtractor={(item) => foodSearchKey(item)}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.resultsList}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const isEditing = logQuantityFor != null && foodSearchKey(logQuantityFor.food) === foodSearchKey(item);
             if (isEditing) {
               return (
-                <View style={styles.quantityRow}>
+                <View style={[styles.foodCard, styles.foodCardActive]}>
                   <Text style={styles.foodName} numberOfLines={2}>
                     {item.name}
                   </Text>
+                  {renderMacroPills(item)}
                   <View style={styles.quantityControls}>
+                    <Text style={styles.quantityLabel}>Servings</Text>
                     <Input
                       value={logQuantityFor.qty}
                       onChangeText={(qty) => setLogQuantityFor({ food: item, qty })}
@@ -1224,9 +1288,8 @@ function LogFoodSheet({
                       style={styles.quantityInput}
                       autoFocus
                     />
-                    <Text style={styles.quantityUnit}>serving</Text>
                     <Button
-                      label={logMeal.isPending ? "Logging..." : "Log"}
+                      label={logMeal.isPending ? "Logging…" : "Log"}
                       onPress={() => submitLog(item, logQuantityFor.qty)}
                       loading={logMeal.isPending}
                     />
@@ -1237,26 +1300,21 @@ function LogFoodSheet({
 
             return (
               <Pressable
-                style={styles.foodRow}
+                style={styles.foodCard}
                 onPress={() => setLogQuantityFor({ food: item, qty: "1" })}
                 disabled={logMeal.isPending}
               >
-                <Text style={styles.foodName} numberOfLines={2}>
-                  {item.name}
-                </Text>
-                <Text style={styles.foodSubtitle} numberOfLines={2}>
-                  {formatFoodMacros(item)}
-                </Text>
+                <View style={styles.foodRowTop}>
+                  <Text style={styles.foodName} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
+                </View>
+                {renderMacroPills(item)}
               </Pressable>
             );
           }}
-          ListEmptyComponent={
-            showAddCustom ? null : debouncedSearch.length > 1 && !searchFetching && !searchError && searchResults.length === 0 ? (
-              <Text style={styles.emptyResultsText}>No matching foods</Text>
-            ) : logSearch.trim().length === 0 ? (
-              <Text style={styles.emptyResultsText}>Search for a food to log it</Text>
-            ) : null
-          }
+          ListEmptyComponent={listEmpty}
         />
       </View>
     </Modal>
@@ -2388,42 +2446,74 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
   };
 }
 
-function makeLogSheetStyles(colors: Palette, _shadows: ShadowSet, _isDark: boolean) {
+function makeLogSheetStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
   return {
     sheet: { flex: 1, backgroundColor: colors.bg },
+    sheetHandle: {
+      alignSelf: "center" as const,
+      width: 36,
+      height: 4,
+      borderRadius: radius.full,
+      backgroundColor: colors.borderSubtle,
+      marginBottom: spacing.sm,
+    },
     sheetHeader: {
       flexDirection: "row" as const,
-      alignItems: "center" as const,
+      alignItems: "flex-start" as const,
       justifyContent: "space-between" as const,
       paddingHorizontal: spacing.lg,
       paddingBottom: spacing.md,
     },
+    sheetHeaderText: { flex: 1, gap: 2 },
     sheetTitle: { ...typography.h2, color: colors.text },
-    mealTypeRow: {
-      paddingHorizontal: spacing.lg,
-      gap: spacing.sm,
-      paddingBottom: spacing.md,
-    },
-    mealTypePill: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+    sheetSubtitle: { ...typography.caption, color: colors.textMuted },
+    closeBtn: {
+      width: 36,
+      height: 36,
       borderRadius: radius.full,
       backgroundColor: colors.surfaceHover,
-      minHeight: 36,
+      alignItems: "center" as const,
       justifyContent: "center" as const,
     },
-    mealTypePillSelected: { backgroundColor: colors.accent },
-    mealTypePillText: { ...typography.label, color: colors.text, fontWeight: "700" as const },
-    mealTypePillTextSelected: { color: colors.onAccent },
+    mealTypeGrid: {
+      flexDirection: "row" as const,
+      paddingHorizontal: spacing.lg,
+      gap: spacing.xs,
+      paddingBottom: spacing.md,
+    },
+    mealTypeChip: {
+      flex: 1,
+      flexDirection: "column" as const,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      gap: 4,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: 4,
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderSubtle,
+      minHeight: 56,
+    },
+    mealTypeChipText: {
+      ...typography.caption,
+      color: colors.textMuted,
+      fontWeight: "600" as const,
+      fontSize: 11,
+    },
+    mealTypeChipTextSelected: { color: colors.onAccent },
     searchWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
     searchBar: {
       flexDirection: "row" as const,
       alignItems: "center" as const,
       gap: spacing.sm,
-      backgroundColor: colors.surfaceHover,
-      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
       paddingHorizontal: spacing.md,
-      minHeight: 44,
+      minHeight: 48,
+      borderWidth: 1,
+      borderColor: isDark ? colors.borderSubtle : colors.border,
+      ...(shadows.sm ?? {}),
     },
     searchInput: {
       flex: 1,
@@ -2431,49 +2521,101 @@ function makeLogSheetStyles(colors: Palette, _shadows: ShadowSet, _isDark: boole
       color: colors.text,
       paddingVertical: spacing.sm,
     },
-    searchStatus: { paddingVertical: spacing.lg, alignItems: "center" as const },
     resultsList: {
       paddingHorizontal: spacing.lg,
       paddingBottom: spacing.xxl,
       gap: spacing.sm,
+      flexGrow: 1,
     },
-    foodRow: {
-      paddingVertical: spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.borderSubtle,
+    foodCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.md,
+      gap: spacing.sm,
+      borderWidth: 1,
+      borderColor: colors.borderSubtle,
+      marginBottom: spacing.sm,
+    },
+    foodCardActive: {
+      borderColor: colors.accent,
+      borderWidth: 1.5,
+    },
+    foodRowTop: {
+      flexDirection: "row" as const,
+      alignItems: "flex-start" as const,
+      justifyContent: "space-between" as const,
+      gap: spacing.sm,
+    },
+    foodName: {
+      ...typography.body,
+      color: colors.text,
+      fontWeight: "600" as const,
+      flex: 1,
+    },
+    macroPillRow: {
+      flexDirection: "row" as const,
+      flexWrap: "wrap" as const,
       gap: spacing.xs,
     },
-    foodName: { ...typography.body, color: colors.text },
-    foodSubtitle: { ...typography.caption, color: colors.textMuted },
-    quantityRow: {
-      paddingVertical: spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.borderSubtle,
-      gap: spacing.sm,
+    macroPill: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 3,
+      borderRadius: radius.full,
+    },
+    macroPillText: {
+      ...typography.caption,
+      fontWeight: "700" as const,
+      fontSize: 11,
     },
     quantityControls: {
       flexDirection: "row" as const,
       alignItems: "center" as const,
       gap: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    quantityLabel: {
+      ...typography.caption,
+      color: colors.textMuted,
+      fontWeight: "600" as const,
     },
     quantityInput: {
       flex: 1,
-      minWidth: 72,
+      minWidth: 64,
+      maxWidth: 80,
       textAlign: "center" as const,
     },
-    quantityUnit: { ...typography.bodySmall, color: colors.textMuted },
     emptyResults: {
       paddingHorizontal: spacing.lg,
-      paddingBottom: spacing.md,
+      paddingBottom: spacing.lg,
       gap: spacing.md,
       alignItems: "center" as const,
     },
-    emptyResultsText: {
+    emptyState: {
+      alignItems: "center" as const,
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.xxl,
+      gap: spacing.sm,
+    },
+    emptyIconWrap: {
+      width: 56,
+      height: 56,
+      borderRadius: radius.full,
+      backgroundColor: colors.surfaceHover,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      marginBottom: spacing.xs,
+    },
+    emptyTitle: {
+      ...typography.body,
+      color: colors.text,
+      fontWeight: "600" as const,
+      textAlign: "center" as const,
+    },
+    emptySubtitle: {
       ...typography.bodySmall,
       color: colors.textMuted,
       textAlign: "center" as const,
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.lg,
+      lineHeight: 20,
     },
   };
 }

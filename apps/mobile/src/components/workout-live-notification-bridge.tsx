@@ -12,12 +12,15 @@ import {
   clearWorkoutNativeWidget,
   ensureWorkoutFloatingWidget,
   updateWorkoutNativeWidget,
+  workoutNativeWidgetStartRestTimer,
 } from "../lib/workout-native-widget";
 import {
   buildWorkoutWidgetSummary,
   findNextIncompleteSet,
   workoutWidgetSummaryKey,
 } from "../lib/workout-live-widget-state";
+import { useRestTimer } from "../lib/rest-timer";
+import { useUserPreferences } from "../lib/use-preferences";
 
 export function WorkoutLiveNotificationBridge() {
   const router = useRouter();
@@ -25,6 +28,9 @@ export function WorkoutLiveNotificationBridge() {
   const utils = trpc.useUtils();
   const activeRef = useRef<ActiveWorkout | null | undefined>(undefined);
   const lastWidgetKeyRef = useRef<string | null>(null);
+  const { defaultRestSeconds } = useUserPreferences();
+  const defaultRestSecondsRef = useRef(defaultRestSeconds);
+  defaultRestSecondsRef.current = defaultRestSeconds;
 
   const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -84,9 +90,18 @@ export function WorkoutLiveNotificationBridge() {
     }
 
     const variables = { setId: nextSet.setId, isCompleted: true };
+
+    // Optimistic update
     utils.workout.active.setData(undefined, (current) =>
       current ? applySetPatchToWorkout(current, nextSet.setId, { isCompleted: true }) : current,
     );
+
+    // Start rest timer in-app and push it to the native widget
+    const restSeconds = defaultRestSecondsRef.current;
+    if (restSeconds > 0) {
+      useRestTimer.getState().start(restSeconds);
+      workoutNativeWidgetStartRestTimer(restSeconds);
+    }
 
     try {
       await updateSet.mutateAsync(variables);

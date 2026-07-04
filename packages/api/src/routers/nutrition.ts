@@ -81,9 +81,11 @@ async function searchUsda(query: string, apiKey: string): Promise<UsdaFood[]> {
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+    // Strip the API key from any error body before surfacing to the client.
+    const sanitized = body.replace(apiKey, "[redacted]").slice(0, 120);
     throw new TRPCError({
       code: "BAD_GATEWAY",
-      message: `USDA API error (${response.status}). ${body.slice(0, 120)}`,
+      message: `USDA API error (${response.status}). ${sanitized}`,
     });
   }
 
@@ -123,6 +125,10 @@ const searchFoodsUsdaInput = z.object({
 
 const USDA_SEARCH_TIMEOUT_MS = 3000;
 
+/** Name prefix applied to every Food record created from an AI meal plan.
+ *  Keeps them out of food search results and avoids the servingSize=1 overcounting bug. */
+const AI_PLAN_PREFIX = "[AI:plan] ";
+
 async function queryLocalFoods(
   ctx: { prisma: import("@kak-fit/db").PrismaClient; user: { id: string } },
   query: string,
@@ -130,6 +136,8 @@ async function queryLocalFoods(
   const local = await ctx.prisma.food.findMany({
     where: {
       name: { contains: query, mode: "insensitive" },
+      // Exclude internal AI plan food entries (servingSize=1, calories=total for serving)
+      NOT: { name: { startsWith: AI_PLAN_PREFIX } },
       OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
     },
     take: 8,
@@ -399,7 +407,7 @@ function parsePlanPayload(meals: unknown, notes: string | null): MealPlanPayload
 }
 
 function plannedFoodName(_planId: string, _mealType: string, itemName: string, _amount: string) {
-  return itemName.trim().slice(0, 120);
+  return `${AI_PLAN_PREFIX}${itemName.trim()}`.slice(0, 120);
 }
 
 function dailyPlanSelect() {
@@ -822,10 +830,15 @@ export const nutritionRouter = router({
       const plannedMeal = payload.meals.find((meal) => meal.mealType === input.mealType);
       if (!plannedMeal) throw new TRPCError({ code: "NOT_FOUND", message: "Planned meal not found" });
 
-      const completed = new Set(plan.completedMealTypes);
-      if (completed.has(input.mealType)) return plan;
-
       return ctx.prisma.$transaction(async (tx) => {
+        // Re-check inside the transaction to prevent double-logging on concurrent taps.
+        const fresh = await tx.mealPlan.findFirst({
+          where: { id: input.planId, userId: ctx.user.id },
+          select: { completedMealTypes: true, skippedMealTypes: true },
+        });
+        if (fresh?.completedMealTypes.includes(input.mealType)) return plan;
+
+        const completed = new Set(fresh?.completedMealTypes ?? plan.completedMealTypes);
         const foods = await Promise.all(
           plannedMeal.items.map((item) =>
             tx.food.create({
@@ -862,7 +875,7 @@ export const nutritionRouter = router({
           where: { id: input.planId },
           data: {
             completedMealTypes: { set: [...completed] },
-            skippedMealTypes: { set: plan.skippedMealTypes.filter((mealType) => mealType !== input.mealType) },
+            skippedMealTypes: { set: (fresh?.skippedMealTypes ?? plan.skippedMealTypes).filter((mealType) => mealType !== input.mealType) },
           },
           select: dailyPlanSelect(),
         });
@@ -962,6 +975,19 @@ export const nutritionRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Batch-fetch all foods that already have a known ID (1 query instead of N).
+      const knownFoodIds = input.items.flatMap((item) => (item.foodId ? [item.foodId] : []));
+      const existingFoods =
+        knownFoodIds.length > 0
+          ? await ctx.prisma.food.findMany({
+              where: {
+                id: { in: knownFoodIds },
+                OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
+              },
+            })
+          : [];
+      const foodById = new Map(existingFoods.map((f) => [f.id, f]));
+
       const meal = await ctx.prisma.mealLog.create({
         data: {
           userId: ctx.user.id,
@@ -969,14 +995,7 @@ export const nutritionRouter = router({
           items: {
             create: await Promise.all(
               input.items.map(async (item) => {
-                let food = item.foodId
-                  ? await ctx.prisma.food.findFirst({
-                      where: {
-                        id: item.foodId,
-                        OR: [{ isCustom: false }, { isCustom: true, userId: ctx.user.id }],
-                      },
-                    })
-                  : null;
+                let food = item.foodId ? (foodById.get(item.foodId) ?? null) : null;
 
                 if (!food && item.fdcId && item.fdcId > 0) {
                   food = await ctx.prisma.food.upsert({

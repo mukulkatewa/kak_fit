@@ -84,6 +84,10 @@ export function addExerciseToWorkout(workout: ActiveWorkout, exercise: WorkoutEx
   };
 }
 
+function uniqueId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function createOptimisticAddedSet(
   workout: ActiveWorkout,
   workoutExerciseId: string,
@@ -91,7 +95,7 @@ export function createOptimisticAddedSet(
   const exercise = workout.exercises.find((item) => item.id === workoutExerciseId);
   const lastSet = exercise?.sets[exercise.sets.length - 1];
   return {
-    id: `offline-set-${Date.now()}`,
+    id: uniqueId("offline-set"),
     workoutExerciseId,
     setNumber: (lastSet?.setNumber ?? 0) + 1,
     weight: lastSet?.weight != null && lastSet.weight > 0 ? lastSet.weight : null,
@@ -123,7 +127,7 @@ export function createOptimisticExercise(
   input: AddExerciseVariables,
   meta?: { name: string; imageUrl: string | null },
 ): WorkoutExercise {
-  const workoutExerciseId = `offline-ex-${Date.now()}`;
+  const workoutExerciseId = uniqueId("offline-ex");
   return {
     id: workoutExerciseId,
     workoutId: input.workoutId,
@@ -139,7 +143,7 @@ export function createOptimisticExercise(
       media: [],
     },
     sets: input.sets.map((set, index) => ({
-      id: `offline-set-${Date.now()}-${index}`,
+      id: uniqueId(`offline-set-${index}`),
       workoutExerciseId,
       setNumber: set.setNumber,
       weight: set.weight ?? null,

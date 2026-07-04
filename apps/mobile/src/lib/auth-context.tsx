@@ -30,9 +30,8 @@ function getInitialAuthState() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => getInitialAuthState().isAuthenticated,
-  );
+  // Compute once so both values come from the same evaluation of getInitialAuthState().
+  const [isAuthenticated, setIsAuthenticated] = useState(() => getInitialAuthState().isAuthenticated);
   const [isLoading, setIsLoading] = useState(() => getInitialAuthState().isLoading);
   const [isRefreshing, setIsRefreshing] = useState(false);
 

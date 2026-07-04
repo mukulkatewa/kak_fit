@@ -283,21 +283,21 @@ export class WorkoutMutationQueue {
         : { workoutExerciseId: resolvedExerciseId };
 
     const workout = this.getWorkout();
-    const optimisticSet =
-      workout != null ? createOptimisticAddedSet(workout, resolvedExerciseId) : null;
+    // If workout is not loaded yet we cannot build an optimistic set; skip enqueueing
+    // rather than creating a mutation with a dangling optimistic ID that can never be resolved.
+    if (!workout) return;
+    const optimisticSet = createOptimisticAddedSet(workout, resolvedExerciseId);
 
-    if (optimisticSet) {
-      this.setWorkout((current) => {
-        if (!current) return current;
-        return addSetToWorkout(current, resolvedExerciseId, optimisticSet);
-      });
-    }
+    this.setWorkout((current) => {
+      if (!current) return current;
+      return addSetToWorkout(current, resolvedExerciseId, optimisticSet);
+    });
 
     this.mutations.push({
       id: createMutationId(),
       type: "addSet",
       variables: resolvedVariables,
-      optimisticSetId: optimisticSet?.id ?? createMutationId(),
+      optimisticSetId: optimisticSet.id,
       baseVersion,
       retryCount: 0,
       createdAt: Date.now(),

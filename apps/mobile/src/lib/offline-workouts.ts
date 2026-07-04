@@ -34,6 +34,12 @@ const STRUCTURAL_MUTATIONS = new Set<OfflineWorkoutMutationType>([
 const MAX_SYNC_RETRIES = 3;
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+// Singleton TRPC client — avoid creating a new one per sync cycle.
+let trpcClientSingleton: ReturnType<typeof createTRPCClient> | null = null;
+function getTrpcClient() {
+  trpcClientSingleton ??= createTRPCClient();
+  return trpcClientSingleton;
+}
 
 async function ensureSchema(db: SQLite.SQLiteDatabase) {
   await db.execAsync(`
@@ -65,8 +71,10 @@ function getDb() {
 }
 
 export function isNetworkError(error: unknown) {
+  // AbortError = intentional request cancellation or server-side timeout — not an offline event.
+  if (error instanceof Error && error.name === "AbortError") return false;
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return /network request failed|failed to fetch|load failed|internet|offline|econn|timeout|fetch failed/i.test(message);
+  return /network request failed|failed to fetch|load failed|internet|offline|econn|fetch failed/i.test(message);
 }
 
 export async function enqueueWorkoutMutation(type: OfflineWorkoutMutationType, payload: unknown) {
@@ -135,7 +143,7 @@ export async function syncQueuedWorkoutMutations(options?: {
     return { synced: 0, remaining: 0, syncFailed: false, dropped: 0 };
   }
 
-  const client = createTRPCClient();
+  const client = getTrpcClient();
   let synced = 0;
   let syncFailed = false;
   let dropped = 0;

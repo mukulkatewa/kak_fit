@@ -78,7 +78,8 @@ export function dedupedFetch(
   if (cached) {
     stats.deduped += 1;
     logTrpcRequestEvent({ type: "fetch", url: urlKey, deduped: true });
-    return cached;
+    // Clone so each caller can independently call .json() / .text() on the response.
+    return cached.then((res) => res.clone());
   }
 
   stats.fetches += 1;

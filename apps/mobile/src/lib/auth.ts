@@ -7,7 +7,7 @@ import { authClient, AUTH_COOKIE_KEY, persistOAuthCookieFromUrl } from "./auth-c
 const TOKEN_KEY = "kak_fit_token";
 const REFRESH_TOKEN_KEY = "auth_refresh_token";
 const TOKEN_EXPIRY_KEY = "kak_fit_token_expiry";
-const REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+const REFRESH_THRESHOLD_MS = 10 * 60 * 1000;
 
 /** OAuth return path — no parentheses (Better Auth rejects `/(tabs)`-style paths). */
 export const AUTH_CALLBACK_PATH = "/login-callback";

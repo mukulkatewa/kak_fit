@@ -32,11 +32,20 @@ function getCachedUser(token: string) {
   return cached.user;
 }
 
+const SESSION_CACHE_MAX_SIZE = 5_000;
+
 function setCachedUser(token: string, user: User, sessionExpiresAt: Date) {
   const ttl = Math.min(SESSION_CACHE_TTL_MS, sessionExpiresAt.getTime() - Date.now());
   if (ttl <= 0) return;
-  if (sessionUserCache.size > 10_000) {
-    sessionUserCache.clear();
+  // Evict oldest 20% when near capacity — avoids thundering-herd from a single clear().
+  if (sessionUserCache.size >= SESSION_CACHE_MAX_SIZE) {
+    const evictCount = Math.ceil(SESSION_CACHE_MAX_SIZE * 0.2);
+    const keys = sessionUserCache.keys();
+    for (let i = 0; i < evictCount; i++) {
+      const next = keys.next();
+      if (next.done) break;
+      sessionUserCache.delete(next.value);
+    }
   }
   sessionUserCache.set(token, { user, sessionExpiresAt, cacheExpiresAt: Date.now() + ttl });
 }

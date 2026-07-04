@@ -8,6 +8,7 @@ const COMPLETE_EVENT = "KakWorkoutWidgetCompleteSet";
 type NativeWorkoutWidget = {
   update?: (summary: WorkoutWidgetSummary) => void;
   clear?: () => void;
+  startRestTimer?: (seconds: number) => void;
   canDrawOverlays?: () => Promise<boolean>;
   requestOverlayPermission?: () => void;
   startOverlay?: () => void;
@@ -35,6 +36,11 @@ export function clearWorkoutNativeWidget() {
   module?.stopOverlay?.();
 }
 
+export function workoutNativeWidgetStartRestTimer(seconds: number) {
+  if (seconds <= 0) return;
+  nativeModule()?.startRestTimer?.(seconds);
+}
+
 export async function ensureWorkoutFloatingWidget(summary: WorkoutWidgetSummary) {
   const module = nativeModule();
   if (!module) return;
@@ -60,7 +66,9 @@ export async function ensureWorkoutFloatingWidget(summary: WorkoutWidgetSummary)
   );
 }
 
-export function addWorkoutWidgetCompleteSetListener(listener: (setId?: string) => void | Promise<void>) {
+export function addWorkoutWidgetCompleteSetListener(
+  listener: (setId?: string) => void | Promise<void>,
+) {
   const module = nativeModule();
   if (!module) return { remove: () => undefined };
   const emitter = new NativeEventEmitter(NativeModules.KakWorkoutWidget);

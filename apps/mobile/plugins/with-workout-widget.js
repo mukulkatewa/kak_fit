@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "3.5.0";
+const WIDGET_VERSION = "3.6.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -1535,7 +1535,7 @@ function writeNativeFiles(projectRoot, packageName) {
     android:maxResizeWidth="500dp"
     android:maxResizeHeight="250dp"
     android:updatePeriodMillis="0"
-    android:initialLayout="@layout/kak_workout_widget"
+    android:initialLayout="@layout/kak_workout_widget_initial"
     android:previewLayout="@layout/kak_workout_widget"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
@@ -1566,7 +1566,7 @@ function writeNativeFiles(projectRoot, packageName) {
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/kak_widget_root"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:orientation="vertical"
     android:paddingLeft="12dp"
     android:paddingRight="12dp"

@@ -496,10 +496,14 @@ export async function signInWithGoogle() {
     return new Promise<{ token: string; user: AuthUser }>(() => {});
   }
 
-  // Cookies can land in SecureStore slightly after the browser closes.
+  // Capture the actual deep-link URL the OAuth server sends back.
+  // getInitialURL() only works if the deep link LAUNCHED the app from cold start.
+  // When the app is already running, the URL arrives via a Linking event instead.
+  const callbackFromLink = await captureOAuthCallbackUrl(3_000);
+
+  // Give SecureStore a moment to persist the session cookie that expoClient writes.
   await delay(300);
 
-  const callbackFromLink = await Linking.getInitialURL();
   let result = await completeAuthSession(callbackFromLink ?? callbackURL);
   if (!result) {
     result = await completeAuthSession(callbackURL);
@@ -509,6 +513,41 @@ export async function signInWithGoogle() {
   }
 
   return result;
+}
+
+/**
+ * Waits up to `timeoutMs` for the OAuth callback deep link to arrive.
+ * Returns the URL if received, or null if the timeout fires first.
+ * Checks both the initial URL (cold-start case) and a Linking event (warm-start case).
+ */
+function captureOAuthCallbackUrl(timeoutMs: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+
+    function settle(url: string | null) {
+      if (settled) return;
+      settled = true;
+      sub.remove();
+      clearTimeout(timer);
+      resolve(url);
+    }
+
+    // Warm-start: app was already running when the deep link fired.
+    const sub = Linking.addEventListener("url", ({ url }) => {
+      if (url.includes("login-callback") || url.includes("auth-callback")) {
+        settle(url);
+      }
+    });
+
+    // Cold-start: app was launched by the deep link.
+    void Linking.getInitialURL().then((url) => {
+      if (url && (url.includes("login-callback") || url.includes("auth-callback"))) {
+        settle(url);
+      }
+    });
+
+    const timer = setTimeout(() => settle(null), timeoutMs);
+  });
 }
 
 export async function signOut() {

@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { apiHeaders, getApiUrl } from "./api-client";
 import { authClient, AUTH_COOKIE_KEY, persistOAuthCookieFromUrl } from "./auth-client";
+import { createTRPCClient } from "./trpc";
 
 const TOKEN_KEY = "kak_fit_token";
 const REFRESH_TOKEN_KEY = "auth_refresh_token";
@@ -515,6 +516,12 @@ export async function signOut() {
   const signOutErrors: string[] = [];
 
   if (token) {
+    await createTRPCClient()
+      .auth.signOut.mutate()
+      .catch((err: unknown) => {
+        signOutErrors.push(`tRPC: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
     await fetch(`${getApiUrl()}/api/auth/sign-out`, {
       method: "POST",
       headers: apiHeaders({

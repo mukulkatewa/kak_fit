@@ -12,7 +12,6 @@ import {
   addWorkoutWidgetCompleteSetListener,
   addWorkoutWidgetSkipRestListener,
   clearWorkoutNativeWidget,
-  clearPendingWorkoutWidgetSyncSetIds,
   getPendingWorkoutWidgetSyncSetIds,
   removePendingWorkoutWidgetSyncSetId,
   refreshWorkoutNativeLockscreen,
@@ -265,8 +264,9 @@ export function WorkoutLiveNotificationBridge() {
 
       for (const setId of pendingSetIds) {
         await completeSetById(setId);
+        // completeSetById already calls removePendingWorkoutWidgetSyncSetId(setId) in every
+        // code path — no bulk clear here, as that would wipe concurrently-added IDs.
       }
-      clearPendingWorkoutWidgetSyncSetIds();
       await utils.workout.active.invalidate();
     };
   }, [completeSetById, utils.workout.active]);

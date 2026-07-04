@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "3.0.0";
+const WIDGET_VERSION = "3.1.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -740,7 +740,9 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   }
 
   static void stopNotification(Context context) {
+    if (!KakWorkoutOverlayService.isRunning()) return;
     try {
+      // Service is already a foreground service, so startService() is safe here
       context.startService(new Intent(context, KakWorkoutOverlayService.class)
         .setAction(KakWorkoutWidgetState.ACTION_STOP));
     } catch (Exception ignored) {}
@@ -1050,7 +1052,7 @@ public class KakWorkoutOverlayService extends Service {
   private final Runnable tickRunnable = new Runnable() {
     @Override public void run() {
       KakWorkoutWidgetState state = KakWorkoutWidgetState.read(KakWorkoutOverlayService.this);
-      if (!state.active) { stopSelf(); return; }
+      if (!state.active || state.complete) { stopSelf(); return; }
       postNotification(state);
       KakWorkoutWidgetProvider.updateAll(KakWorkoutOverlayService.this);
       handler.postDelayed(this, 1000L);
@@ -1222,7 +1224,7 @@ public class KakWorkoutOverlayService extends Service {
 
     views.setTextViewText(R.id.kak_notif_workout_header, state.workoutHeaderLabel());
     views.setTextViewText(R.id.kak_notif_exercise, state.exerciseLabel());
-    views.setTextViewText(R.id.kak_notif_set_detail, state.setDetailLine() + " • " + state.repProgressLabel());
+    views.setTextViewText(R.id.kak_notif_set_detail, state.setDetailLine());
     String nextLabel = state.nextExerciseLabel();
     if (nextLabel.length() > 0 && state.active && !state.complete) {
       views.setViewVisibility(R.id.kak_notif_next, android.view.View.VISIBLE);

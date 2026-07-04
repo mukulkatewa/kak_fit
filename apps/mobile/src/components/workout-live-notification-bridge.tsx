@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import {
   enqueueWorkoutMutation,
   isNetworkError,
@@ -10,7 +11,8 @@ import { queryStaleTime, trpc } from "../lib/trpc";
 import {
   addWorkoutWidgetCompleteSetListener,
   clearWorkoutNativeWidget,
-  ensureWorkoutFloatingWidget,
+  hideWorkoutFloatingOverlay,
+  showWorkoutFloatingOverlayWhenAllowed,
   tickWorkoutNativeWidgetRep,
   updateWorkoutNativeWidget,
   workoutNativeWidgetStartRestTimer,
@@ -32,12 +34,17 @@ import {
 import { useRestTimer } from "../lib/rest-timer";
 import { useUserPreferences } from "../lib/use-preferences";
 
+function isAppInForeground(state = AppState.currentState) {
+  return state === "active";
+}
+
 export function WorkoutLiveNotificationBridge() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
   const activeRef = useRef<ActiveWorkout | null | undefined>(undefined);
   const lastWidgetKeyRef = useRef<string | null>(null);
+  const widgetSummaryRef = useRef<ReturnType<typeof buildWorkoutWidgetSummary> | null>(null);
   const { defaultRestSeconds } = useUserPreferences();
   const defaultRestSecondsRef = useRef(defaultRestSeconds);
   defaultRestSecondsRef.current = defaultRestSeconds;
@@ -64,6 +71,21 @@ export function WorkoutLiveNotificationBridge() {
     [activeWorkout],
   );
 
+  widgetSummaryRef.current = widgetSummary;
+
+  const hideBackgroundControls = useCallback(() => {
+    hideWorkoutFloatingOverlay();
+    void dismissWorkoutNotification();
+  }, []);
+
+  const showBackgroundControls = useCallback(async () => {
+    const summary = widgetSummaryRef.current;
+    if (!summary) return;
+    await requestWorkoutNotificationPermissionOnce();
+    await showWorkoutNotification(summary);
+    await showWorkoutFloatingOverlayWhenAllowed();
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
       lastWidgetKeyRef.current = null;
@@ -72,6 +94,7 @@ export function WorkoutLiveNotificationBridge() {
     }
   }, [isAuthenticated]);
 
+  // Keep native widget data fresh without showing the floating overlay in foreground.
   useEffect(() => {
     if (!widgetSummary) {
       lastWidgetKeyRef.current = null;
@@ -84,9 +107,36 @@ export function WorkoutLiveNotificationBridge() {
     if (lastWidgetKeyRef.current === key) return;
     lastWidgetKeyRef.current = key;
     updateWorkoutNativeWidget(widgetSummary);
-    void ensureWorkoutFloatingWidget(widgetSummary);
-    void requestWorkoutNotificationPermissionOnce().then(() => showWorkoutNotification(widgetSummary));
-  }, [widgetSummary]);
+
+    if (!isAppInForeground()) {
+      void showBackgroundControls();
+    }
+  }, [widgetSummary, showBackgroundControls]);
+
+  // Floating overlay + lockscreen notification only while the app is minimized.
+  useEffect(() => {
+    if (!widgetSummary) return;
+
+    const handleAppState = (nextState: AppStateStatus) => {
+      if (isAppInForeground(nextState)) {
+        hideBackgroundControls();
+        return;
+      }
+      void showBackgroundControls();
+    };
+
+    if (isAppInForeground()) {
+      hideBackgroundControls();
+    } else {
+      void showBackgroundControls();
+    }
+
+    const subscription = AppState.addEventListener("change", handleAppState);
+    return () => {
+      subscription.remove();
+      hideBackgroundControls();
+    };
+  }, [widgetSummary, hideBackgroundControls, showBackgroundControls]);
 
   const completeNextSet = useCallback(async () => {
     let workout = activeRef.current;
@@ -104,12 +154,10 @@ export function WorkoutLiveNotificationBridge() {
 
     const variables = { setId: nextSet.setId, isCompleted: true };
 
-    // Optimistic update
     utils.workout.active.setData(undefined, (current) =>
       current ? applySetPatchToWorkout(current, nextSet.setId, { isCompleted: true }) : current,
     );
 
-    // Start rest timer in-app and push it to the native widget
     const restSeconds = defaultRestSecondsRef.current;
     if (restSeconds > 0) {
       useRestTimer.getState().start(restSeconds);
@@ -149,7 +197,7 @@ export function WorkoutLiveNotificationBridge() {
       subscription.remove();
       notificationSubscription.remove();
     };
-  }, [completeNextSet]);
+  }, [completeNextSet, router]);
 
   return null;
 }

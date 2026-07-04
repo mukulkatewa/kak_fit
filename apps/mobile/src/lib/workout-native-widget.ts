@@ -27,6 +27,7 @@ export function workoutNativeWidgetAvailable() {
   return Boolean(nativeModule());
 }
 
+/** Sync workout state to native prefs + home-screen widget (no floating overlay). */
 export function updateWorkoutNativeWidget(summary: WorkoutWidgetSummary) {
   nativeModule()?.update?.(summary);
 }
@@ -35,6 +36,14 @@ export function clearWorkoutNativeWidget() {
   const module = nativeModule();
   module?.clear?.();
   module?.stopOverlay?.();
+}
+
+export function showWorkoutFloatingOverlay() {
+  nativeModule()?.startOverlay?.();
+}
+
+export function hideWorkoutFloatingOverlay() {
+  nativeModule()?.stopOverlay?.();
 }
 
 export function tickWorkoutNativeWidgetRep() {
@@ -46,10 +55,10 @@ export function workoutNativeWidgetStartRestTimer(seconds: number) {
   nativeModule()?.startRestTimer?.(seconds);
 }
 
-export async function ensureWorkoutFloatingWidget(summary: WorkoutWidgetSummary) {
+/** Prompt once for overlay permission, then show the floating widget. */
+export async function showWorkoutFloatingOverlayWhenAllowed() {
   const module = nativeModule();
   if (!module) return;
-  module.update?.(summary);
 
   const canDraw = await module.canDrawOverlays?.().catch(() => false);
   if (canDraw) {
@@ -63,7 +72,7 @@ export async function ensureWorkoutFloatingWidget(summary: WorkoutWidgetSummary)
 
   Alert.alert(
     "Enable workout widget",
-    "Allow Kak Fit to show a small workout control box over your home screen while a workout is active.",
+    "Allow Kak Fit to show workout controls when you leave the app during a workout.",
     [
       { text: "Not now", style: "cancel" },
       { text: "Enable", onPress: () => module.requestOverlayPermission?.() },

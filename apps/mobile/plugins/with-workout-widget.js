@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "1.1.0";
+const WIDGET_VERSION = "1.2.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -286,7 +286,6 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
     editor.apply();
 
     KakWorkoutWidgetProvider.updateAll(context);
-    refreshOverlay(context);
   }
 
   @ReactMethod
@@ -312,6 +311,10 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   }
 
   static void refreshOverlay(Context context) {
+    SharedPreferences prefs = context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
+    if (!prefs.getBoolean("overlayEnabled", false) || !prefs.getBoolean("active", false)) {
+      return;
+    }
     try {
       Intent intent = new Intent(context, KakWorkoutOverlayService.class)
         .setAction(KakWorkoutWidgetState.ACTION_REFRESH);
@@ -329,6 +332,7 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
     context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE)
       .edit()
       .putBoolean("active", false)
+      .putBoolean("overlayEnabled", false)
       .remove("nextSetId")
       .apply();
     KakWorkoutWidgetProvider.updateAll(context);
@@ -359,12 +363,20 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   public void startOverlay() {
     Context context = getReactApplicationContext();
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) return;
-    startOverlayServiceSafely(context);
+    context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE)
+      .edit()
+      .putBoolean("overlayEnabled", true)
+      .apply();
+    refreshOverlay(context);
   }
 
   @ReactMethod
   public void stopOverlay() {
     Context context = getReactApplicationContext();
+    context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE)
+      .edit()
+      .putBoolean("overlayEnabled", false)
+      .apply();
     try {
       context.stopService(new Intent(context, KakWorkoutOverlayService.class));
     } catch (Exception ignored) {}

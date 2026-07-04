@@ -151,7 +151,7 @@ const WorkoutHistoryCard = React.memo(function WorkoutHistoryCard({
           {workout.name ?? "Workout"}
         </Text>
         <Text style={styles.cardSub} numberOfLines={1}>
-          {workout.exerciseCount} exercises · {volume} {unit}
+          {workout.exerciseCount} {workout.exerciseCount === 1 ? "exercise" : "exercises"} · {volume} {unit}
           {dateLabel ? ` · ${dateLabel}` : ""}
         </Text>
       </View>

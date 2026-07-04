@@ -3,19 +3,13 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BarChart } from "../src/components/charts";
-import { Button, Header, Input, ListGroup, ListRow, Screen, SectionHeader, ThemedDialog, useToast } from "../src/components/ui";
+import { Button, EmptyState, Header, Input, ListGroup, ListRow, Screen, SectionHeader, ThemedDialog, useToast } from "../src/components/ui";
 import { HevySegmentedControl } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
+import { useUserPreferences } from "../src/lib/use-preferences";
 import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../src/lib/theme";
 
 type Field = "weight" | "bodyFat" | "waist" | "chest" | "arms";
-const FIELDS: Array<{ key: Field; label: string; unit: string }> = [
-  { key: "weight", label: "Weight", unit: " kg" },
-  { key: "bodyFat", label: "Fat", unit: "%" },
-  { key: "waist", label: "Waist", unit: " cm" },
-  { key: "chest", label: "Chest", unit: " cm" },
-  { key: "arms", label: "Arms", unit: " cm" },
-];
 
 export default function MeasurementsScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -23,10 +17,20 @@ export default function MeasurementsScreen() {
   const router = useRouter();
   const utils = trpc.useUtils();
   const { showToast } = useToast();
+  const { weightUnit } = useUserPreferences();
   const [field, setField] = useState<Field>("weight");
   const { data: latest } = trpc.bodyMeasurement.latest.useQuery();
   const { data: history } = trpc.bodyMeasurement.list.useQuery({ limit: 20 });
   const { data: chart, isLoading } = trpc.bodyMeasurement.chart.useQuery({ field, limit: 12 });
+
+  const weightUnitLabel = weightUnit === "LBS" ? " lbs" : " kg";
+  const FIELDS: Array<{ key: Field; label: string; unit: string }> = [
+    { key: "weight", label: "Weight", unit: weightUnitLabel },
+    { key: "bodyFat", label: "Fat", unit: "%" },
+    { key: "waist", label: "Waist", unit: " cm" },
+    { key: "chest", label: "Chest", unit: " cm" },
+    { key: "arms", label: "Arms", unit: " cm" },
+  ];
   const activeField = FIELDS.find((f) => f.key === field)!;
 
   const [weight, setWeight] = useState("");
@@ -56,6 +60,8 @@ export default function MeasurementsScreen() {
       utils.bodyMeasurement.latest.invalidate();
       utils.bodyMeasurement.chart.invalidate();
       utils.bodyMeasurement.list.invalidate();
+      setDeleteDialog({ visible: false });
+      showToast("Measurement deleted", "success");
     },
     onError: (e) => showToast(e.message, "error"),
   });
@@ -70,6 +76,10 @@ export default function MeasurementsScreen() {
     };
     if (!Object.values(payload).some((v) => v !== undefined)) {
       showToast("Enter at least one measurement", "error");
+      return;
+    }
+    if (Object.values(payload).some((v) => v !== undefined && !Number.isFinite(v as number))) {
+      showToast("Enter valid numbers only", "error");
       return;
     }
     create.mutate(payload);
@@ -87,7 +97,7 @@ export default function MeasurementsScreen() {
         <View style={styles.latest}>
           <Text style={styles.latestLabel}>Latest</Text>
           <Text style={styles.latestVal}>
-            {latest.weight ? `${latest.weight} kg` : "—"}
+            {latest.weight ? `${latest.weight}${weightUnitLabel}` : "—"}
             {latest.bodyFat ? ` · ${latest.bodyFat}% fat` : ""}
           </Text>
           <Text style={styles.latestDate}>{new Date(latest.date).toLocaleDateString()}</Text>
@@ -128,9 +138,9 @@ export default function MeasurementsScreen() {
               const parts = [
                 m.weight != null ? `${m.weight} kg` : null,
                 m.bodyFat != null ? `${m.bodyFat}% fat` : null,
-                m.waist != null ? `${m.waist} waist` : null,
-                m.chest != null ? `${m.chest} chest` : null,
-                m.arms != null ? `${m.arms} arms` : null,
+                m.waist != null ? `${m.waist} cm waist` : null,
+                m.chest != null ? `${m.chest} cm chest` : null,
+                m.arms != null ? `${m.arms} cm arms` : null,
               ].filter(Boolean);
               return (
                 <ListRow

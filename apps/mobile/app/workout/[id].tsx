@@ -240,6 +240,7 @@ function WorkoutDetailScreen() {
               weekday: "long",
               month: "long",
               day: "numeric",
+              year: "numeric",
             })
           : "In progress"}
       </Text>
@@ -356,6 +357,7 @@ function WorkoutDetailScreen() {
     <ThemedDialog
       visible={deletePhotoDialog.visible}
       title="Delete photo?"
+      message="Remove this photo from the workout? This cannot be undone."
       onDismiss={() => setDeletePhotoDialog({ visible: false })}
       buttons={[
         { label: "Cancel" },

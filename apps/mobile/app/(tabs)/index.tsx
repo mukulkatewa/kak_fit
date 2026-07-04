@@ -379,6 +379,7 @@ function DashboardScreen() {
   const finished = flattenFinishedWorkouts(historyPages?.pages);
   const { data: weeklyChart, isPending: weeklyPending } =
     trpc.progress.weeklyVolume.useQuery(undefined, {
+      enabled: isAuthenticated,
       staleTime: queryStaleTime.weeklyVolume,
     });
   const {

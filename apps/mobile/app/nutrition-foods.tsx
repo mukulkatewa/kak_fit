@@ -34,7 +34,9 @@ const EMPTY_FORM: FoodForm = {
 };
 
 function numberValue(value: string, fallback = 0) {
-  const parsed = Number(value.replace(",", "."));
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  const parsed = Number(trimmed.replace(",", "."));
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 

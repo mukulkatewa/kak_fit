@@ -209,6 +209,7 @@ export function WorkoutLiveNotificationBridge() {
         ? addWorkoutNotificationResponseListener(async (actionIdentifier) => {
             if (actionIdentifier === COMPLETE_NEXT_SET_ACTION) {
               tickWorkoutNativeWidgetRep();
+              await completeSetById();
               return;
             }
             if (

@@ -236,8 +236,11 @@ export default function ProfileScreen() {
   ];
 
   const handleSignOut = async () => {
-    await signOut();
-    router.replace("/login");
+    try {
+      await signOut();
+    } finally {
+      router.replace("/login");
+    }
   };
 
   return (

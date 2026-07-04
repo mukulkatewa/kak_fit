@@ -802,8 +802,8 @@ export function ThemedDialog({
             <Text style={styles.dialogTitle}>{title}</Text>
             {message ? <Text style={styles.dialogMessage}>{message}</Text> : null}
             <View style={styles.dialogActions}>
-              {buttons.map((btn) => (
-                <DialogActionButton key={btn.label} btn={btn} onDismiss={onDismiss} />
+              {buttons.map((btn, i) => (
+                <DialogActionButton key={`${btn.label}-${i}`} btn={btn} onDismiss={onDismiss} />
               ))}
             </View>
           </Animated.View>
@@ -1297,6 +1297,7 @@ export function showAppToast(message: string, type: ToastType = "info") {
 
 export function ToastContainer() {
   const { colors, shadows } = useTheme();
+  const insets = useSafeAreaInsets();
   const visible = useToastStore((s) => s.visible);
   const message = useToastStore((s) => s.message);
   const type = useToastStore((s) => s.type);
@@ -1329,7 +1330,7 @@ export function ToastContainer() {
       pointerEvents="none"
       style={{
         position: "absolute",
-        bottom: 100,
+        bottom: insets.bottom + 16,
         left: 16,
         right: 16,
         opacity,

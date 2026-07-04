@@ -18,7 +18,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { Screen, useToast } from "../src/components/ui";
+import { Screen, ThemedDialog, useToast } from "../src/components/ui";
 import { HevyStackHeader } from "../src/components/hevy-ui";
 import { useSpringPress } from "../src/lib/animations";
 import { useAuth } from "../src/lib/auth-context";
@@ -205,6 +205,7 @@ export default function SettingsScreen() {
   const [weightUnit, setWeightUnit] = useState<"KG" | "LBS">("KG");
   const [restSeconds, setRestSeconds] = useState(90);
   const [exerciseReminderEnabled, setExerciseReminderEnabled] = useState(true);
+  const [signOutDialog, setSignOutDialog] = useState(false);
 
   useEffect(() => {
     if (user?.weightUnit) setWeightUnit(user.weightUnit);
@@ -361,8 +362,19 @@ export default function SettingsScreen() {
       </AnimatedSection>
 
       <AnimatedSection sectionIndex={7}>
-        <SignOutButton onPress={handleSignOut} />
+        <SignOutButton onPress={() => setSignOutDialog(true)} />
       </AnimatedSection>
+
+      <ThemedDialog
+        visible={signOutDialog}
+        title="Sign out?"
+        message="You'll need to sign back in to access your workouts and data."
+        onDismiss={() => setSignOutDialog(false)}
+        buttons={[
+          { label: "Cancel" },
+          { label: "Sign Out", variant: "destructive", onPress: handleSignOut },
+        ]}
+      />
     </Screen>
   );
 }

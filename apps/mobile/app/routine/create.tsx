@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -736,7 +737,12 @@ export default function CreateRoutineScreen() {
         </>
       ) : null}
 
-      {pickerOpen && formReady ? (
+      <Modal
+        visible={pickerOpen && formReady}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closePicker}
+      >
         <View
           style={[
             styles.picker,
@@ -782,7 +788,7 @@ export default function CreateRoutineScreen() {
             />
           )}
         </View>
-      ) : null}
+      </Modal>
 
       <ThemedDialog
         visible={removeExerciseDialog.visible}
@@ -972,7 +978,7 @@ const makeStyles = (colors: Palette) =>
 
     // Picker
     picker: {
-      ...StyleSheet.absoluteFillObject,
+      flex: 1,
       backgroundColor: colors.bg,
       paddingHorizontal: spacing.lg,
       gap: spacing.md,

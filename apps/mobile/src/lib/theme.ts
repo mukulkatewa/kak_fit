@@ -382,7 +382,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const isDark = mode === "system" ? systemScheme === "dark" : mode === "dark";
   const palette = isDark ? darkColors : lightColors;
-  const shadowSet = createShadows(isDark);
+  const shadowSet = useMemo(() => createShadows(isDark), [isDark]);
 
   const toggle = useCallback(() => {
     setMode(isDark ? "light" : "dark");

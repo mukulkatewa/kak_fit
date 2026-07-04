@@ -98,7 +98,8 @@ type EditFoodMacros = {
 function computeEditMacros(food: EditFoodMacros, quantityStr: string) {
   const qty = Number(quantityStr.replace(",", "."));
   if (!Number.isFinite(qty) || qty <= 0) return null;
-  const ratio = qty / (food.servingSize ?? 100);
+  const size = food.servingSize || 100;
+  const ratio = qty / size;
   return {
     cal: Math.round(food.calories * ratio),
     protein: Math.round(food.protein * ratio),
@@ -610,7 +611,7 @@ function AiMealPlannerSection() {
     const age = Number(form.age);
     const heightCm = Number(form.heightCm);
     const weightKg = Number(form.weightKg);
-    if (!Number.isFinite(age) || !Number.isFinite(heightCm) || !Number.isFinite(weightKg)) {
+    if (!Number.isFinite(age) || age <= 0 || !Number.isFinite(heightCm) || heightCm <= 0 || !Number.isFinite(weightKg) || weightKg <= 0) {
       showToast("Add valid age, height, and weight", "error");
       return;
     }
@@ -1442,11 +1443,11 @@ export default function NutritionScreen() {
     for (const meal of meals ?? []) {
       const items = meal.items;
       const totalCal = items.reduce(
-        (sum, item) => sum + Math.round((item.food.calories * item.quantity) / (item.food.servingSize ?? 100)),
+        (sum, item) => sum + Math.round((item.food.calories * item.quantity) / (item.food.servingSize || 100)),
         0,
       );
       const totalProtein = items.reduce(
-        (sum, item) => sum + Math.round((item.food.protein * item.quantity) / (item.food.servingSize ?? 100)),
+        (sum, item) => sum + Math.round((item.food.protein * item.quantity) / (item.food.servingSize || 100)),
         0,
       );
       if (items.length > 0) {
@@ -1762,7 +1763,7 @@ export default function NutritionScreen() {
       <ThemedDialog
         visible={deleteMealItemDialog.visible}
         title="Remove food?"
-        message={deleteMealItemDialog.foodName ? `Remove ${deleteMealItemDialog.foodName} from today?` : undefined}
+        message={deleteMealItemDialog.foodName ? `Remove ${deleteMealItemDialog.foodName} from ${isToday ? "today" : selectedDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}?` : undefined}
         onDismiss={() => setDeleteMealItemDialog({ visible: false })}
         buttons={[
           { label: "Cancel" },

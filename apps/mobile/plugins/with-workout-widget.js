@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "1.2.0";
+const WIDGET_VERSION = "1.3.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -203,6 +203,20 @@ class KakWorkoutWidgetState {
     return "Set " + nextSetNumber + " • " + nextSetReps + " reps";
   }
 
+  String repProgressLabel() {
+    if (!active) return "";
+    if (isResting()) return "Rest before next set";
+    if (complete) return "All sets done";
+    return repsCompleted + "/" + nextSetReps + " reps";
+  }
+
+  String notificationBody() {
+    if (!active) return "Start a workout";
+    if (isResting()) return shortExerciseName + " • up next";
+    if (complete) return progressLabel;
+    return setLabel + " • " + repProgressLabel();
+  }
+
   private static String formatRest(int seconds) {
     int minutes = seconds / 60;
     int secs = seconds % 60;
@@ -286,6 +300,9 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
     editor.apply();
 
     KakWorkoutWidgetProvider.updateAll(context);
+    if (prefs.getBoolean("overlayEnabled", false)) {
+      refreshOverlay(context);
+    }
   }
 
   @ReactMethod
@@ -360,9 +377,13 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
+  public void refreshLockscreen() {
+    refreshOverlay(getReactApplicationContext());
+  }
+
+  @ReactMethod
   public void startOverlay() {
     Context context = getReactApplicationContext();
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) return;
     context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE)
       .edit()
       .putBoolean("overlayEnabled", true)
@@ -511,17 +532,20 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
+import android.widget.RemoteViews;
 import android.widget.TextView;
 import ${packageName}.R;
 
 public class KakWorkoutOverlayService extends Service {
   private static final String CHANNEL_ID = "kak_workout_overlay";
   private static final int NOTIFICATION_ID = 9001;
+  private static final int OVERLAY_WIDTH_DP = 340;
 
   private WindowManager windowManager;
   private View overlay;
   private WindowManager.LayoutParams params;
   private LinearLayout repsRow;
+  private TextView repsLabel;
   private final Handler handler = new Handler(Looper.getMainLooper());
   private final Runnable tickRunnable = new Runnable() {
     @Override
@@ -531,7 +555,7 @@ public class KakWorkoutOverlayService extends Service {
         stopSelf();
         return;
       }
-      bind(state);
+      refreshUi(state);
       if (state.isResting()) {
         handler.postDelayed(this, 1000L);
       }
@@ -573,9 +597,11 @@ public class KakWorkoutOverlayService extends Service {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       NotificationChannel channel = new NotificationChannel(
         CHANNEL_ID, "Active workout", NotificationManager.IMPORTANCE_HIGH);
-      channel.setDescription("Workout controls on lock screen");
+      channel.setDescription("Workout progress and controls on lock screen");
       channel.setShowBadge(false);
       channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+      channel.enableVibration(false);
+      channel.setSound(null, null);
       NotificationManager manager = getSystemService(NotificationManager.class);
       if (manager != null) manager.createNotificationChannel(channel);
     }
@@ -591,8 +617,12 @@ public class KakWorkoutOverlayService extends Service {
     }
     int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
     Intent tick = new Intent(this, KakWorkoutWidgetActionReceiver.class)
-      .setAction(KakWorkoutWidgetState.ACTION_TICK_REP);
+      .setAction(KakWorkoutWidgetState.ACTION_TICK_REP)
+      .setPackage(getPackageName());
     PendingIntent tickPending = PendingIntent.getBroadcast(this, 1201, tick, flags);
+
+    RemoteViews collapsed = buildNotificationViews(state, false);
+    RemoteViews expanded = buildNotificationViews(state, true);
 
     Notification.Builder builder;
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -600,19 +630,42 @@ public class KakWorkoutOverlayService extends Service {
     } else {
       builder = new Notification.Builder(this);
     }
+
+    String body = state.notificationBody();
     builder.setContentTitle(state.title())
-      .setContentText(state.exerciseLine() + " — " + state.detailLine())
-      .setSmallIcon(android.R.drawable.ic_media_play)
+      .setContentText(body)
+      .setSubText(state.progressLabel)
+      .setSmallIcon(android.R.drawable.ic_menu_compass)
       .setOngoing(true)
+      .setOnlyAlertOnce(true)
       .setShowWhen(false)
       .setVisibility(Notification.VISIBILITY_PUBLIC)
       .setCategory(Notification.CATEGORY_WORKOUT)
       .setColor(Color.parseColor("#0A84FF"));
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+      builder.setCustomContentView(collapsed);
+      builder.setCustomBigContentView(expanded);
+      builder.setStyle(new Notification.DecoratedCustomViewStyle());
+    }
+
     if (pendingLaunch != null) builder.setContentIntent(pendingLaunch);
     if (!state.complete && !state.isResting()) {
-      builder.addAction(new Notification.Action.Builder(null, "Tick rep", tickPending).build());
+      builder.addAction(new Notification.Action.Builder(null, "✓ Tick rep", tickPending).build());
+      builder.addAction(new Notification.Action.Builder(null, "Open", pendingLaunch).build());
     }
     return builder.build();
+  }
+
+  private RemoteViews buildNotificationViews(KakWorkoutWidgetState state, boolean expanded) {
+    int layout = expanded ? R.layout.kak_workout_notification_expanded : R.layout.kak_workout_notification;
+    RemoteViews views = new RemoteViews(getPackageName(), layout);
+    views.setTextViewText(R.id.kak_notif_title, state.title());
+    views.setTextViewText(R.id.kak_notif_exercise, state.exerciseLine());
+    views.setTextViewText(R.id.kak_notif_detail, state.detailLine());
+    views.setTextViewText(R.id.kak_notif_progress, state.progressLabel);
+    views.setTextViewText(R.id.kak_notif_reps, state.repProgressLabel());
+    return views;
   }
 
   private void showOrUpdate(KakWorkoutWidgetState state) {
@@ -620,23 +673,37 @@ public class KakWorkoutOverlayService extends Service {
     if (overlay == null) {
       overlay = LayoutInflater.from(this).inflate(R.layout.kak_workout_overlay, null);
       repsRow = overlay.findViewById(R.id.kak_overlay_reps_row);
+      repsLabel = overlay.findViewById(R.id.kak_overlay_reps_label);
       int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         : WindowManager.LayoutParams.TYPE_PHONE;
+      int widthPx = dp(OVERLAY_WIDTH_DP);
       params = new WindowManager.LayoutParams(
-        WindowManager.LayoutParams.WRAP_CONTENT,
+        widthPx,
         WindowManager.LayoutParams.WRAP_CONTENT,
         type,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
         PixelFormat.TRANSLUCENT
       );
-      params.gravity = Gravity.TOP | Gravity.END;
-      params.x = 24;
-      params.y = 160;
+      params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+      params.x = 0;
+      params.y = dp(120);
+      overlay.setMinimumWidth(widthPx);
       installDragHandle();
       windowManager.addView(overlay, params);
     }
     bind(state);
+  }
+
+  private void refreshUi(KakWorkoutWidgetState state) {
+    if (overlay != null) {
+      bind(state);
+      return;
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      NotificationManager manager = getSystemService(NotificationManager.class);
+      if (manager != null) manager.notify(NOTIFICATION_ID, buildNotification(state));
+    }
   }
 
   private void bind(KakWorkoutWidgetState state) {
@@ -645,28 +712,33 @@ public class KakWorkoutOverlayService extends Service {
     ((TextView) overlay.findViewById(R.id.kak_overlay_detail)).setText(state.detailLine());
     ((TextView) overlay.findViewById(R.id.kak_overlay_progress)).setText(state.progressLabel);
 
-    repsRow.removeAllViews();
     if (state.isResting()) {
+      repsLabel.setVisibility(View.VISIBLE);
+      repsLabel.setText("Rest " + state.restSecondsLeft() + "s — " + state.shortExerciseName);
       repsRow.setVisibility(View.GONE);
     } else if (state.complete || state.nextSetReps <= 0) {
+      repsLabel.setVisibility(View.GONE);
       repsRow.setVisibility(View.GONE);
     } else {
+      repsLabel.setVisibility(View.VISIBLE);
+      repsLabel.setText("Tap each rep • " + state.repProgressLabel());
       repsRow.setVisibility(View.VISIBLE);
-      int reps = Math.min(state.nextSetReps, 12);
+      repsRow.removeAllViews();
+      int reps = Math.min(state.nextSetReps, 15);
       for (int i = 1; i <= reps; i++) {
         TextView box = new TextView(this);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(28), dp(28));
-        lp.setMargins(0, 0, dp(6), 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(34), dp(34));
+        lp.setMargins(0, 0, dp(8), 0);
         box.setLayoutParams(lp);
         box.setGravity(Gravity.CENTER);
-        box.setText(String.valueOf(i));
-        box.setTextSize(11f);
         boolean done = i <= state.repsCompleted;
-        box.setTextColor(done ? Color.WHITE : Color.parseColor("#CBD5E1"));
+        box.setText(done ? "✓" : String.valueOf(i));
+        box.setTextSize(done ? 14f : 12f);
+        box.setTextColor(done ? Color.WHITE : Color.parseColor("#E2E8F0"));
         GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(8));
-        bg.setColor(done ? Color.parseColor("#0A84FF") : Color.parseColor("#2A2A2E"));
-        if (!done) bg.setStroke(dp(1), Color.parseColor("#475569"));
+        bg.setCornerRadius(dp(10));
+        bg.setColor(done ? Color.parseColor("#0A84FF") : Color.parseColor("#334155"));
+        if (!done) bg.setStroke(dp(1), Color.parseColor("#64748B"));
         box.setBackground(bg);
         final int repIndex = i;
         box.setOnClickListener((view) -> {
@@ -717,7 +789,7 @@ public class KakWorkoutOverlayService extends Service {
             initialTouchY = event.getRawY();
             return true;
           case MotionEvent.ACTION_MOVE:
-            params.x = initialX - Math.round(event.getRawX() - initialTouchX);
+            params.x = initialX + Math.round(event.getRawX() - initialTouchX);
             params.y = initialY + Math.round(event.getRawY() - initialTouchY);
             windowManager.updateViewLayout(overlay, params);
             return true;
@@ -855,18 +927,19 @@ function writeNativeFiles(projectRoot, packageName) {
 `);
   write(path.join(res, "layout/kak_workout_overlay.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="300dp"
+    android:layout_width="340dp"
     android:layout_height="wrap_content"
+    android:minWidth="340dp"
     android:orientation="vertical"
-    android:padding="12dp"
+    android:padding="16dp"
     android:background="@drawable/kak_widget_bg">
 
     <View
         android:id="@+id/kak_overlay_drag_handle"
-        android:layout_width="36dp"
-        android:layout_height="4dp"
+        android:layout_width="48dp"
+        android:layout_height="5dp"
         android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="8dp"
+        android:layout_marginBottom="10dp"
         android:background="@drawable/kak_widget_drag_handle" />
 
     <LinearLayout
@@ -882,19 +955,19 @@ function writeNativeFiles(projectRoot, packageName) {
             android:maxLines="1"
             android:ellipsize="end"
             android:textColor="#F8FAFC"
-            android:textSize="14sp"
+            android:textSize="15sp"
             android:textStyle="bold" />
         <TextView
             android:id="@+id/kak_overlay_progress"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingLeft="8dp"
-            android:paddingRight="8dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
             android:background="@drawable/kak_widget_progress_bg"
-            android:textColor="#60A5FA"
-            android:textSize="11sp"
+            android:textColor="#93C5FD"
+            android:textSize="12sp"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -902,45 +975,163 @@ function writeNativeFiles(projectRoot, packageName) {
         android:id="@+id/kak_overlay_exercise"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:maxLines="1"
+        android:layout_marginTop="8dp"
+        android:maxLines="2"
         android:ellipsize="end"
-        android:textColor="#F8FAFC"
-        android:textSize="15sp"
+        android:textColor="#FFFFFF"
+        android:textSize="17sp"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/kak_overlay_detail"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="4dp"
         android:maxLines="1"
         android:ellipsize="end"
         android:textColor="#CBD5E1"
-        android:textSize="12sp" />
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/kak_overlay_reps_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textColor="#94A3B8"
+        android:textSize="12sp"
+        android:textStyle="bold" />
 
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="8dp"
+        android:fillViewport="true"
         android:scrollbars="none">
         <LinearLayout
             android:id="@+id/kak_overlay_reps_row"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal" />
+            android:orientation="horizontal"
+            android:paddingBottom="2dp" />
     </HorizontalScrollView>
 
     <TextView
         android:id="@+id/kak_overlay_open"
         android:layout_width="match_parent"
-        android:layout_height="38dp"
-        android:layout_marginTop="10dp"
+        android:layout_height="42dp"
+        android:layout_marginTop="12dp"
         android:gravity="center"
         android:background="@drawable/kak_widget_secondary_button"
         android:text="Open workout"
         android:textColor="#F8FAFC"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+</LinearLayout>
+`);
+  write(path.join(res, "layout/kak_workout_notification.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp">
+    <TextView
+        android:id="@+id/kak_notif_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+    <TextView
+        android:id="@+id/kak_notif_exercise"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#E2E8F0"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+    <TextView
+        android:id="@+id/kak_notif_detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#CBD5E1"
+        android:textSize="13sp" />
+    <TextView
+        android:id="@+id/kak_notif_reps"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#60A5FA"
         android:textSize="13sp"
+        android:textStyle="bold" />
+</LinearLayout>
+`);
+  write(path.join(res, "layout/kak_workout_notification_expanded.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <TextView
+            android:id="@+id/kak_notif_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/kak_notif_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:background="@drawable/kak_widget_progress_bg"
+            android:textColor="#93C5FD"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+    <TextView
+        android:id="@+id/kak_notif_exercise"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+    <TextView
+        android:id="@+id/kak_notif_detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#CBD5E1"
+        android:textSize="14sp" />
+    <TextView
+        android:id="@+id/kak_notif_reps"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textColor="#60A5FA"
+        android:textSize="15sp"
         android:textStyle="bold" />
 </LinearLayout>
 `);

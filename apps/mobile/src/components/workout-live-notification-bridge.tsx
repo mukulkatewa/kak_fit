@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState, Platform, type AppStateStatus } from "react-native";
 import {
   enqueueWorkoutMutation,
   isNetworkError,
@@ -12,6 +12,7 @@ import {
   addWorkoutWidgetCompleteSetListener,
   clearWorkoutNativeWidget,
   hideWorkoutFloatingOverlay,
+  refreshWorkoutNativeLockscreen,
   showWorkoutFloatingOverlayWhenAllowed,
   tickWorkoutNativeWidgetRep,
   updateWorkoutNativeWidget,
@@ -20,7 +21,6 @@ import {
 import {
   buildWorkoutWidgetSummary,
   findNextIncompleteSet,
-  workoutWidgetSummaryKey,
 } from "../lib/workout-live-widget-state";
 import {
   COMPLETE_NEXT_SET_ACTION,
@@ -43,7 +43,6 @@ export function WorkoutLiveNotificationBridge() {
   const { isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
   const activeRef = useRef<ActiveWorkout | null | undefined>(undefined);
-  const lastWidgetKeyRef = useRef<string | null>(null);
   const widgetSummaryRef = useRef<ReturnType<typeof buildWorkoutWidgetSummary> | null>(null);
   const { defaultRestSeconds } = useUserPreferences();
   const defaultRestSecondsRef = useRef(defaultRestSeconds);
@@ -75,45 +74,43 @@ export function WorkoutLiveNotificationBridge() {
 
   const hideBackgroundControls = useCallback(() => {
     hideWorkoutFloatingOverlay();
-    void dismissWorkoutNotification();
+    if (Platform.OS !== "android") {
+      void dismissWorkoutNotification();
+    }
   }, []);
 
   const showBackgroundControls = useCallback(async () => {
     const summary = widgetSummaryRef.current;
     if (!summary) return;
     await requestWorkoutNotificationPermissionOnce();
-    await showWorkoutNotification(summary);
+    updateWorkoutNativeWidget(summary);
     await showWorkoutFloatingOverlayWhenAllowed();
+    if (Platform.OS === "ios") {
+      await showWorkoutNotification(summary);
+    }
   }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
-      lastWidgetKeyRef.current = null;
       clearWorkoutNativeWidget();
       void dismissWorkoutNotification();
     }
   }, [isAuthenticated]);
 
-  // Keep native widget data fresh without showing the floating overlay in foreground.
   useEffect(() => {
     if (!widgetSummary) {
-      lastWidgetKeyRef.current = null;
       clearWorkoutNativeWidget();
       void dismissWorkoutNotification();
       return;
     }
 
-    const key = workoutWidgetSummaryKey(widgetSummary);
-    if (lastWidgetKeyRef.current === key) return;
-    lastWidgetKeyRef.current = key;
     updateWorkoutNativeWidget(widgetSummary);
-
     if (!isAppInForeground()) {
+      refreshWorkoutNativeLockscreen();
       void showBackgroundControls();
     }
   }, [widgetSummary, showBackgroundControls]);
 
-  // Floating overlay + lockscreen notification only while the app is minimized.
   useEffect(() => {
     if (!widgetSummary) return;
 
@@ -180,18 +177,21 @@ export function WorkoutLiveNotificationBridge() {
       await completeNextSet();
     });
 
-    const notificationSubscription = addWorkoutNotificationResponseListener(async (actionIdentifier) => {
-      if (actionIdentifier === COMPLETE_NEXT_SET_ACTION) {
-        tickWorkoutNativeWidgetRep();
-        return;
-      }
-      if (
-        actionIdentifier === OPEN_WORKOUT_ACTION ||
-        actionIdentifier === NOTIFICATION_DEFAULT_ACTION
-      ) {
-        router.push("/workout/active");
-      }
-    });
+    const notificationSubscription =
+      Platform.OS === "ios"
+        ? addWorkoutNotificationResponseListener(async (actionIdentifier) => {
+            if (actionIdentifier === COMPLETE_NEXT_SET_ACTION) {
+              tickWorkoutNativeWidgetRep();
+              return;
+            }
+            if (
+              actionIdentifier === OPEN_WORKOUT_ACTION ||
+              actionIdentifier === NOTIFICATION_DEFAULT_ACTION
+            ) {
+              router.push("/workout/active");
+            }
+          })
+        : { remove: () => undefined };
 
     return () => {
       subscription.remove();

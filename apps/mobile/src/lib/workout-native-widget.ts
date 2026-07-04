@@ -14,6 +14,7 @@ type NativeWorkoutWidget = {
   requestOverlayPermission?: () => void;
   startOverlay?: () => void;
   stopOverlay?: () => void;
+  refreshLockscreen?: () => void;
   addListener?: (eventName: string) => void;
   removeListeners?: (count: number) => void;
 };
@@ -46,6 +47,10 @@ export function hideWorkoutFloatingOverlay() {
   nativeModule()?.stopOverlay?.();
 }
 
+export function refreshWorkoutNativeLockscreen() {
+  nativeModule()?.refreshLockscreen?.();
+}
+
 export function tickWorkoutNativeWidgetRep() {
   nativeModule()?.tickRep?.();
 }
@@ -55,16 +60,15 @@ export function workoutNativeWidgetStartRestTimer(seconds: number) {
   nativeModule()?.startRestTimer?.(seconds);
 }
 
-/** Prompt once for overlay permission, then show the floating widget. */
+/** Start lockscreen controls always; prompt only for floating overlay permission. */
 export async function showWorkoutFloatingOverlayWhenAllowed() {
   const module = nativeModule();
   if (!module) return;
 
+  module.startOverlay?.();
+
   const canDraw = await module.canDrawOverlays?.().catch(() => false);
-  if (canDraw) {
-    module.startOverlay?.();
-    return;
-  }
+  if (canDraw) return;
 
   const prompted = await AsyncStorage.getItem(OVERLAY_PROMPTED_KEY);
   if (prompted === "1") return;

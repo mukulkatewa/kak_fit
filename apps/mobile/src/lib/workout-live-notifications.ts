@@ -43,7 +43,7 @@ export async function registerWorkoutNotificationSurface() {
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync(WORKOUT_NOTIFICATION_CHANNEL_ID, {
       name: "Active workout",
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: Notifications.AndroidImportance.HIGH,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       showBadge: false,
       enableVibrate: false,
@@ -55,7 +55,7 @@ export async function registerWorkoutNotificationSurface() {
   await Notifications.setNotificationCategoryAsync(WORKOUT_NOTIFICATION_CATEGORY, [
     {
       identifier: COMPLETE_NEXT_SET_ACTION,
-      buttonTitle: "Complete set",
+      buttonTitle: "Tick rep",
       options: { opensAppToForeground: true, isAuthenticationRequired: false },
     },
     {
@@ -112,8 +112,8 @@ export async function showWorkoutNotification(summary: WorkoutWidgetSummary) {
       sticky: true,
       autoDismiss: false,
       color: "#0A84FF",
-      priority: Notifications.AndroidNotificationPriority.DEFAULT,
-      interruptionLevel: "passive",
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+      interruptionLevel: "active",
     },
     trigger: Platform.OS === "android" ? { channelId: WORKOUT_NOTIFICATION_CHANNEL_ID } : null,
   });

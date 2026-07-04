@@ -4,9 +4,11 @@ export type WorkoutWidgetNextSet = {
   setId: string;
   exerciseId: string;
   exerciseName: string;
+  shortExerciseName: string;
   setNumber: number;
   weight: number | null;
   reps: number | null;
+  setLabel: string;
 };
 
 export type WorkoutWidgetSummary = {
@@ -18,9 +20,33 @@ export type WorkoutWidgetSummary = {
   totalSets: number;
   progressLabel: string;
   currentExerciseName: string;
+  shortExerciseName: string;
   nextSet: WorkoutWidgetNextSet | null;
   isComplete: boolean;
 };
+
+/** Compact exercise title for widgets/notifications. */
+export function shortExerciseName(name: string, maxLen = 20): string {
+  const trimmed = name.trim();
+  if (trimmed.length <= maxLen) return trimmed;
+  const slice = trimmed.slice(0, maxLen - 1);
+  const lastSpace = slice.lastIndexOf(" ");
+  if (lastSpace > Math.floor(maxLen * 0.45)) {
+    return `${slice.slice(0, lastSpace)}…`;
+  }
+  return `${slice}…`;
+}
+
+export function formatSetLabel(set: {
+  setNumber: number;
+  weight?: number | null;
+  reps?: number | null;
+}): string {
+  const weight =
+    set.weight != null && set.weight > 0 ? `${set.weight % 1 === 0 ? set.weight : set.weight.toFixed(1)}kg × ` : "";
+  const reps = set.reps != null && set.reps > 0 ? set.reps : "?";
+  return `Set ${set.setNumber} • ${weight}${reps} reps`;
+}
 
 function startedAtMs(value: ActiveWorkout["startedAt"]): number {
   if (value instanceof Date) return value.getTime();
@@ -41,13 +67,20 @@ export function findNextIncompleteSet(workout: ActiveWorkout): WorkoutWidgetNext
   for (const workoutExercise of workout.exercises) {
     const nextSet = workoutExercise.sets.find((set) => !set.isCompleted);
     if (nextSet) {
+      const shortName = shortExerciseName(workoutExercise.exercise.name);
       return {
         setId: nextSet.id,
         exerciseId: workoutExercise.exercise.id,
         exerciseName: workoutExercise.exercise.name,
+        shortExerciseName: shortName,
         setNumber: nextSet.setNumber,
         weight: nextSet.weight ?? null,
         reps: nextSet.reps ?? null,
+        setLabel: formatSetLabel({
+          setNumber: nextSet.setNumber,
+          weight: nextSet.weight,
+          reps: nextSet.reps,
+        }),
       };
     }
   }
@@ -73,6 +106,7 @@ export function buildWorkoutWidgetSummary(
   const totalSets = workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
   const elapsedSeconds = Math.max(0, Math.floor((nowMs - startedAtMs(workout.startedAt)) / 1000));
   const nextSet = findNextIncompleteSet(workout);
+  const currentName = getCurrentExerciseName(workout);
 
   return {
     workoutId: workout.id,
@@ -82,7 +116,8 @@ export function buildWorkoutWidgetSummary(
     completedSets,
     totalSets,
     progressLabel: `${completedSets}/${totalSets} sets`,
-    currentExerciseName: getCurrentExerciseName(workout),
+    currentExerciseName: currentName,
+    shortExerciseName: shortExerciseName(currentName),
     nextSet,
     isComplete: totalSets > 0 && completedSets === totalSets,
   };
@@ -91,7 +126,7 @@ export function buildWorkoutWidgetSummary(
 export function buildWorkoutNotificationText(summary: WorkoutWidgetSummary) {
   const title = `${summary.workoutName} • ${summary.elapsedLabel}`;
   const body = summary.nextSet
-    ? `Next: ${summary.nextSet.exerciseName} set ${summary.nextSet.setNumber} • ${summary.progressLabel}`
+    ? `${summary.nextSet.shortExerciseName} — ${summary.nextSet.setLabel} • ${summary.progressLabel}`
     : `All sets complete • ${summary.progressLabel}`;
 
   return { title, body };
@@ -103,6 +138,7 @@ export function workoutWidgetSummaryKey(summary: WorkoutWidgetSummary): string {
     summary.completedSets,
     summary.totalSets,
     summary.nextSet?.setId ?? "done",
-    summary.currentExerciseName,
+    summary.shortExerciseName,
+    summary.nextSet?.setLabel ?? "",
   ].join(":");
 }

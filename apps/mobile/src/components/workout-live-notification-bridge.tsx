@@ -11,6 +11,7 @@ import {
   addWorkoutWidgetCompleteSetListener,
   clearWorkoutNativeWidget,
   ensureWorkoutFloatingWidget,
+  tickWorkoutNativeWidgetRep,
   updateWorkoutNativeWidget,
   workoutNativeWidgetStartRestTimer,
 } from "../lib/workout-native-widget";
@@ -19,6 +20,15 @@ import {
   findNextIncompleteSet,
   workoutWidgetSummaryKey,
 } from "../lib/workout-live-widget-state";
+import {
+  COMPLETE_NEXT_SET_ACTION,
+  dismissWorkoutNotification,
+  NOTIFICATION_DEFAULT_ACTION,
+  OPEN_WORKOUT_ACTION,
+  addWorkoutNotificationResponseListener,
+  requestWorkoutNotificationPermissionOnce,
+  showWorkoutNotification,
+} from "../lib/workout-live-notifications";
 import { useRestTimer } from "../lib/rest-timer";
 import { useUserPreferences } from "../lib/use-preferences";
 
@@ -58,6 +68,7 @@ export function WorkoutLiveNotificationBridge() {
     if (!isAuthenticated) {
       lastWidgetKeyRef.current = null;
       clearWorkoutNativeWidget();
+      void dismissWorkoutNotification();
     }
   }, [isAuthenticated]);
 
@@ -65,6 +76,7 @@ export function WorkoutLiveNotificationBridge() {
     if (!widgetSummary) {
       lastWidgetKeyRef.current = null;
       clearWorkoutNativeWidget();
+      void dismissWorkoutNotification();
       return;
     }
 
@@ -73,6 +85,7 @@ export function WorkoutLiveNotificationBridge() {
     lastWidgetKeyRef.current = key;
     updateWorkoutNativeWidget(widgetSummary);
     void ensureWorkoutFloatingWidget(widgetSummary);
+    void requestWorkoutNotificationPermissionOnce().then(() => showWorkoutNotification(widgetSummary));
   }, [widgetSummary]);
 
   const completeNextSet = useCallback(async () => {
@@ -119,7 +132,23 @@ export function WorkoutLiveNotificationBridge() {
       await completeNextSet();
     });
 
-    return () => subscription.remove();
+    const notificationSubscription = addWorkoutNotificationResponseListener(async (actionIdentifier) => {
+      if (actionIdentifier === COMPLETE_NEXT_SET_ACTION) {
+        tickWorkoutNativeWidgetRep();
+        return;
+      }
+      if (
+        actionIdentifier === OPEN_WORKOUT_ACTION ||
+        actionIdentifier === NOTIFICATION_DEFAULT_ACTION
+      ) {
+        router.push("/workout/active");
+      }
+    });
+
+    return () => {
+      subscription.remove();
+      notificationSubscription.remove();
+    };
   }, [completeNextSet]);
 
   return null;

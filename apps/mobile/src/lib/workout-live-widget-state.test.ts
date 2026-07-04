@@ -91,9 +91,11 @@ describe("workout live widget state", () => {
       setId: "set-2",
       exerciseId: "ex-1",
       exerciseName: "Bench Press",
+      shortExerciseName: "Bench Press",
       setNumber: 2,
       weight: 80,
       reps: 8,
+      setLabel: "Set 2 • 80kg × 8 reps",
     });
   });
 
@@ -106,7 +108,7 @@ describe("workout live widget state", () => {
 
     assert.deepEqual(buildWorkoutNotificationText(summary), {
       title: "Push Strength • 12m",
-      body: "Next: Bench Press set 2 • 1/3 sets",
+      body: "Bench Press — Set 2 • 80kg × 8 reps • 1/3 sets",
     });
   });
 });

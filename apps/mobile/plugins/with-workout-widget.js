@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "2.3.0";
+const WIDGET_VERSION = "2.4.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -302,6 +302,38 @@ class KakWorkoutWidgetState {
     if (isResting()) return "Rest before next set";
     if (complete) return "All sets done";
     return repsCompleted + "/" + nextSetReps + " reps";
+  }
+
+  // ── Notification shade helpers ───────────────────────────────────────────
+
+  /** "Push Day A  ·  3:24" — small header line in notification big view. */
+  String workoutHeaderLabel() {
+    if (!active) return "";
+    return workoutName + "  ·  " + elapsedLabel;
+  }
+
+  /** Exercise name for the notification big view title line. */
+  String exerciseLabel() {
+    if (!active) return "No active workout";
+    if (complete) return "Workout complete  ✓";
+    return shortExerciseName;
+  }
+
+  /** "1:30" or "45s" — countdown label for rest timer display. */
+  String restTimerLabel() {
+    int secs = restSecondsLeft();
+    int m = secs / 60;
+    int s = secs % 60;
+    if (m > 0) return m + ":" + (s < 10 ? "0" + s : String.valueOf(s));
+    return secs + "s";
+  }
+
+  /** 0–100 progress where 100 = just started, 0 = done. */
+  int restTimerProgressPct() {
+    if (!isResting() || defaultRestSeconds <= 0) return 0;
+    long totalMs = (long) defaultRestSeconds * 1000L;
+    long remaining = restEndsAtMs - System.currentTimeMillis();
+    return (int) Math.max(0, Math.min(100, 100L * remaining / totalMs));
   }
 
   // Home-screen widget labels
@@ -657,21 +689,32 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.graphics.Color;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Handler;
-import android.content.pm.ServiceInfo;
 import android.os.IBinder;
 import android.os.Looper;
+import android.widget.RemoteViews;
 import ${packageName}.R;
 
 /**
- * Foreground service that owns the workout MediaStyle notification.
- * Replaces the old TYPE_APPLICATION_OVERLAY floating window approach.
- * MediaStyle gives automatic lockscreen controls + notification-shade controls.
+ * Foreground service that drives two surfaces:
+ *
+ *  1. Lock screen  — MediaSession / MediaStyle card (Android-native, same as Spotify).
+ *                    Buttons: +Rep | Done set | Skip rest (or Open when resting/done).
+ *                    Appearance is controlled by the OS, not by us.
+ *
+ *  2. Notification shade (expanded) — custom RemoteViews attached via
+ *                    setCustomBigContentView.  This is our rich card with
+ *                    workout header, exercise name, set detail, rest timer,
+ *                    and text buttons matching the home-screen widget style.
+ *
+ * Note: setCustomBigContentView does NOT affect the lock screen on Android 5+;
+ * that surface is always the MediaStyle card when a MediaSession is active.
  */
 public class KakWorkoutOverlayService extends Service {
   private static final String CHANNEL_ID = "kak_workout_live_v6";
@@ -757,23 +800,25 @@ public class KakWorkoutOverlayService extends Service {
   }
 
   private void postNotification(KakWorkoutWidgetState state) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      NotificationManager nm = getSystemService(NotificationManager.class);
-      if (nm != null) nm.notify(NOTIFICATION_ID, buildNotification(state));
-    }
+    NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+    if (nm != null) nm.notify(NOTIFICATION_ID, buildNotification(state));
   }
 
   private Notification buildNotification(KakWorkoutWidgetState state) {
     updateMediaSession(state);
 
+    int f = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+
+    // Tap the collapsed notification → open app
     Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
     PendingIntent piOpen = null;
     if (launch != null) {
-      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-      piOpen = PendingIntent.getActivity(this, 0, launch,
-        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP
+          | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+      piOpen = PendingIntent.getActivity(this, 0, launch, f);
     }
-    int f = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+
+    // Broadcast PendingIntents for action buttons
     PendingIntent piRep  = PendingIntent.getBroadcast(this, 2001,
       new Intent(this, KakWorkoutWidgetActionReceiver.class)
         .setAction(KakWorkoutWidgetState.ACTION_TICK_REP).setPackage(getPackageName()), f);
@@ -791,6 +836,7 @@ public class KakWorkoutOverlayService extends Service {
       builder = new Notification.Builder(this);
     }
 
+    // Collapsed line (shown when notification is minimised)
     builder
       .setContentTitle(state.barTitle())
       .setContentText(state.barSubtitle())
@@ -804,6 +850,14 @@ public class KakWorkoutOverlayService extends Service {
 
     if (piOpen != null) builder.setContentIntent(piOpen);
 
+    // ── Rich custom card in the expanded notification shade ──────────────────
+    // On Android 5+ with an active MediaSession, the lock screen shows the
+    // MediaStyle card regardless of setCustomBigContentView — so this only
+    // affects the pull-down notification shade.
+    RemoteViews bigView = buildBigView(state, piRep, piDone, piSkip, piOpen);
+    builder.setCustomBigContentView(bigView);
+
+    // ── MediaStyle actions for lock-screen card ──────────────────────────────
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && mediaSession != null) {
       if (state.isResting()) {
         builder.addAction(new Notification.Action.Builder(
@@ -831,7 +885,51 @@ public class KakWorkoutOverlayService extends Service {
           .setShowActionsInCompactView(0, 1, 2));
       }
     }
+
     return builder.build();
+  }
+
+  /**
+   * Builds the rich RemoteViews card shown in the expanded notification shade.
+   * This is NOT the lock-screen card — that is always the MediaStyle layout.
+   */
+  private RemoteViews buildBigView(
+      KakWorkoutWidgetState state,
+      PendingIntent piRep, PendingIntent piDone, PendingIntent piSkip,
+      PendingIntent piOpen) {
+
+    RemoteViews views = new RemoteViews(getPackageName(), R.layout.kak_workout_notification);
+
+    views.setTextViewText(R.id.kak_notif_workout_header, state.workoutHeaderLabel());
+    views.setTextViewText(R.id.kak_notif_exercise, state.exerciseLabel());
+    views.setTextViewText(R.id.kak_notif_set_detail, state.barSubtitle());
+
+    // Rest timer section
+    if (state.isResting()) {
+      views.setViewVisibility(R.id.kak_notif_rest_section, android.view.View.VISIBLE);
+      views.setTextViewText(R.id.kak_notif_rest_time, state.restTimerLabel());
+      views.setProgressBar(R.id.kak_notif_rest_progress, 100, state.restTimerProgressPct(), false);
+    } else {
+      views.setViewVisibility(R.id.kak_notif_rest_section, android.view.View.GONE);
+    }
+
+    // Show the correct button row
+    if (state.isResting()) {
+      views.setViewVisibility(R.id.kak_notif_work_row, android.view.View.GONE);
+      views.setViewVisibility(R.id.kak_notif_rest_row, android.view.View.VISIBLE);
+      views.setOnClickPendingIntent(R.id.kak_notif_skip, piSkip);
+      if (piOpen != null) views.setOnClickPendingIntent(R.id.kak_notif_open_rest, piOpen);
+    } else {
+      views.setViewVisibility(R.id.kak_notif_work_row, android.view.View.VISIBLE);
+      views.setViewVisibility(R.id.kak_notif_rest_row, android.view.View.GONE);
+      if (!state.complete && state.nextSetId != null && !state.nextSetId.isEmpty()) {
+        views.setOnClickPendingIntent(R.id.kak_notif_tick_rep, piRep);
+        views.setOnClickPendingIntent(R.id.kak_notif_complete, piDone);
+      }
+      if (piOpen != null) views.setOnClickPendingIntent(R.id.kak_notif_open, piOpen);
+    }
+
+    return views;
   }
 
   private void sendAction(String action) {
@@ -844,7 +942,7 @@ public class KakWorkoutOverlayService extends Service {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       NotificationChannel ch = new NotificationChannel(
         CHANNEL_ID, "Active workout", NotificationManager.IMPORTANCE_DEFAULT);
-      ch.setDescription("Workout controls on lock screen and notification shade");
+      ch.setDescription("Workout controls in notification shade and on lock screen");
       ch.setShowBadge(false);
       ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
       ch.enableVibration(false);
@@ -1058,6 +1156,238 @@ function writeNativeFiles(projectRoot, packageName) {
     <corners android:radius="999dp" />
     <solid android:color="#64748B" />
 </shape>
+`);
+
+  // Drawables used by kak_workout_notification.xml
+  write(path.join(res, "drawable/kak_notif_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <corners android:radius="0dp" />
+    <solid android:color="#0F172A" />
+</shape>
+`);
+  write(path.join(res, "drawable/kak_notif_open_btn.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <corners android:radius="12dp" />
+    <solid android:color="#1E293B" />
+    <stroke android:width="1dp" android:color="#2D4A6B" />
+</shape>
+`);
+  write(path.join(res, "drawable/kak_widget_rest_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <corners android:radius="12dp" />
+    <solid android:color="#042F2E" />
+    <stroke android:width="1dp" android:color="#065F46" />
+</shape>
+`);
+  write(path.join(res, "drawable/kak_widget_rest_progress.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape>
+            <corners android:radius="4dp" />
+            <solid android:color="#1E293B" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape>
+                <corners android:radius="4dp" />
+                <solid android:color="#10B981" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>
+`);
+
+  // Notification shade big-content layout
+  write(path.join(res, "layout/kak_workout_notification.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Custom big content view shown expanded in the notification shade.
+  NOT shown on the lock screen — that is driven by MediaSession / MediaStyle.
+  Uses RemoteViews-safe views only: LinearLayout, FrameLayout, TextView, ProgressBar.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingLeft="16dp"
+    android:paddingRight="16dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
+    android:background="@drawable/kak_notif_bg">
+
+    <TextView
+        android:id="@+id/kak_notif_workout_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#64748B"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.04" />
+
+    <TextView
+        android:id="@+id/kak_notif_exercise"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#F1F5F9"
+        android:textSize="19sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/kak_notif_set_detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#94A3B8"
+        android:textSize="12sp" />
+
+    <LinearLayout
+        android:id="@+id/kak_notif_rest_section"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="vertical"
+        android:background="@drawable/kak_widget_rest_bg"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:id="@+id/kak_notif_rest_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="5dp"
+            android:progressDrawable="@drawable/kak_widget_rest_progress"
+            android:max="100"
+            android:progress="100" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="REST"
+                android:textColor="#6EE7B7"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.10" />
+
+            <TextView
+                android:id="@+id/kak_notif_rest_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#10B981"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="4dp"
+        android:background="#1E293B" />
+
+    <!-- Work mode buttons: + Rep  Done set  Open -->
+    <LinearLayout
+        android:id="@+id/kak_notif_work_row"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal"
+        android:visibility="visible">
+
+        <TextView
+            android:id="@+id/kak_notif_tick_rep"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:background="@drawable/kak_widget_primary_button"
+            android:text="+ Rep"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/kak_notif_complete"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginLeft="8dp"
+            android:gravity="center"
+            android:background="@drawable/kak_widget_set_button"
+            android:text="Done set"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/kak_notif_open"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginLeft="8dp"
+            android:gravity="center"
+            android:background="@drawable/kak_notif_open_btn"
+            android:text="Open"
+            android:textColor="#CBD5E1"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Rest mode buttons: Skip rest  Open -->
+    <LinearLayout
+        android:id="@+id/kak_notif_rest_row"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/kak_notif_skip"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:background="@drawable/kak_widget_skip_button"
+            android:text="Skip rest"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/kak_notif_open_rest"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginLeft="8dp"
+            android:gravity="center"
+            android:background="@drawable/kak_notif_open_btn"
+            android:text="Open"
+            android:textColor="#CBD5E1"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>
 `);
 }
 

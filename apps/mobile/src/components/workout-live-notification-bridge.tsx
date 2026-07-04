@@ -15,6 +15,7 @@ import {
   clearPendingWorkoutWidgetSyncSetIds,
   getPendingWorkoutWidgetSyncSetIds,
   removePendingWorkoutWidgetSyncSetId,
+  refreshWorkoutNativeLockscreen,
   setWorkoutNativeWidgetControlsVisible,
   tickWorkoutNativeWidgetRep,
   updateWorkoutNativeWidget,
@@ -182,6 +183,7 @@ export function WorkoutLiveNotificationBridge() {
 
     pushNativeWorkoutState();
     if (Platform.OS === "android") {
+      refreshWorkoutNativeLockscreen();
       if (isAppMinimized(AppState.currentState)) {
         syncWidgetVisibility(AppState.currentState);
       } else if (isAppInForeground()) {
@@ -195,6 +197,11 @@ export function WorkoutLiveNotificationBridge() {
       );
     }
   }, [hideForegroundWidgetControls, pushNativeWorkoutState, syncWidgetVisibility, widgetSummary]);
+
+  useEffect(() => {
+    if (!widgetSummary || Platform.OS !== "android") return;
+    void requestWorkoutNotificationPermissionOnce();
+  }, [widgetSummary?.workoutId]);
 
   const completeSetById = useCallback(
     async (setIdFromWidget?: string) => {

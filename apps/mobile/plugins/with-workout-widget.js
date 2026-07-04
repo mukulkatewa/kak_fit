@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "2.6.1";
+const WIDGET_VERSION = "2.6.2";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -491,7 +491,6 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   }
 
   static void refreshBackgroundSurfacesIfVisible(Context context) {
-    refreshNotificationIfVisible(context);
     KakWorkoutFloatingOverlayService.update(context);
   }
 
@@ -570,15 +569,8 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
     editor.apply();
 
     KakWorkoutWidgetProvider.updateAll(context);
-    refreshBackgroundSurfacesIfVisible(context);
-  }
-
-  /** Refresh lockscreen/notification only when controls are visible (app minimized). */
-  static void refreshNotificationIfVisible(Context context) {
-    SharedPreferences prefs = context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
-    if (!prefs.getBoolean("active", false)) return;
-    if (!prefs.getBoolean("controlsVisible", false)) return;
     refreshNotification(context);
+    refreshBackgroundSurfacesIfVisible(context);
   }
 
   @ReactMethod
@@ -589,10 +581,8 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
     KakWorkoutWidgetState.setControlsVisible(context, visible);
     KakWorkoutWidgetProvider.updateAll(context);
     if (visible) {
-      refreshNotification(context);
       KakWorkoutFloatingOverlayService.show(context);
     } else {
-      stopNotification(context);
       KakWorkoutFloatingOverlayService.hide(context);
     }
   }
@@ -622,15 +612,15 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       .putLong("restEndsAtMs", System.currentTimeMillis() + seconds * 1000L)
       .putInt("repsCompleted", 0)
       .apply();
+    refreshNotification(context);
     refreshBackgroundSurfacesIfVisible(context);
     KakWorkoutWidgetProvider.updateAll(context);
   }
 
-  /** Start or refresh the foreground notification service (only when controls visible). */
+  /** Start or refresh the lockscreen / notification-shade foreground service while a workout is active. */
   static void refreshNotification(Context context) {
     SharedPreferences prefs = context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
     if (!prefs.getBoolean("active", false)) return;
-    if (!prefs.getBoolean("controlsVisible", false)) return;
     try {
       Intent intent = new Intent(context, KakWorkoutOverlayService.class)
         .setAction(KakWorkoutWidgetState.ACTION_REFRESH);
@@ -667,7 +657,22 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void refreshLockscreen() {
-    refreshNotificationIfVisible(getReactApplicationContext());
+    refreshNotification(getReactApplicationContext());
+  }
+
+  @ReactMethod
+  public void canDrawOverlays(com.facebook.react.bridge.Promise promise) {
+    promise.resolve(KakWorkoutFloatingOverlayService.canDraw(getReactApplicationContext()));
+  }
+
+  @ReactMethod
+  public void openOverlaySettings() {
+    android.content.Intent intent = new android.content.Intent(
+      android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+      android.net.Uri.parse("package:" + getReactApplicationContext().getPackageName())
+    );
+    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+    getReactApplicationContext().startActivity(intent);
   }
 
   @ReactMethod
@@ -894,7 +899,7 @@ public class KakWorkoutOverlayService extends Service {
   private final Runnable tickRunnable = new Runnable() {
     @Override public void run() {
       KakWorkoutWidgetState state = KakWorkoutWidgetState.read(KakWorkoutOverlayService.this);
-      if (!state.active || !state.controlsVisible) { stopSelf(); return; }
+      if (!state.active) { stopSelf(); return; }
       postNotification(state);
       if (state.isResting()) {
         handler.postDelayed(this, 1000L);
@@ -932,7 +937,7 @@ public class KakWorkoutOverlayService extends Service {
 
     SharedPreferences prefs = getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
     KakWorkoutWidgetState state = KakWorkoutWidgetState.read(this);
-    if (!state.active || !prefs.getBoolean("controlsVisible", false)) {
+    if (!state.active) {
       handler.removeCallbacks(tickRunnable);
       stopSelf();
       return START_NOT_STICKY;

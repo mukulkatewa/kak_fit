@@ -12,6 +12,8 @@ type NativeWorkoutWidget = {
   startRestTimer?: (seconds: number) => void;
   refreshLockscreen?: () => void;
   setControlsVisible?: (visible: boolean) => void;
+  canDrawOverlays?: () => Promise<boolean>;
+  openOverlaySettings?: () => void;
   getPendingSyncSetIds?: () => Promise<string[]>;
   clearPendingSyncSetIds?: () => void;
   removePendingSyncSetId?: (setId: string) => void;
@@ -28,7 +30,7 @@ export function workoutNativeWidgetAvailable() {
   return Boolean(nativeModule());
 }
 
-/** Sync workout state to native prefs + home-screen widget (does not start lockscreen). */
+/** Sync workout state to native prefs + home-screen widget. */
 export function updateWorkoutNativeWidget(summary: WorkoutWidgetSummary) {
   nativeModule()?.update?.(summary);
 }
@@ -38,14 +40,28 @@ export function clearWorkoutNativeWidget() {
   nativeModule()?.clear?.();
 }
 
-/** Show or hide lockscreen notification + widget action buttons. */
+/** Show or hide floating overlay + home-screen widget action buttons (background only). */
 export function setWorkoutNativeWidgetControlsVisible(visible: boolean) {
   nativeModule()?.setControlsVisible?.(visible);
 }
 
-/** Refresh lockscreen notification if controls are visible (app minimized). */
+/** Refresh lockscreen notification + notification shade (runs while workout is active). */
 export function refreshWorkoutNativeLockscreen() {
   nativeModule()?.refreshLockscreen?.();
+}
+
+export async function canDrawWorkoutOverlay() {
+  const module = nativeModule();
+  if (!module?.canDrawOverlays) return false;
+  try {
+    return (await module.canDrawOverlays()) === true;
+  } catch {
+    return false;
+  }
+}
+
+export function openWorkoutOverlaySettings() {
+  nativeModule()?.openOverlaySettings?.();
 }
 
 export async function getPendingWorkoutWidgetSyncSetIds() {

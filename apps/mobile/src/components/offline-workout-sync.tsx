@@ -22,7 +22,7 @@ export function OfflineWorkoutSync() {
       const result = await syncQueuedWorkoutMutations({
         invalidateActiveWorkout: () => utils.workout.active.invalidate(),
       });
-      if (result.synced > 0 || result.dropped > 0) {
+      if (result.synced > 0 || result.failed > 0) {
         await Promise.all([
           utils.workout.active.invalidate(),
           utils.workout.history.invalidate(),

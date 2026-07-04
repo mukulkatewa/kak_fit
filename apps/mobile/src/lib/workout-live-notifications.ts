@@ -52,18 +52,22 @@ export async function registerWorkoutNotificationSurface() {
     });
   }
 
-  await Notifications.setNotificationCategoryAsync(WORKOUT_NOTIFICATION_CATEGORY, [
-    {
-      identifier: COMPLETE_NEXT_SET_ACTION,
-      buttonTitle: "Tick rep",
-      options: { opensAppToForeground: true, isAuthenticationRequired: false },
-    },
-    {
-      identifier: OPEN_WORKOUT_ACTION,
-      buttonTitle: "Open",
-      options: { opensAppToForeground: true, isAuthenticationRequired: false },
-    },
-  ]);
+  if (Platform.OS === "ios") {
+    await Notifications.setNotificationCategoryAsync(WORKOUT_NOTIFICATION_CATEGORY, [
+      {
+        identifier: COMPLETE_NEXT_SET_ACTION,
+        buttonTitle: "Tick rep",
+        options: { opensAppToForeground: true, isAuthenticationRequired: false },
+      },
+      {
+        identifier: OPEN_WORKOUT_ACTION,
+        buttonTitle: "Open",
+        options: { opensAppToForeground: true, isAuthenticationRequired: false },
+      },
+    ]);
+  }
+  // Android: notification actions are handled by the native KakWorkoutOverlayService
+  // via PendingIntents and BroadcastReceiver — no JS category needed.
 }
 
 export async function hasWorkoutNotificationPermission() {
@@ -90,6 +94,7 @@ export async function requestWorkoutNotificationPermissionOnce() {
 }
 
 export async function showWorkoutNotification(summary: WorkoutWidgetSummary) {
+  if (Platform.OS !== "ios") return; // Android uses the native FGS notification
   if (!notificationsAvailable()) return;
   await registerWorkoutNotificationSurface();
   if (!(await hasWorkoutNotificationPermission())) return;
@@ -115,11 +120,12 @@ export async function showWorkoutNotification(summary: WorkoutWidgetSummary) {
       priority: Notifications.AndroidNotificationPriority.HIGH,
       interruptionLevel: "active",
     },
-    trigger: Platform.OS === "android" ? { channelId: WORKOUT_NOTIFICATION_CHANNEL_ID } : null,
+    trigger: null,
   });
 }
 
 export async function dismissWorkoutNotification() {
+  if (Platform.OS !== "ios") return;
   if (!notificationsAvailable()) return;
   await Notifications.dismissNotificationAsync(WORKOUT_NOTIFICATION_ID).catch(() => undefined);
 }

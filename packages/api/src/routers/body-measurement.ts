@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { optionalIsoDateSchema } from "../lib/date-validation";
 import { protectedProcedure, router } from "../trpc";
 
 export const bodyMeasurementRouter = router({
@@ -47,7 +48,7 @@ export const bodyMeasurementRouter = router({
         waist: z.number().positive().optional(),
         chest: z.number().positive().optional(),
         arms: z.number().positive().optional(),
-        date: z.string().datetime().optional(),
+        date: optionalIsoDateSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -58,7 +59,7 @@ export const bodyMeasurementRouter = router({
       return ctx.prisma.bodyMeasurement.create({
         data: {
           userId: ctx.user.id,
-          date: input.date ? new Date(input.date) : new Date(),
+          date: input.date ?? new Date(),
           weight: input.weight,
           bodyFat: input.bodyFat,
           waist: input.waist,

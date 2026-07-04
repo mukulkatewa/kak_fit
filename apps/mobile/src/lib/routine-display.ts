@@ -1,7 +1,7 @@
 import type { RouterOutputs } from "@kak-fit/api/router";
 import { formatWeight, weightLabel, type WeightUnit } from "./units";
 
-type RoutineListBase = RouterOutputs["routine"]["list"][number];
+type RoutineListBase = RouterOutputs["routine"]["list"]["routines"][number];
 
 export type RoutineListItem = RoutineListBase & {
   exercises?: Array<{

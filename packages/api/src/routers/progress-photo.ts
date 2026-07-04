@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { rateLimit } from "../lib/rate-limiter";
 import { protectedProcedure, router } from "../trpc";
 import { deleteImage, isStorageConfigured, uploadImage } from "../services/storage";
 
@@ -35,6 +36,14 @@ export const progressPhotoRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const uploadAllowed = rateLimit(ctx.user.id, "upload", { limit: 5, windowMs: 60_000 });
+      if (!uploadAllowed) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "Upload limit reached. Wait a minute and try again.",
+        });
+      }
+
       if (!isStorageConfigured()) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",

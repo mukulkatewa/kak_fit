@@ -3,7 +3,10 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import {
   enqueueWorkoutMutation,
+  getFailedMutations,
   isNetworkError,
+  retryFailedMutations,
+  syncQueuedWorkoutMutations,
 } from "../lib/offline-workouts";
 import { applySetPatchToWorkout, patchSetInWorkout, type ActiveWorkout } from "../lib/active-workout-cache";
 import { useAuth } from "../lib/auth-context";
@@ -37,6 +40,7 @@ import {
 import { useRestTimer } from "../lib/rest-timer";
 import { useUserPreferences } from "../lib/use-preferences";
 import type { WeightUnit } from "../lib/units";
+import { showAppToast } from "./ui";
 
 const BACKGROUND_WIDGET_DELAY_MS = 300;
 
@@ -274,15 +278,38 @@ export function WorkoutLiveNotificationBridge() {
   useEffect(() => {
     if (!widgetSummary) return;
 
+    const notifyFailedMutations = () => {
+      void (async () => {
+        const failed = await getFailedMutations();
+        if (failed.length === 0) return;
+        const count = failed.length;
+        showAppToast(
+          `${count} workout change${count > 1 ? "s" : ""} couldn't sync. Tap to retry.`,
+          "error",
+          {
+            onPress: async () => {
+              await retryFailedMutations();
+              await syncQueuedWorkoutMutations({
+                invalidateActiveWorkout: () => utils.workout.active.invalidate(),
+              });
+              await flushPendingWidgetSyncRef.current?.();
+            },
+          },
+        );
+      })();
+    };
+
     const handleAppState = (nextState: AppStateStatus) => {
       syncWidgetVisibility(nextState);
       if (isAppInForeground(nextState)) {
         void flushPendingWidgetSyncRef.current?.();
+        notifyFailedMutations();
       }
     };
 
     if (isAppInForeground()) {
       void flushPendingWidgetSyncRef.current?.();
+      notifyFailedMutations();
     }
 
     const subscription = AppState.addEventListener("change", handleAppState);
@@ -293,7 +320,7 @@ export function WorkoutLiveNotificationBridge() {
         backgroundWidgetTimerRef.current = null;
       }
     };
-  }, [syncWidgetVisibility, widgetSummary]);
+  }, [syncWidgetVisibility, utils.workout.active, widgetSummary]);
 
   useEffect(() => {
     const subscription = addWorkoutWidgetCompleteSetListener(async (setId) => {

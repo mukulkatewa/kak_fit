@@ -28,7 +28,8 @@ export default function ProgramDetailScreen() {
   const router = useRouter();
   const utils = trpc.useUtils();
   const program = getProgram(id ?? "");
-  const { data: savedRoutines } = trpc.routine.list.useQuery();
+  const { data: savedRoutineList } = trpc.routine.list.useQuery({ limit: 50 });
+  const savedRoutines = savedRoutineList?.routines;
   const [isStarting, setIsStarting] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
   const [startingTemplateName, setStartingTemplateName] = useState<string | null>(null);

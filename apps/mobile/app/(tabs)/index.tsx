@@ -383,13 +383,14 @@ function DashboardScreen() {
       staleTime: queryStaleTime.weeklyVolume,
     });
   const {
-    data: routines,
+    data: routineList,
     isPending: routinesPending,
     isError: routinesError,
     refetch: refetchRoutines,
-  } = trpc.routine.list.useQuery(undefined, {
+  } = trpc.routine.list.useQuery({ limit: 50 }, {
     staleTime: queryStaleTime.routineList,
   });
+  const routines = routineList?.routines;
 
   const statsLoading = isAuthenticated && statsPending && stats === undefined;
   const statsValue = (n: number | undefined) => {
@@ -503,7 +504,9 @@ function DashboardScreen() {
       ? "Loading…"
       : (routines?.length ?? 0) === 0
         ? "No routines yet — tap to create"
-        : `${routines!.length} routine${routines!.length === 1 ? "" : "s"}`;
+        : stats?.routineCount != null
+          ? `${stats.routineCount} routine${stats.routineCount === 1 ? "" : "s"}`
+          : `${routines!.length} routine${routines!.length === 1 ? "" : "s"}`;
 
   const statItems = [
     {

@@ -3,6 +3,7 @@ import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import { prisma, type User } from "@kak-fit/db";
+import { rateLimit } from "./lib/rate-limiter";
 
 export type TRPCContext = {
   prisma: typeof prisma;
@@ -14,11 +15,26 @@ type CachedContextUser = { user: User; sessionExpiresAt: Date; cacheExpiresAt: n
 
 const SESSION_CACHE_TTL_MS = 30_000;
 const sessionUserCache = new Map<string, CachedContextUser>();
+const revokedTokens = new Set<string>();
 
-function extractBearerToken(authHeader?: string | null) {
+// Auto-clean every 5 minutes (tokens older than cache TTL are safe to remove)
+setInterval(() => {
+  revokedTokens.clear();
+}, 5 * 60 * 1000);
+
+export function parseBearerSessionToken(authHeader?: string | null) {
   if (!authHeader?.startsWith("Bearer ")) return null;
   const raw = authHeader.slice(7);
   return raw.includes(".") ? raw.split(".")[0] : raw;
+}
+
+export function revokeSessionToken(token: string): void {
+  revokedTokens.add(token);
+  sessionUserCache.delete(token);
+}
+
+function extractBearerToken(authHeader?: string | null) {
+  return parseBearerSessionToken(authHeader);
 }
 
 function getCachedUser(token: string) {
@@ -58,6 +74,10 @@ export const createTRPCContext = async (
   let user: User | null = null;
 
   if (sessionToken) {
+    if (revokedTokens.has(sessionToken)) {
+      return { prisma, user: null, sessionToken };
+    }
+
     user = getCachedUser(sessionToken);
     if (!user) {
       const session = await prisma.session.findUnique({
@@ -86,6 +106,15 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in required" });
   }
+
+  const allowed = rateLimit(ctx.user.id, "default", { limit: 60, windowMs: 60_000 });
+  if (!allowed) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "Rate limit exceeded. Please slow down.",
+    });
+  }
+
   return next({
     ctx: {
       ...ctx,

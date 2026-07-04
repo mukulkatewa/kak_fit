@@ -1,7 +1,8 @@
 import { Prisma } from "@kak-fit/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { protectedProcedure, router } from "../trpc";
+import { rateLimit } from "../lib/rate-limiter";
+import { protectedProcedure, revokeSessionToken, router } from "../trpc";
 
 const userSelect = {
   id: true,
@@ -16,6 +17,13 @@ const userSelect = {
 } as const;
 
 export const authRouter = router({
+  signOut: protectedProcedure.mutation(({ ctx }) => {
+    if (ctx.sessionToken) {
+      revokeSessionToken(ctx.sessionToken);
+    }
+    return { success: true as const };
+  }),
+
   me: protectedProcedure.query(async ({ ctx }) => {
     const user = await ctx.prisma.user.findUnique({
       where: { id: ctx.user.id },

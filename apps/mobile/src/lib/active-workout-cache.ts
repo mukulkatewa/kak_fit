@@ -84,6 +84,10 @@ export function addExerciseToWorkout(workout: ActiveWorkout, exercise: WorkoutEx
   };
 }
 
+export function isUnsyncedId(id: string) {
+  return id.startsWith("offline-") || id.startsWith("temp-");
+}
+
 function uniqueId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }

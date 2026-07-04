@@ -301,12 +301,13 @@ export default function WorkoutTabScreen() {
   };
 
   const {
-    data: routines,
+    data: routineList,
     isError: isRoutinesError,
     refetch: refetchRoutines,
-  } = trpc.routine.list.useQuery(undefined, {
+  } = trpc.routine.list.useQuery({ limit: 50 }, {
     staleTime: queryStaleTime.routineList,
   });
+  const routines = routineList?.routines;
   const {
     data: historyPages,
     isError: isRecentError,
@@ -602,9 +603,13 @@ export default function WorkoutTabScreen() {
             </ListGroup>
           )}
 
-          {(routines?.length ?? 0) > ROUTINE_PREVIEW ? (
+          {(routines?.length ?? 0) > ROUTINE_PREVIEW || routineList?.nextCursor ? (
             <HevyOutlineButton
-              label={`View all ${routines!.length} routines`}
+              label={
+                routineList?.nextCursor
+                  ? "View all routines"
+                  : `View all ${routines!.length} routines`
+              }
               onPress={() => router.push("/workout/my-routines")}
             />
           ) : (

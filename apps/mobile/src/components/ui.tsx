@@ -1244,7 +1244,8 @@ type ToastStore = {
   visible: boolean;
   message: string;
   type: ToastType;
-  showToast: (message: string, type?: ToastType) => void;
+  onPress: (() => void) | null;
+  showToast: (message: string, type?: ToastType, options?: { onPress?: () => void }) => void;
   hideToast: () => void;
 };
 
@@ -1254,18 +1255,20 @@ const useToastStore = create<ToastStore>((set) => ({
   visible: false,
   message: "",
   type: "info",
-  showToast: (message, type = "info") => {
+  onPress: null,
+  showToast: (message, type = "info", options) => {
     if (toastHideTimer) clearTimeout(toastHideTimer);
-    set({ visible: true, message, type });
+    set({ visible: true, message, type, onPress: options?.onPress ?? null });
+    const duration = options?.onPress ? 8000 : 2500;
     toastHideTimer = setTimeout(() => {
-      set({ visible: false });
+      set({ visible: false, onPress: null });
       toastHideTimer = null;
-    }, 2500);
+    }, duration);
   },
   hideToast: () => {
     if (toastHideTimer) clearTimeout(toastHideTimer);
     toastHideTimer = null;
-    set({ visible: false });
+    set({ visible: false, onPress: null });
   },
 }));
 
@@ -1291,8 +1294,12 @@ export function useToast() {
 }
 
 /** Imperative toast for modules outside React (e.g. auth refresh). */
-export function showAppToast(message: string, type: ToastType = "info") {
-  useToastStore.getState().showToast(message, type);
+export function showAppToast(
+  message: string,
+  type: ToastType = "info",
+  options?: { onPress?: () => void },
+) {
+  useToastStore.getState().showToast(message, type, options);
 }
 
 export function ToastContainer() {
@@ -1301,6 +1308,8 @@ export function ToastContainer() {
   const visible = useToastStore((s) => s.visible);
   const message = useToastStore((s) => s.message);
   const type = useToastStore((s) => s.type);
+  const onPress = useToastStore((s) => s.onPress);
+  const hideToast = useToastStore((s) => s.hideToast);
   const opacity = useRef(new RNAnimated.Value(0)).current;
   const [mounted, setMounted] = useState(false);
 
@@ -1327,7 +1336,7 @@ export function ToastContainer() {
 
   return (
     <RNAnimated.View
-      pointerEvents="none"
+      pointerEvents="box-none"
       style={{
         position: "absolute",
         bottom: insets.bottom + 16,
@@ -1335,26 +1344,36 @@ export function ToastContainer() {
         right: 16,
         opacity,
         zIndex: 1000,
-        backgroundColor,
-        borderRadius: radius.lg,
-        borderWidth,
-        borderColor,
-        paddingVertical: spacing.md,
-        paddingHorizontal: spacing.lg,
-        ...shadows.md,
       }}
     >
-      <Text
+      <Pressable
+        onPress={() => {
+          if (!onPress) return;
+          hideToast();
+          onPress();
+        }}
         style={{
-          color: textColor,
-          textAlign: "center",
-          fontSize: 15,
-          fontWeight: "600",
-          lineHeight: 20,
+          backgroundColor,
+          borderRadius: radius.lg,
+          borderWidth,
+          borderColor,
+          paddingVertical: spacing.md,
+          paddingHorizontal: spacing.lg,
+          ...shadows.md,
         }}
       >
-        {message}
-      </Text>
+        <Text
+          style={{
+            color: textColor,
+            textAlign: "center",
+            fontSize: 15,
+            fontWeight: "600",
+            lineHeight: 20,
+          }}
+        >
+          {message}
+        </Text>
+      </Pressable>
     </RNAnimated.View>
   );
 }

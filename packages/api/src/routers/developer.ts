@@ -39,7 +39,7 @@ export const developerRouter = router({
       });
       if (activeCount >= 5) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
+          code: "CONFLICT",
           message: "Maximum 5 active API keys",
         });
       }

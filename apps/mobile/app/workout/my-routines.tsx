@@ -21,6 +21,7 @@ import { RoutineExpandableRow } from "../../src/components/routine-expandable-ro
 import { HevyIconButton, HevyStackHeader } from "../../src/components/hevy-ui";
 import { Screen } from "../../src/components/ui";
 import { formatRoutineExerciseDetail } from "../../src/lib/routine-display";
+import { flattenRoutines, useRoutineListInfinite } from "../../src/lib/routine-list-query";
 import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
@@ -30,9 +31,9 @@ import { workoutTextStyles } from "../../src/lib/workout-common";
 import { flexFill, TOUCH_TARGET_MIN, webFlexScreen } from "../../src/lib/layout-constants";
 import { openExerciseDetail } from "../../src/lib/exercise-navigation";
 import { getExerciseMediaUrl } from "../../src/lib/exercise-media";
-import type { RouterOutputs } from "@kak-fit/api/router";
+import type { RoutineListItem } from "../../src/lib/routine-list-query";
 
-type RoutineItem = RouterOutputs["routine"]["list"][number];
+type RoutineItem = RoutineListItem;
 
 export default function MyRoutinesScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -42,7 +43,16 @@ export default function MyRoutinesScreen() {
   const utils = trpc.useUtils();
   const { showToast } = useToast();
   const { weightUnit } = useUserPreferences();
-  const { data: routines, isPending, isError, refetch } = trpc.routine.list.useQuery();
+  const {
+    data: routinePages,
+    isPending,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useRoutineListInfinite();
+  const routines = useMemo(() => flattenRoutines(routinePages?.pages), [routinePages]);
   const { data: folders } = trpc.routine.folders.useQuery();
 
   const [folderModal, setFolderModal] = useState<{ mode: "create" | "rename"; id?: string } | null>(null);
@@ -288,6 +298,20 @@ export default function MyRoutinesScreen() {
                 {(folders ?? []).length > 0 ? <Text style={styles.ungroupedLabel}>Ungrouped</Text> : null}
                 {ungrouped.map((item, index) => renderRoutine(item, index, ungrouped.length))}
               </View>
+            ) : null}
+
+            {hasNextPage ? (
+              <Pressable
+                style={styles.loadMoreBtn}
+                onPress={() => void fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? (
+                  <ActivityIndicator color={colors.accent} size="small" />
+                ) : (
+                  <Text style={styles.loadMoreText}>Load more routines</Text>
+                )}
+              </Pressable>
             ) : null}
           </View>
         )}
@@ -539,6 +563,13 @@ const makeStyles = (colors: Palette) =>
     folderEmpty: { ...workoutTextStyles.folderEmpty, color: colors.textDim, paddingLeft: spacing.sm },
     ungroupedLabel: { ...workoutTextStyles.ungroupedLabel, color: colors.textMuted },
     routineWrap: { gap: spacing.sm },
+    loadMoreBtn: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: spacing.md,
+      minHeight: 44,
+    },
+    loadMoreText: { ...typography.label, color: colors.accent, fontWeight: "600" },
     actions: { flexDirection: "row", gap: spacing.lg, paddingHorizontal: spacing.sm, flexWrap: "wrap" },
     actionBtn: {
       flexDirection: "row",

@@ -22,6 +22,7 @@ import { ExerciseAvatar } from "../../src/components/exercise-avatar";
 import {
   addExerciseToWorkout,
   createOptimisticExercise,
+  isUnsyncedId,
   patchExerciseNotes,
   reorderExercisesInWorkout,
   type ActiveWorkout,
@@ -46,8 +47,11 @@ import { useUserPreferences } from "../../src/lib/use-preferences";
 import { fromKg, sumWorkoutSetVolume, toKg, tonnageFromKg, weightLabel } from "../../src/lib/units";
 import { formatRestTime, useRestTimer } from "../../src/lib/rest-timer";
 import {
+  clearPendingFinishWorkout,
   enqueueWorkoutMutation,
+  getPendingNotesExerciseIds,
   getQueuedWorkoutMutationCount,
+  hasPendingFinishWorkout,
   isNetworkError,
   syncQueuedWorkoutMutations,
 } from "../../src/lib/offline-workouts";
@@ -117,6 +121,7 @@ function exercisesToSuperLinks(exercises: ActiveWorkout["exercises"]): boolean[]
 
 function ActiveWorkoutScreen() {
   const mounted = useRef(true);
+  const prevWorkoutIdRef = useRef<string | undefined>(undefined);
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const { weightUnit, defaultRestSeconds } = useUserPreferences();
@@ -136,6 +141,8 @@ function ActiveWorkoutScreen() {
   const [finishName, setFinishName] = useState("");
   const [finishNotes, setFinishNotes] = useState("");
   const [pendingOffline, setPendingOffline] = useState(0);
+  const [isFinishPending, setIsFinishPending] = useState(false);
+  const [notesPendingSync, setNotesPendingSync] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [reorderMode, setReorderMode] = useState(false);
@@ -163,6 +170,19 @@ function ActiveWorkoutScreen() {
     return () => {
       mounted.current = false;
     };
+  }, []);
+
+  useEffect(() => {
+    void hasPendingFinishWorkout().then((pending) => {
+      if (mounted.current) {
+        setIsFinishPending(pending);
+      }
+    });
+    void getPendingNotesExerciseIds().then((ids) => {
+      if (mounted.current) {
+        setNotesPendingSync(new Set(ids));
+      }
+    });
   }, []);
 
   const exerciseIds = useMemo(
@@ -202,6 +222,23 @@ function ActiveWorkoutScreen() {
   const { secondsLeft, isRunning, start, tick, stop, setDefault, addSeconds } = useRestTimer();
 
   useEffect(() => {
+    const prevId = prevWorkoutIdRef.current;
+    prevWorkoutIdRef.current = workout?.id;
+
+    if (!prevId || workout) return;
+
+    void (async () => {
+      const finishStillPending = await hasPendingFinishWorkout();
+      if (!mounted.current) return;
+      setIsFinishPending(finishStillPending);
+      if (!finishStillPending) {
+        stop();
+        router.replace("/(tabs)/workout");
+      }
+    })();
+  }, [workout, router, stop]);
+
+  useEffect(() => {
     if (!isRunning) {
       return undefined;
     }
@@ -226,10 +263,12 @@ function ActiveWorkoutScreen() {
 
       try {
         const before = await getQueuedWorkoutMutationCount();
+        const finishPendingBefore = await hasPendingFinishWorkout();
         if (!syncMounted) return;
 
         if (mounted.current) {
           setPendingOffline(before);
+          setIsFinishPending(finishPendingBefore);
         }
 
         const result = await syncQueuedWorkoutMutations({
@@ -238,8 +277,26 @@ function ActiveWorkoutScreen() {
 
         if (!syncMounted) return;
 
+        const finishPendingAfter = await hasPendingFinishWorkout();
+        const pendingNotes = await getPendingNotesExerciseIds();
         if (mounted.current) {
           setPendingOffline(result.remaining);
+          setIsFinishPending(finishPendingAfter);
+          setNotesPendingSync(new Set(pendingNotes));
+        }
+
+        if (finishPendingBefore && !finishPendingAfter) {
+          stop();
+          await utils.workout.active.invalidate();
+          utils.workout.history.invalidate();
+          utils.personalRecord.list.invalidate();
+          utils.progress.dashboard.invalidate();
+          utils.progress.volumeHistory.invalidate();
+          utils.progress.muscleDistribution.invalidate();
+          utils.progress.screen.invalidate();
+          utils.auth.stats.invalidate();
+          router.replace("/(tabs)/workout");
+          return;
         }
 
         if (result.synced > 0) {
@@ -267,7 +324,7 @@ function ActiveWorkoutScreen() {
       syncMounted = false;
       if (syncTimer) clearTimeout(syncTimer);
     };
-  }, [refetch, utils, showToast]);
+  }, [refetch, router, stop, utils, showToast]);
 
   const patchActiveWorkout = useCallback(
     (updater: (workout: ActiveWorkout) => ActiveWorkout) => {
@@ -321,6 +378,11 @@ function ActiveWorkoutScreen() {
   const updateExerciseNotes = trpc.workout.updateExerciseNotes.useMutation({
     onSuccess: (_updated, { workoutExerciseId, notes }) => {
       patchActiveWorkout((workout) => patchExerciseNotes(workout, workoutExerciseId, notes));
+      setNotesPendingSync((prev) => {
+        const next = new Set(prev);
+        next.delete(workoutExerciseId);
+        return next;
+      });
     },
     onError: async (e, variables) => {
       if (!isNetworkError(e)) {
@@ -328,6 +390,10 @@ function ActiveWorkoutScreen() {
         return;
       }
       await enqueueWorkoutMutation("updateExerciseNotes", variables);
+      patchActiveWorkout((workout) =>
+        patchExerciseNotes(workout, variables.workoutExerciseId, variables.notes),
+      );
+      setNotesPendingSync((prev) => new Set([...prev, variables.workoutExerciseId]));
       setPendingOffline(await getQueuedWorkoutMutationCount());
     },
   });
@@ -418,8 +484,10 @@ function ActiveWorkoutScreen() {
   });
 
   const finish = trpc.workout.finish.useMutation({
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setFinishOpen(false);
+      setIsFinishPending(false);
+      await clearPendingFinishWorkout();
       utils.workout.active.invalidate();
       utils.workout.history.invalidate();
       utils.personalRecord.list.invalidate();
@@ -435,11 +503,19 @@ function ActiveWorkoutScreen() {
         showToast(e.message, "error");
         return;
       }
-      await enqueueWorkoutMutation("finishWorkout", variables);
-      utils.workout.active.setData(undefined, null);
+      const alreadyPending = await hasPendingFinishWorkout();
+      if (!alreadyPending) {
+        await enqueueWorkoutMutation("finishWorkout", variables);
+      }
+      setFinishOpen(false);
+      setIsFinishPending(true);
       setPendingOffline(await getQueuedWorkoutMutationCount());
-      showToast("Saved offline — will sync when you're back online.", "info");
-      router.back();
+      showToast(
+        alreadyPending
+          ? "Workout finish is still pending sync — your data is safe."
+          : "Saved offline — will sync when you're back online.",
+        "info",
+      );
     },
   });
 
@@ -555,8 +631,8 @@ function ActiveWorkoutScreen() {
         <View style={{ alignItems: "center", marginTop: 64, gap: spacing.lg, paddingHorizontal: spacing.xl }}>
           <Ionicons name="barbell-outline" size={48} color={colors.textDim} />
           <Text style={styles.workoutTitle}>No active workout</Text>
-          <Text style={styles.meta}>Start one from the Home or Workout tab.</Text>
-          <Button label="Go back" onPress={() => router.back()} />
+          <Text style={styles.meta}>Tap the + button on the Workout tab to start a new session.</Text>
+          <Button label="Go to Workout tab" onPress={() => router.replace("/(tabs)/routines")} />
         </View>
       </Screen>
     );
@@ -605,6 +681,15 @@ function ActiveWorkoutScreen() {
           </View>
         </Pressable>
       </View>
+
+      {isFinishPending ? (
+        <View style={styles.finishPendingBanner}>
+          <Ionicons name="cloud-upload-outline" size={16} color={colors.accent} />
+          <Text style={styles.finishPendingText}>
+            Workout finish is pending sync — your data is safe.
+          </Text>
+        </View>
+      ) : null}
 
       {isReplayingSetMutations ? (
         <View style={styles.syncBanner}>
@@ -708,6 +793,7 @@ function ActiveWorkoutScreen() {
               onAddSet={() => handleAddSet(exercise.id)}
               onRequestDeleteSet={handleRequestDeleteSet}
               onUpdateNotes={(notes) => updateExerciseNotes.mutate({ workoutExerciseId: exercise.id, notes })}
+              notesPendingSync={notesPendingSync.has(exercise.id)}
               onRequestDeleteExercise={() =>
                 setDeleteExerciseDialog({
                   visible: true,
@@ -1159,6 +1245,7 @@ function ExerciseBlock({
   onOpenExercise,
   restTimerLabel,
   weightUnit,
+  notesPendingSync,
 }: {
   name: string;
   imageUrl?: string | null;
@@ -1186,6 +1273,7 @@ function ExerciseBlock({
   onOpenExercise: () => void;
   restTimerLabel: string;
   weightUnit: "KG" | "LBS";
+  notesPendingSync?: boolean;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
@@ -1195,8 +1283,10 @@ function ExerciseBlock({
     setDraftNotes(notes ?? "");
   }, [notes, workoutExerciseId]);
 
+  const isExercisePending = isUnsyncedId(workoutExerciseId);
+
   return (
-    <View style={styles.exerciseBlock}>
+    <View style={[styles.exerciseBlock, isExercisePending && styles.exerciseBlockPending]}>
       {supersetGroup != null ? (
         <View style={styles.supersetBadge}>
           <Ionicons name="git-merge" size={12} color={colors.accent} />
@@ -1209,20 +1299,28 @@ function ExerciseBlock({
           <Text style={styles.exerciseName} numberOfLines={1}>
             {name}
           </Text>
+          {isExercisePending ? (
+            <Ionicons name="cloud-upload-outline" size={14} color="#f59e0b" />
+          ) : null}
         </Pressable>
         <Pressable onPress={onRequestDeleteExercise} hitSlop={10} style={styles.iconBtn}>
           <Ionicons name="trash-outline" size={24} color={colors.danger} />
         </Pressable>
       </View>
 
-      <TextInput
-        style={styles.exerciseNotesInput}
-        value={draftNotes}
-        onChangeText={setDraftNotes}
-        onBlur={() => onUpdateNotes(draftNotes.trim() || null)}
-        placeholder="Add notes here..."
-        placeholderTextColor={colors.textMuted}
-      />
+      <View style={styles.exerciseNotesRow}>
+        <TextInput
+          style={styles.exerciseNotesInput}
+          value={draftNotes}
+          onChangeText={setDraftNotes}
+          onBlur={() => onUpdateNotes(draftNotes.trim() || null)}
+          placeholder="Add notes here..."
+          placeholderTextColor={colors.textMuted}
+        />
+        {notesPendingSync ? (
+          <Ionicons name="cloud-upload-outline" size={14} color="#f59e0b" style={styles.notesPendingIcon} />
+        ) : null}
+      </View>
 
       <View style={styles.exerciseRestRow}>
         <Ionicons name="timer-outline" size={20} color={colors.accent} />
@@ -1320,6 +1418,7 @@ function SetRow({
   const repsInputRef = useRef<TextInput>(null);
   const completingRef = useRef(false);
   const typeLabel = SET_TYPE_LABEL[set.setType] || String(set.setNumber);
+  const isPendingSync = isUnsyncedId(set.id);
 
   useEffect(() => {
     const nextWeight =
@@ -1398,7 +1497,7 @@ function SetRow({
 
   return (
     <Swipeable renderRightActions={renderDeleteAction} overshootRight={false} friction={2}>
-      <View style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
+      <View style={[styles.setRow, set.isCompleted && styles.setRowDone, isPendingSync && styles.setRowPending]}>
         <Pressable
           onPress={() => onUpdateSet(set.id, { ...flushDraft(), setType: cycleSetType(set.setType) })}
           style={[styles.setTypeBtn, SET_GRID.set]}
@@ -1519,6 +1618,22 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     paddingTop: spacing.xs,
     marginBottom: spacing.sm,
   },
+  finishPendingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(99,102,241,0.12)",
+  },
+  finishPendingText: {
+    ...typography.label,
+    flex: 1,
+    color: colors.text,
+    fontWeight: "600",
+  },
   syncBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -1634,6 +1749,10 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderTopColor: colors.separator,
     backgroundColor: colors.bg,
   },
+  exerciseBlockPending: {
+    borderLeftWidth: 2,
+    borderLeftColor: "#f59e0b",
+  },
   exerciseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
   exerciseHeaderMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.md },
   exerciseName: {
@@ -1646,13 +1765,20 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   supersetBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginBottom: 4 },
   supersetBadgeText: { ...typography.label, color: colors.accent, fontWeight: "700" },
   prevMeta: { ...typography.label, color: colors.textDim, marginTop: spacing.sm },
+  exerciseNotesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   exerciseNotesInput: {
     ...typography.body,
+    flex: 1,
     color: colors.textMuted,
     lineHeight: 20,
     paddingVertical: spacing.sm,
     paddingHorizontal: 0,
   },
+  notesPendingIcon: { flexShrink: 0 },
   exerciseRestRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs, marginBottom: spacing.md },
   exerciseRestText: { ...typography.bodySmall, color: colors.accent, lineHeight: 18 },
   setTable: { gap: spacing.xs, width: "100%", alignSelf: "stretch" },
@@ -1691,6 +1817,10 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderRadius: radius.sm,
   },
   setRowDone: { backgroundColor: colors.successMuted },
+  setRowPending: {
+    borderLeftWidth: 2,
+    borderLeftColor: "#f59e0b",
+  },
   setNumber: { ...typography.bodySmall, fontWeight: "700", textAlign: "center" },
   setTypeBtn: { ...iconButtonStyle, width: TOUCH_TARGET_MIN, height: TOUCH_TARGET_MIN },
   rpeCell: {

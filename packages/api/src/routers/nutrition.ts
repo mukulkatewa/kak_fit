@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { fetchExternal } from "../fetch-external";
 import { startOfUserDay, resolveUserDayRange } from "../lib/timezone";
+import { optionalDateMsSchema } from "../lib/date-validation";
 import {
   MealPlanPayloadSchema,
   MealTypeSchema,
@@ -115,7 +116,7 @@ export type FoodSearchResult = {
 const dayQueryInput = z.object({
   timezoneOffsetMinutes: z.number().int().optional(),
   /** Noon local on the selected calendar day (ms since epoch). */
-  dateMs: z.number().optional(),
+  dateMs: optionalDateMsSchema,
 });
 
 const searchFoodsInput = z.object({ query: z.string().min(2).max(100) });
@@ -962,7 +963,7 @@ export const nutritionRouter = router({
       z.object({
         mealType: z.enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK"]),
         timezoneOffsetMinutes: z.number().int().optional(),
-        dateMs: z.number().optional(),
+        dateMs: optionalDateMsSchema,
         items: z.array(
           z.object({
             foodId: z.string().optional(),

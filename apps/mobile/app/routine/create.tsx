@@ -449,30 +449,34 @@ export default function CreateRoutineScreen() {
   const create = trpc.routine.create.useMutation({
     onMutate: async (input) => {
       await utils.routine.list.cancel();
-      const previous = utils.routine.list.getData();
-      utils.routine.list.setData(undefined, (old) => [
-        {
-          id: `optimistic-${Date.now()}`,
-          userId: "",
-          folderId: null,
-          shareToken: null,
-          name: input.name,
-          notes: input.notes ?? null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          exercises: input.exercises.map((ex, index) => ({
-            id: `optimistic-ex-${index}`,
-            order: ex.order,
-            exercise: { id: ex.exerciseId, name: "Saving…", imageUrl: null, media: [] },
-          })),
-        },
-        ...(old ?? []),
-      ]);
+      const previous = utils.routine.list.getData({ limit: 50 });
+      utils.routine.list.setData({ limit: 50 }, (old) => ({
+        routines: [
+          {
+            id: `optimistic-${Date.now()}`,
+            userId: "",
+            folderId: null,
+            shareToken: null,
+            shareEnabled: true,
+            name: input.name,
+            notes: input.notes ?? null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            exercises: input.exercises.map((ex, index) => ({
+              id: `optimistic-ex-${index}`,
+              order: ex.order,
+              exercise: { id: ex.exerciseId, name: "Saving…", imageUrl: null, media: [] },
+            })),
+          },
+          ...(old?.routines ?? []),
+        ],
+        nextCursor: old?.nextCursor ?? null,
+      }));
       return { previous };
     },
     onError: (e, _input, context) => {
       if (context?.previous) {
-        utils.routine.list.setData(undefined, context.previous);
+        utils.routine.list.setData({ limit: 50 }, context.previous);
       }
       showToast(e.message, "error");
     },

@@ -15,13 +15,16 @@ type OfflineWorkoutMutation = {
   payload: string;
   createdAt: number;
   retryCount: number;
+  status: "pending" | "failed";
 };
+
+export type QueuedMutation = OfflineWorkoutMutation;
 
 export type SyncQueuedWorkoutResult = {
   synced: number;
   remaining: number;
   syncFailed: boolean;
-  dropped: number;
+  failed: number;
 };
 
 /** Mutations that change workout structure — refetch active workout after sync. */
@@ -48,7 +51,8 @@ async function ensureSchema(db: SQLite.SQLiteDatabase) {
       type TEXT NOT NULL,
       payload TEXT NOT NULL,
       created_at INTEGER NOT NULL,
-      retry_count INTEGER NOT NULL DEFAULT 0
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending'
     );
   `);
 
@@ -58,6 +62,11 @@ async function ensureSchema(db: SQLite.SQLiteDatabase) {
   if (!columns.some((column) => column.name === "retry_count")) {
     await db.execAsync(
       "ALTER TABLE offline_workout_mutations ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0",
+    );
+  }
+  if (!columns.some((column) => column.name === "status")) {
+    await db.execAsync(
+      "ALTER TABLE offline_workout_mutations ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'",
     );
   }
 }
@@ -90,9 +99,49 @@ export async function enqueueWorkoutMutation(type: OfflineWorkoutMutationType, p
 export async function getQueuedWorkoutMutationCount() {
   const db = await getDb();
   const row = await db.getFirstAsync<{ count: number }>(
-    "SELECT COUNT(*) as count FROM offline_workout_mutations",
+    "SELECT COUNT(*) as count FROM offline_workout_mutations WHERE status = 'pending'",
   );
   return row?.count ?? 0;
+}
+
+export async function hasPendingFinishWorkout() {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) as count FROM offline_workout_mutations WHERE status = 'pending' AND type = 'finishWorkout'",
+  );
+  return (row?.count ?? 0) > 0;
+}
+
+export async function clearPendingFinishWorkout() {
+  const db = await getDb();
+  await db.runAsync(
+    "DELETE FROM offline_workout_mutations WHERE type = 'finishWorkout' AND status = 'pending'",
+  );
+}
+
+export async function getPendingNotesExerciseIds() {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ payload: string }>(
+    "SELECT payload FROM offline_workout_mutations WHERE status = 'pending' AND type = 'updateExerciseNotes'",
+  );
+  return rows.map((row) => (JSON.parse(row.payload) as { workoutExerciseId: string }).workoutExerciseId);
+}
+
+export async function getFailedMutations(): Promise<QueuedMutation[]> {
+  const db = await getDb();
+  return db.getAllAsync<QueuedMutation>(
+    "SELECT id, type, payload, created_at as createdAt, retry_count as retryCount, status FROM offline_workout_mutations WHERE status = ? ORDER BY created_at ASC",
+    "failed",
+  );
+}
+
+export async function retryFailedMutations(): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    "UPDATE offline_workout_mutations SET status = ?, retry_count = 0 WHERE status = ?",
+    "pending",
+    "failed",
+  );
 }
 
 async function removeQueuedMutation(id: number) {
@@ -137,16 +186,16 @@ export async function syncQueuedWorkoutMutations(options?: {
 }): Promise<SyncQueuedWorkoutResult> {
   const db = await getDb();
   const queued = await db.getAllAsync<OfflineWorkoutMutation>(
-    "SELECT id, type, payload, created_at as createdAt, retry_count as retryCount FROM offline_workout_mutations ORDER BY id ASC",
+    "SELECT id, type, payload, created_at as createdAt, retry_count as retryCount, status FROM offline_workout_mutations WHERE status = 'pending' ORDER BY id ASC",
   );
   if (queued.length === 0) {
-    return { synced: 0, remaining: 0, syncFailed: false, dropped: 0 };
+    return { synced: 0, remaining: 0, syncFailed: false, failed: 0 };
   }
 
   const client = getTrpcClient();
   let synced = 0;
   let syncFailed = false;
-  let dropped = 0;
+  let failed = 0;
 
   for (const item of queued) {
     const payload = JSON.parse(item.payload) as never;
@@ -166,10 +215,15 @@ export async function syncQueuedWorkoutMutations(options?: {
       syncFailed = true;
 
       if (nextRetryCount > MAX_SYNC_RETRIES) {
-        await removeQueuedMutation(item.id);
-        dropped += 1;
+        await db.runAsync(
+          "UPDATE offline_workout_mutations SET status = ? WHERE id = ?",
+          "failed",
+          item.id,
+        );
+        failed += 1;
         console.error(
-          "Dropped offline workout mutation after max retries",
+          "[Offline] Mutation marked failed after max retries:",
+          item.id,
           item.type,
           error,
         );
@@ -183,6 +237,6 @@ export async function syncQueuedWorkoutMutations(options?: {
     synced,
     remaining: await getQueuedWorkoutMutationCount(),
     syncFailed,
-    dropped,
+    failed,
   };
 }

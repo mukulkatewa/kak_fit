@@ -200,14 +200,50 @@ export const routineRouter = router({
       };
     }),
 
-  list: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.prisma.routine.findMany({
-      where: { userId: ctx.user.id },
-      include: routineListSummaryInclude,
-      orderBy: { updatedAt: "desc" },
-      take: 200,
-    });
-  }),
+  list: protectedProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(1).max(50).default(50),
+          cursor: z.string().optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 50;
+
+      const cursorRoutine = input?.cursor
+        ? await ctx.prisma.routine.findFirst({
+            where: { id: input.cursor, userId: ctx.user.id },
+            select: { id: true, updatedAt: true },
+          })
+        : null;
+
+      const routines = await ctx.prisma.routine.findMany({
+        where: {
+          userId: ctx.user.id,
+          ...(cursorRoutine
+            ? {
+                OR: [
+                  { updatedAt: { lt: cursorRoutine.updatedAt } },
+                  { updatedAt: cursorRoutine.updatedAt, id: { lt: cursorRoutine.id } },
+                ],
+              }
+            : {}),
+        },
+        include: routineListSummaryInclude,
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        take: limit + 1,
+      });
+
+      const hasNextPage = routines.length > limit;
+      const page = hasNextPage ? routines.slice(0, limit) : routines;
+
+      return {
+        routines: page,
+        nextCursor: hasNextPage ? (page[page.length - 1]?.id ?? null) : null,
+      };
+    }),
 
   folders: protectedProcedure.query(async ({ ctx }) => {
     return ctx.prisma.routineFolder.findMany({
@@ -471,17 +507,31 @@ export const routineRouter = router({
       });
       if (!routine) throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });
 
-      const token =
-        routine.shareToken ??
-        (
-          await ctx.prisma.routine.update({
-            where: { id: routine.id },
-            data: { shareToken: newShareToken() },
-            select: { shareToken: true },
-          })
-        ).shareToken!;
+      const updated = await ctx.prisma.routine.update({
+        where: { id: routine.id },
+        data: {
+          shareEnabled: true,
+          shareToken: routine.shareToken ?? newShareToken(),
+        },
+        select: { shareToken: true, name: true },
+      });
 
-      return { token, url: shareUrl(token), name: routine.name };
+      const token = updated.shareToken!;
+      return { token, url: shareUrl(token), name: updated.name };
+    }),
+
+  /** Revoke sharing so existing share links stop working. */
+  revokeShare: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await ctx.prisma.routine.updateMany({
+        where: { id: input.id, userId: ctx.user.id },
+        data: { shareEnabled: false, shareToken: null },
+      });
+      if (result.count === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });
+      }
+      return { success: true };
     }),
 
   /** Preview a shared routine (any authenticated user). */
@@ -489,7 +539,7 @@ export const routineRouter = router({
     .input(z.object({ token: z.string().min(8) }))
     .query(async ({ ctx, input }) => {
       const routine = await ctx.prisma.routine.findFirst({
-        where: { shareToken: input.token },
+        where: { shareToken: input.token, shareEnabled: true },
         include: {
           user: { select: { name: true } },
           exercises: {
@@ -520,7 +570,7 @@ export const routineRouter = router({
     .input(z.object({ token: z.string().min(8) }))
     .mutation(async ({ ctx, input }) => {
       const source = await ctx.prisma.routine.findFirst({
-        where: { shareToken: input.token },
+        where: { shareToken: input.token, shareEnabled: true },
         include: { exercises: { include: { sets: true }, orderBy: { order: "asc" } } },
       });
       if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "Routine not found" });

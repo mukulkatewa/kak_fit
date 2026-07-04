@@ -710,7 +710,7 @@ export const workoutRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Workout not found" });
       }
       if (workout.exercises.length === 0) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Workout has no exercises" });
+        throw new TRPCError({ code: "CONFLICT", message: "Workout has no exercises" });
       }
 
       return ctx.prisma.routine.create({

@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "3.2.0";
+const WIDGET_VERSION = "3.5.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -63,6 +63,7 @@ function addWorkoutManifestEntries(androidManifest) {
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
     "android.permission.POST_NOTIFICATIONS",
+    "android.permission.WAKE_LOCK",
   ];
   for (const perm of requiredPerms) {
     if (!permissions.some((p) => p.$?.["android:name"] === perm)) {
@@ -1079,13 +1080,18 @@ public class KakWorkoutOverlayService extends Service {
   static boolean isRunning() { return running; }
 
   private MediaSession mediaSession;
+  private android.os.PowerManager.WakeLock restWakeLock;
   private final Handler handler = new Handler(Looper.getMainLooper());
 
   /** Ticks every second while a workout is active to refresh elapsed time + rest countdown. */
   private final Runnable tickRunnable = new Runnable() {
     @Override public void run() {
       KakWorkoutWidgetState state = KakWorkoutWidgetState.read(KakWorkoutOverlayService.this);
-      if (!state.active || state.complete) { stopSelf(); return; }
+      if (!state.active || state.complete) {
+        if (restWakeLock != null && restWakeLock.isHeld()) restWakeLock.release();
+        stopSelf();
+        return;
+      }
       // If rest just expired, clear rest state so the notification transitions back
       // to the working state immediately rather than hanging at "Rest • 0s".
       if (state.restEndsAtMs > 0 && state.restEndsAtMs <= System.currentTimeMillis()) {
@@ -1094,6 +1100,14 @@ public class KakWorkoutOverlayService extends Service {
             KakWorkoutWidgetState.PREFS, android.content.Context.MODE_PRIVATE).edit();
         ed.putLong("restEndsAtMs", 0L).apply();
         state = KakWorkoutWidgetState.read(KakWorkoutOverlayService.this);
+      }
+      // Acquire wake lock during rest to prevent Doze from deferring our timer ticks.
+      if (state.isResting()) {
+        if (restWakeLock != null && !restWakeLock.isHeld()) {
+          restWakeLock.acquire(6 * 60 * 1000L); // 6 min max — rest shouldn't be longer
+        }
+      } else {
+        if (restWakeLock != null && restWakeLock.isHeld()) restWakeLock.release();
       }
       postNotification(state);
       KakWorkoutWidgetProvider.updateAll(KakWorkoutOverlayService.this);
@@ -1109,6 +1123,9 @@ public class KakWorkoutOverlayService extends Service {
     running = true;
     createNotificationChannel();
     setupMediaSession();
+    android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+    restWakeLock = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "KakFit:RestTimer");
+    restWakeLock.setReferenceCounted(false);
   }
 
   private void setupMediaSession() {
@@ -1117,8 +1134,13 @@ public class KakWorkoutOverlayService extends Service {
       MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
     mediaSession.setCallback(new MediaSession.Callback() {
       @Override public void onPlay()       { sendBroadcastAction(KakWorkoutWidgetState.ACTION_COMPLETE_SET); }
-      @Override public void onRewind()     { sendBroadcastAction(KakWorkoutWidgetState.ACTION_TICK_REP); }
       @Override public void onSkipToNext() { sendBroadcastAction(KakWorkoutWidgetState.ACTION_SKIP_REST); }
+      @Override
+      public void onCustomAction(String action, android.os.Bundle extras) {
+        if (KakWorkoutWidgetState.ACTION_TICK_REP.equals(action)) {
+          sendBroadcastAction(KakWorkoutWidgetState.ACTION_TICK_REP);
+        }
+      }
     });
     mediaSession.setActive(true);
   }
@@ -1148,16 +1170,26 @@ public class KakWorkoutOverlayService extends Service {
       position = PlaybackState.PLAYBACK_POSITION_UNKNOWN;
       speed = 0f;
     } else {
-      actions = PlaybackState.ACTION_REWIND | PlaybackState.ACTION_PLAY;
+      actions = PlaybackState.ACTION_PLAY;
       pbState = PlaybackState.STATE_PLAYING;
       position = PlaybackState.PLAYBACK_POSITION_UNKNOWN;
       speed = 1f;
     }
 
-    mediaSession.setPlaybackState(new PlaybackState.Builder()
+    PlaybackState.Builder pbBuilder = new PlaybackState.Builder()
       .setActions(actions)
-      .setState(pbState, position, speed)
-      .build());
+      .setState(pbState, position, speed);
+
+    // "+Rep" as a custom action — correct label for screen readers (not "Rewind").
+    if (!state.isResting() && !state.complete && state.active) {
+      pbBuilder.addCustomAction(new PlaybackState.CustomAction.Builder(
+        KakWorkoutWidgetState.ACTION_TICK_REP,
+        "+Rep",
+        android.R.drawable.ic_input_add
+      ).build());
+    }
+
+    mediaSession.setPlaybackState(pbBuilder.build());
 
     // Lock screen card layout (like Spotify):
     //   Title  = exercise name          (large, bold)
@@ -1296,11 +1328,12 @@ public class KakWorkoutOverlayService extends Service {
 
     if (piOpen != null) builder.setContentIntent(piOpen);
 
-    // Custom big card shown in the expanded notification shade (NOT lock screen —
-    // lock screen uses the MediaStyle card below).
+    // Custom big card shown in the expanded notification shade.
     builder.setCustomBigContentView(buildBigView(state, piRep, piDone, piSkip, piOpen));
+    // Compact card for lock screen + collapsed notification shade (set detail + Done Set).
+    builder.setCustomContentView(buildLockView(state, piDone));
 
-    // MediaStyle: drives the Spotify-style lock-screen card.
+    // MediaStyle: media action buttons on lock screen (Skip rest / +Rep / Done set / Open).
     // The MediaSession must be active + STATE_PLAYING for Android to show it on the lock screen.
     updateMediaSession(state);
     if (mediaSession != null) {
@@ -1329,6 +1362,26 @@ public class KakWorkoutOverlayService extends Service {
     }
 
     return builder.build();
+  }
+
+  /** Compact lockscreen / collapsed shade card — workout name, set detail, Done Set button. */
+  private RemoteViews buildLockView(KakWorkoutWidgetState state, PendingIntent piDone) {
+    RemoteViews views = new RemoteViews(getPackageName(), R.layout.kak_workout_widget_lock);
+    views.setTextViewText(R.id.kak_lock_workout_name, state.workoutName);
+    if (state.isResting()) {
+      views.setTextViewText(R.id.kak_lock_set_detail, "Rest • " + state.restTimerLabel());
+    } else if (state.complete) {
+      views.setTextViewText(R.id.kak_lock_set_detail, "Workout complete!");
+    } else {
+      views.setTextViewText(R.id.kak_lock_set_detail, state.setDetailLine());
+    }
+    if (piDone != null && state.active && !state.isResting() && !state.complete) {
+      views.setViewVisibility(R.id.kak_lock_btn_done, android.view.View.VISIBLE);
+      views.setOnClickPendingIntent(R.id.kak_lock_btn_done, piDone);
+    } else {
+      views.setViewVisibility(R.id.kak_lock_btn_done, android.view.View.GONE);
+    }
+    return views;
   }
 
   /**
@@ -1403,6 +1456,7 @@ public class KakWorkoutOverlayService extends Service {
   public void onDestroy() {
     running = false;
     handler.removeCallbacks(tickRunnable);
+    if (restWakeLock != null && restWakeLock.isHeld()) restWakeLock.release();
     if (mediaSession != null) {
       mediaSession.setActive(false);
       mediaSession.release();
@@ -1933,11 +1987,68 @@ function writeNativeFiles(projectRoot, packageName) {
 </LinearLayout>
 `);
 
+  // Lockscreen + collapsed notification compact card
+  write(path.join(res, "layout/kak_workout_widget_lock.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<!-- RemoteViews-safe: TextView + LinearLayout only, solid hex backgrounds. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingLeft="12dp"
+    android:paddingRight="12dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
+    android:background="#CC1C1C1E">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/kak_lock_workout_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#99FFFFFF"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/kak_lock_set_detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/kak_lock_btn_done"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginLeft="8dp"
+        android:gravity="center"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:background="#FF0A84FF"
+        android:text="Done Set"
+        android:textColor="#FFFFFFFF"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+</LinearLayout>
+`);
+
   // Notification shade big-content layout
   write(path.join(res, "layout/kak_workout_notification.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <!--
   Custom big content view shown expanded in the notification shade.
-  Lock screen uses the same interactive layout as the home widget via setCustomContentView.
+  Lock screen uses kak_workout_widget_lock via setCustomContentView.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"

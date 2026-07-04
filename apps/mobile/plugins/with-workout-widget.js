@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "2.9.0";
+const WIDGET_VERSION = "3.0.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -33,21 +33,22 @@ function addWorkoutManifestEntries(androidManifest) {
     "android:exported": "true",
   }, "android:name");
 
-  // Notification foreground service (lock screen + notification shade)
-  addManifestChildOnce(app, "service", {
-    "android:name": ".widget.KakWorkoutOverlayService",
-    "android:exported": "false",
-    "android:foregroundServiceType": "dataSync",
-  }, "android:name");
+  // Notification foreground service (lock screen + notification shade).
+  // Force-update the service entry so the foreground service type is always correct.
+  // Using mediaPlayback so the system shows a Spotify-style lockscreen card via MediaSession.
   const services = ensureArray(app.service);
-  const overlaySvc = services.find((s) => s.$?.["android:name"] === ".widget.KakWorkoutOverlayService");
-  if (overlaySvc) {
-    overlaySvc.property = [{
-      $: {
-        "android:name": "android.app.PROPERTY_DATA_SYNC_FGS_SUBTYPE",
-        "android:value": "workout_live_state",
-      },
-    }];
+  const overlaySvcIdx = services.findIndex((s) => s.$?.["android:name"] === ".widget.KakWorkoutOverlayService");
+  const overlaySvcEntry = {
+    $: {
+      "android:name": ".widget.KakWorkoutOverlayService",
+      "android:exported": "false",
+      "android:foregroundServiceType": "mediaPlayback",
+    },
+  };
+  if (overlaySvcIdx >= 0) {
+    services[overlaySvcIdx] = overlaySvcEntry;
+  } else {
+    services.push(overlaySvcEntry);
   }
   app.service = services;
 
@@ -60,7 +61,7 @@ function addWorkoutManifestEntries(androidManifest) {
   const permissions = ensureArray(androidManifest.manifest["uses-permission"]);
   const requiredPerms = [
     "android.permission.FOREGROUND_SERVICE",
-    "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+    "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
     "android.permission.POST_NOTIFICATIONS",
   ];
   for (const perm of requiredPerms) {
@@ -68,8 +69,12 @@ function addWorkoutManifestEntries(androidManifest) {
       permissions.push({ $: { "android:name": perm } });
     }
   }
+  const removePerms = new Set([
+    "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+    "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+  ]);
   androidManifest.manifest["uses-permission"] = permissions.filter(
-    (p) => p.$?.["android:name"] !== "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
+    (p) => !removePerms.has(p.$?.["android:name"])
   );
 }
 
@@ -382,7 +387,10 @@ class KakWorkoutWidgetState {
       String next = nextExerciseLabel();
       return next.length() > 0 ? next : "Up next • " + shortExerciseName;
     }
-    return setDetailLine() + " • " + repProgressLabel();
+    // Show set detail with rep counter in brackets — avoids duplicate "8 reps • 0/8 reps"
+    String detail = setDetailLine();
+    String rep = repsCompleted + "/" + nextSetReps;
+    return detail.length() > 0 ? detail + "  [" + rep + "]" : "Set " + nextSetNumber + "  [" + rep + "]";
   }
 
   String setDetailLine() {
@@ -1061,6 +1069,18 @@ public class KakWorkoutOverlayService extends Service {
   @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
     String action = intent != null ? intent.getAction() : null;
+    KakWorkoutWidgetState state = KakWorkoutWidgetState.read(this);
+
+    // Android 8+: must call startForeground() within 5 s of startForegroundService().
+    // Always do this BEFORE any early-exit paths to prevent ForegroundServiceDidNotStartInTimeException.
+    Notification initialNotification = state.active ? buildNotification(state) : buildFallbackNotification(state);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      startForeground(NOTIFICATION_ID, initialNotification,
+          ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+    } else {
+      startForeground(NOTIFICATION_ID, initialNotification);
+    }
+
     if (KakWorkoutWidgetState.ACTION_STOP.equals(action)) {
       handler.removeCallbacks(tickRunnable);
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -1072,19 +1092,17 @@ public class KakWorkoutOverlayService extends Service {
       return START_NOT_STICKY;
     }
 
-    SharedPreferences prefs = getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
-    KakWorkoutWidgetState state = KakWorkoutWidgetState.read(this);
     if (!state.active) {
       handler.removeCallbacks(tickRunnable);
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        stopForeground(STOP_FOREGROUND_REMOVE);
+      } else {
+        stopForeground(true);
+      }
       stopSelf();
       return START_NOT_STICKY;
     }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      startForeground(NOTIFICATION_ID, buildNotification(state),
-          ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
-    } else {
-      startForeground(NOTIFICATION_ID, buildNotification(state));
-    }
+
     handler.removeCallbacks(tickRunnable);
     handler.post(tickRunnable);
     return START_STICKY;
@@ -1329,15 +1347,19 @@ function writeNativeFiles(projectRoot, packageName) {
   write(path.join(res, "xml/kak_workout_widget_info.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
-    android:minHeight="72dp"
+    android:minHeight="110dp"
     android:targetCellWidth="4"
-    android:targetCellHeight="1"
-    android:minResizeWidth="200dp"
-    android:minResizeHeight="72dp"
+    android:targetCellHeight="2"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="84dp"
+    android:maxResizeWidth="500dp"
+    android:maxResizeHeight="250dp"
     android:updatePeriodMillis="0"
-    android:initialLayout="@layout/kak_workout_widget_initial"
+    android:initialLayout="@layout/kak_workout_widget"
+    android:previewLayout="@layout/kak_workout_widget"
     android:resizeMode="horizontal|vertical"
-    android:widgetCategory="home_screen" />
+    android:widgetCategory="home_screen"
+    android:description="@string/app_name" />
 `);
 
   write(path.join(res, "layout/kak_workout_widget_initial.xml"), `<?xml version="1.0" encoding="utf-8"?>

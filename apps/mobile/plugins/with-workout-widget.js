@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "2.2.0";
+const WIDGET_VERSION = "2.3.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -30,7 +30,7 @@ function addWorkoutManifestEntries(androidManifest) {
 
   addManifestChildOnce(app, "receiver", {
     "android:name": ".widget.KakWorkoutWidgetActionReceiver",
-    "android:exported": "true",
+    "android:exported": "false",
   }, "android:name");
 
   // mediaPlayback foreground service type — no SYSTEM_ALERT_WINDOW or specialUse needed
@@ -577,7 +577,7 @@ public class KakWorkoutWidgetActionReceiver extends BroadcastReceiver {
     // ACTION_OPEN and fallback: launch the app
     Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
     if (launch != null) {
-      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
       context.startActivity(launch);
     }
   }
@@ -843,7 +843,7 @@ public class KakWorkoutOverlayService extends Service {
   private void createNotificationChannel() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       NotificationChannel ch = new NotificationChannel(
-        CHANNEL_ID, "Active workout", NotificationManager.IMPORTANCE_LOW);
+        CHANNEL_ID, "Active workout", NotificationManager.IMPORTANCE_DEFAULT);
       ch.setDescription("Workout controls on lock screen and notification shade");
       ch.setShowBadge(false);
       ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);

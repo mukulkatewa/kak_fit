@@ -66,17 +66,17 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "dd9991e3-ad4a-44fa-a372-040744c4b768"
+        "projectId": "1ef0964a-4f54-481a-92d6-b6967abd381c"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/dd9991e3-ad4a-44fa-a372-040744c4b768",
+      "url": "https://u.expo.dev/1ef0964a-4f54-481a-92d6-b6967abd381c",
       "checkAutomatically": "ON_ERROR_RECOVERY",
       "fallbackToCacheTimeout": 0
     },
-    "owner": "kaksaabs-organization"
+    "owner": "kakfits-organization"
   }
 }

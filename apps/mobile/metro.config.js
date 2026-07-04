@@ -7,13 +7,12 @@ const monorepoRoot = path.resolve(projectRoot, "../..");
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(projectRoot);
 
-// Must include monorepo root so hoisted node_modules (expo-router/build, @babel/runtime, etc.) resolve.
-config.watchFolders = [monorepoRoot];
+// Keep Expo defaults and add monorepo root for hoisted packages.
+config.watchFolders = [...new Set([...(config.watchFolders ?? []), monorepoRoot])];
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, "node_modules"),
   path.resolve(monorepoRoot, "node_modules"),
 ];
-config.resolver.unstable_enableSymlinks = true;
 
 // pnpm creates ephemeral *_tmp_<pid> dirs inside node_modules; Metro's watcher
 // tries to read them after deletion -> jsBigFileString::fromPath / ENOENT crash.

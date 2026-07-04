@@ -45,7 +45,7 @@ export function WorkoutLiveNotificationBridge() {
   const utils = trpc.useUtils();
   const activeRef = useRef<ActiveWorkout | null | undefined>(undefined);
   const widgetSummaryRef = useRef<ReturnType<typeof buildWorkoutWidgetSummary> | null>(null);
-  const { defaultRestSeconds } = useUserPreferences();
+  const { defaultRestSeconds, weightUnit } = useUserPreferences();
   const defaultRestSecondsRef = useRef(defaultRestSeconds);
   defaultRestSecondsRef.current = defaultRestSeconds;
 
@@ -69,9 +69,9 @@ export function WorkoutLiveNotificationBridge() {
   const widgetSummary = useMemo(
     () =>
       activeWorkout
-        ? buildWorkoutWidgetSummary(activeWorkout, Date.now(), defaultRestSeconds)
+        ? buildWorkoutWidgetSummary(activeWorkout, Date.now(), defaultRestSeconds, weightUnit)
         : null,
-    [activeWorkout, defaultRestSeconds],
+    [activeWorkout, defaultRestSeconds, weightUnit],
   );
 
   widgetSummaryRef.current = widgetSummary;
@@ -138,7 +138,13 @@ export function WorkoutLiveNotificationBridge() {
       const restSeconds = defaultRestSecondsRef.current;
       if (restSeconds > 0) {
         useRestTimer.getState().start(restSeconds);
-        workoutNativeWidgetStartRestTimer(restSeconds);
+        // Only start the native rest timer when JS initiated the completion.
+        // If the widget triggered this (setIdFromWidget defined), the native
+        // side already set restEndsAtMs in completeCurrentSetLocally — starting
+        // again here would reset the countdown from now, losing elapsed rest.
+        if (!setIdFromWidget) {
+          workoutNativeWidgetStartRestTimer(restSeconds);
+        }
       }
 
       try {

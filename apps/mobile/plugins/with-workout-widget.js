@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "2.0.0";
+const WIDGET_VERSION = "2.1.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -419,7 +419,14 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
     }
 
     if (!nextSetId.equals(previousSetId)) {
-      editor.putInt("repsCompleted", 0).putLong("restEndsAtMs", 0L);
+      editor.putInt("repsCompleted", 0);
+      // Preserve an active rest countdown across JS-side widget refreshes,
+      // otherwise we'd clobber the timer that completeCurrentSetLocally just set
+      // when the JS bridge sends the post-completion summary a moment later.
+      long existingRestEndsAtMs = prefs.getLong("restEndsAtMs", 0L);
+      if (existingRestEndsAtMs <= System.currentTimeMillis()) {
+        editor.putLong("restEndsAtMs", 0L);
+      }
     }
     editor.apply();
 

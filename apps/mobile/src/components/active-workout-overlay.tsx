@@ -27,6 +27,8 @@ import { useWorkoutPillInset } from "../lib/workout-pill-inset";
 import { trpc, queryStaleTime } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
 import { useRestTimer } from "../lib/rest-timer";
+import { useUserPreferences } from "../lib/use-preferences";
+import { workoutNativeWidgetStartRestTimer } from "../lib/workout-native-widget";
 import { findNextIncompleteSet, getCurrentExerciseName } from "../lib/workout-live-widget-state";
 
 function PulsingDot({ color }: { color: string }) {
@@ -101,6 +103,8 @@ export function ActiveWorkoutOverlay() {
   const [discardOpen, setDiscardOpen] = useState(false);
   const [discardError, setDiscardError] = useState<string | null>(null);
   const stopRestTimer = useRestTimer((state) => state.stop);
+  const startRestTimer = useRestTimer((state) => state.start);
+  const { defaultRestSeconds } = useUserPreferences();
   const borderGlow = useSharedValue(0.35);
 
   const { data: activeWorkout } = trpc.workout.active.useQuery(undefined, {
@@ -241,6 +245,10 @@ export function ActiveWorkoutOverlay() {
               return;
             }
             completeSet.mutate({ setId: nextSet.setId, isCompleted: true });
+            if (defaultRestSeconds > 0) {
+              startRestTimer(defaultRestSeconds);
+              workoutNativeWidgetStartRestTimer(defaultRestSeconds);
+            }
           }}
           disabled={!nextSet || completeSet.isPending}
           style={[

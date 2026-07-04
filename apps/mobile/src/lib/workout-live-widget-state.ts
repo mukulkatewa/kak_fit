@@ -1,4 +1,5 @@
 import type { ActiveWorkout } from "./active-workout-cache";
+import { fromKg, weightLabel, type WeightUnit } from "./units";
 
 export type WorkoutWidgetNextSet = {
   setId: string;
@@ -46,15 +47,25 @@ export function shortExerciseName(name: string, maxLen = 20): string {
   return `${slice}…`;
 }
 
-export function formatSetLabel(set: {
-  setNumber: number;
-  weight?: number | null;
-  reps?: number | null;
-}): string {
+export function formatSetLabel(
+  set: {
+    setNumber: number;
+    weight?: number | null;
+    reps?: number | null;
+  },
+  weightUnit: WeightUnit = "KG",
+): string {
   const weight =
-    set.weight != null && set.weight > 0 ? `${set.weight % 1 === 0 ? set.weight : set.weight.toFixed(1)}kg × ` : "";
+    set.weight != null && set.weight > 0
+      ? `${formatWidgetWeight(set.weight, weightUnit)}${weightLabel(weightUnit)} × `
+      : "";
   const reps = set.reps != null && set.reps > 0 ? set.reps : "?";
   return `Set ${set.setNumber} • ${weight}${reps} reps`;
+}
+
+function formatWidgetWeight(weightKg: number, unit: WeightUnit): string {
+  const value = fromKg(weightKg, unit);
+  return value % 1 === 0 ? String(value) : value.toFixed(1);
 }
 
 function startedAtMs(value: ActiveWorkout["startedAt"]): number {
@@ -72,7 +83,10 @@ export function formatWidgetElapsedDuration(seconds: number): string {
   return `${safeSeconds}s`;
 }
 
-export function findNextIncompleteSet(workout: ActiveWorkout): WorkoutWidgetNextSet | null {
+export function findNextIncompleteSet(
+  workout: ActiveWorkout,
+  weightUnit: WeightUnit = "KG",
+): WorkoutWidgetNextSet | null {
   for (const workoutExercise of workout.exercises) {
     const nextSet = workoutExercise.sets.find((set) => !set.isCompleted);
     if (nextSet) {
@@ -85,11 +99,14 @@ export function findNextIncompleteSet(workout: ActiveWorkout): WorkoutWidgetNext
         setNumber: nextSet.setNumber,
         weight: nextSet.weight ?? null,
         reps: nextSet.reps ?? null,
-        setLabel: formatSetLabel({
-          setNumber: nextSet.setNumber,
-          weight: nextSet.weight,
-          reps: nextSet.reps,
-        }),
+        setLabel: formatSetLabel(
+          {
+            setNumber: nextSet.setNumber,
+            weight: nextSet.weight,
+            reps: nextSet.reps,
+          },
+          weightUnit,
+        ),
       };
     }
   }
@@ -108,6 +125,7 @@ export function buildWorkoutWidgetSummary(
   workout: ActiveWorkout,
   nowMs = Date.now(),
   defaultRestSeconds = 90,
+  weightUnit: WeightUnit = "KG",
 ): WorkoutWidgetSummary {
   const completedSets = workout.exercises.reduce(
     (sum, exercise) => sum + exercise.sets.filter((set) => set.isCompleted).length,
@@ -115,7 +133,7 @@ export function buildWorkoutWidgetSummary(
   );
   const totalSets = workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
   const elapsedSeconds = Math.max(0, Math.floor((nowMs - startedAtMs(workout.startedAt)) / 1000));
-  const nextSet = findNextIncompleteSet(workout);
+  const nextSet = findNextIncompleteSet(workout, weightUnit);
   const currentName = getCurrentExerciseName(workout);
   const remainingSets: WorkoutWidgetSummary["remainingSets"] = [];
 
@@ -129,11 +147,14 @@ export function buildWorkoutWidgetSummary(
         reps: set.reps ?? 1,
         weight: set.weight ?? 0,
         shortExerciseName: shortName,
-        setLabel: formatSetLabel({
-          setNumber: set.setNumber,
-          weight: set.weight,
-          reps: set.reps,
-        }),
+        setLabel: formatSetLabel(
+          {
+            setNumber: set.setNumber,
+            weight: set.weight,
+            reps: set.reps,
+          },
+          weightUnit,
+        ),
       });
     }
   }

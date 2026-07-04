@@ -71,7 +71,11 @@ async function fetchWithAuthRetry(
 
   const refreshed = await refreshToken();
   if (!refreshed) {
-    notifySessionExpired();
+    // Only fire session-expired when the user had a token that failed to refresh.
+    // No token means the user isn't signed in — a 401 is expected, not an expiry.
+    if (getTokenSync()) {
+      notifySessionExpired();
+    }
     return response;
   }
 

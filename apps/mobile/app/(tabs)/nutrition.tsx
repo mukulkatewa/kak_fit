@@ -59,6 +59,16 @@ const MEAL_TYPES = [
 
 type MealKey = (typeof MEAL_TYPES)[number]["key"];
 type FoodSearchResult = RouterOutputs["nutrition"]["searchFoods"][number];
+type NutritionDayInput = { timezoneOffsetMinutes: number; dateMs: number };
+
+/** Local calendar day at noon — stable anchor for server day-boundary math. */
+function buildDayInput(date: Date): NutritionDayInput {
+  const localNoon = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+  return {
+    timezoneOffsetMinutes: date.getTimezoneOffset(),
+    dateMs: localNoon.getTime(),
+  };
+}
 
 function defaultMealType(): MealKey {
   const hour = new Date().getHours();
@@ -372,7 +382,7 @@ function PlanMealCard({
 function AiMealPlannerSection() {
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => StyleSheet.create(makePlannerStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
-  const dayInput = useMemo(() => ({ timezoneOffsetMinutes: new Date().getTimezoneOffset() }), []);
+  const dayInput = useMemo(() => buildDayInput(new Date()), []);
   const utils = trpc.useUtils();
   const { showToast } = useToast();
   const [setupOpen, setSetupOpen] = useState(false);
@@ -1068,7 +1078,7 @@ function LogFoodSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  dayInput: { timezoneOffsetMinutes: number };
+  dayInput: NutritionDayInput;
   logSearch: string;
   setLogSearch: (value: string) => void;
   logMealType: MealKey;
@@ -1118,6 +1128,8 @@ function LogFoodSheet({
     }
     logMeal.mutate({
       mealType: logMealType,
+      timezoneOffsetMinutes: dayInput.timezoneOffsetMinutes,
+      dateMs: dayInput.dateMs,
       items: [
         {
           foodId: food.id ?? undefined,
@@ -1328,10 +1340,7 @@ export default function NutritionScreen() {
   const styles = useMemo(() => StyleSheet.create(makeStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const isToday = selectedDate.toDateString() === new Date().toDateString();
-  const dayInput = useMemo(
-    () => ({ timezoneOffsetMinutes: selectedDate.getTimezoneOffset() }),
-    [selectedDate],
-  );
+  const dayInput = useMemo(() => buildDayInput(selectedDate), [selectedDate]);
   const [logSheetOpen, setLogSheetOpen] = useState(false);
   const [logSearch, setLogSearch] = useState("");
   const [logMealType, setLogMealType] = useState<MealKey>(() => defaultMealType());
@@ -1360,7 +1369,7 @@ export default function NutritionScreen() {
   } = trpc.nutrition.dailySummary.useQuery(dayInput, {
     staleTime: queryStaleTime.nutritionDaily,
   });
-  const { data: meals } = trpc.nutrition.todayMeals.useQuery(dayInput, {
+  const { data: meals, isLoading: mealsLoading } = trpc.nutrition.todayMeals.useQuery(dayInput, {
     staleTime: queryStaleTime.nutritionMeals,
   });
   const { data: targets } = trpc.nutrition.getTargets.useQuery(undefined, {
@@ -1468,6 +1477,10 @@ export default function NutritionScreen() {
     }));
   };
 
+  const dayLoading = summaryLoading || mealsLoading;
+  const logSectionLabel = isToday
+    ? "TODAY'S LOG"
+    : selectedDate.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }).toUpperCase();
   const editFood = editMealItem.item?.food;
   const editServingUnit = editFood?.servingUnit?.trim() || "g";
   const editIsGramServing = editServingUnit === "g";
@@ -1531,7 +1544,7 @@ export default function NutritionScreen() {
         </View>
       </View>
 
-      {summaryLoading ? (
+      {dayLoading ? (
         <View style={styles.body}>
           <ListSkeleton rows={1} />
         </View>
@@ -1587,7 +1600,7 @@ export default function NutritionScreen() {
       ) : null}
 
       <View style={styles.body}>
-        {summary && !summaryLoading && !summaryError ? (
+        {summary && !dayLoading && !summaryError ? (
           goalsUnset ? (
             <View style={styles.goalsCta}>
               <Text style={styles.goalsCtaTitle}>Set your daily nutrition goals</Text>
@@ -1630,14 +1643,18 @@ export default function NutritionScreen() {
 
         <View style={styles.loggedSection}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionEyebrow}>TODAY&apos;S LOG</Text>
+            <Text style={styles.sectionEyebrow}>{logSectionLabel}</Text>
             <Text style={styles.sectionHeaderMeta}>{loggedDayTotals.totalCal} kcal</Text>
           </View>
-          {groupedMeals.length === 0 ? (
+          {dayLoading ? (
+            <ListSkeleton rows={2} />
+          ) : groupedMeals.length === 0 ? (
             <View style={styles.loggedEmptyState}>
               <Ionicons name="restaurant-outline" size={40} color={colors.textDim} />
               <Text style={styles.loggedEmptyText}>
-                Nothing logged yet today.{"\n"}Tap + to add your first meal.
+                {isToday
+                  ? "Nothing logged yet today.\nTap + to add your first meal."
+                  : "Nothing logged on this day.\nTap + to add a meal."}
               </Text>
             </View>
           ) : (

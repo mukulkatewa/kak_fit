@@ -2,7 +2,7 @@ import { Prisma } from "@kak-fit/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { fetchExternal } from "../fetch-external";
-import { startOfUserDay } from "../lib/timezone";
+import { startOfUserDay, resolveUserDayRange } from "../lib/timezone";
 import {
   MealPlanPayloadSchema,
   MealTypeSchema,
@@ -112,8 +112,10 @@ export type FoodSearchResult = {
   source: "local" | "usda";
 };
 
-const timezoneOffsetInput = z.object({
+const dayQueryInput = z.object({
   timezoneOffsetMinutes: z.number().int().optional(),
+  /** Noon local on the selected calendar day (ms since epoch). */
+  dateMs: z.number().optional(),
 });
 
 const searchFoodsInput = z.object({ query: z.string().min(2).max(100) });
@@ -622,7 +624,7 @@ export const nutritionRouter = router({
     }),
 
   todayPlan: protectedProcedure
-    .input(timezoneOffsetInput.optional())
+    .input(dayQueryInput.optional())
     .query(async ({ ctx, input }) => {
       const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
       return ctx.prisma.mealPlan.findUnique({
@@ -632,7 +634,7 @@ export const nutritionRouter = router({
     }),
 
   previousPlan: protectedProcedure
-    .input(timezoneOffsetInput.optional())
+    .input(dayQueryInput.optional())
     .query(async ({ ctx, input }) => {
       const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
       return ctx.prisma.mealPlan.findFirst({
@@ -643,7 +645,7 @@ export const nutritionRouter = router({
     }),
 
   reusePreviousPlan: protectedProcedure
-    .input(timezoneOffsetInput.optional())
+    .input(dayQueryInput.optional())
     .mutation(async ({ ctx, input }) => {
       const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
       const previous = await ctx.prisma.mealPlan.findFirst({
@@ -686,7 +688,7 @@ export const nutritionRouter = router({
     }),
 
   generatePlan: protectedProcedure
-    .input(timezoneOffsetInput.extend({ force: z.boolean().optional() }).optional())
+    .input(dayQueryInput.extend({ force: z.boolean().optional() }).optional())
     .mutation(async ({ ctx, input }) => {
       const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
       if (!input?.force) {
@@ -883,10 +885,9 @@ export const nutritionRouter = router({
     }),
 
   dailySummary: protectedProcedure
-    .input(timezoneOffsetInput.optional())
+    .input(dayQueryInput.optional())
     .query(async ({ ctx, input }) => {
-      const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
-      const endOfDay = new Date(startOfDay.getTime() + DAY_MS);
+      const { start: startOfDay, end: endOfDay } = resolveUserDayRange(input ?? undefined);
 
       const [summaryRows, user] = await Promise.all([
         ctx.prisma.$queryRaw<
@@ -960,6 +961,8 @@ export const nutritionRouter = router({
     .input(
       z.object({
         mealType: z.enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK"]),
+        timezoneOffsetMinutes: z.number().int().optional(),
+        dateMs: z.number().optional(),
         items: z.array(
           z.object({
             foodId: z.string().optional(),
@@ -975,6 +978,11 @@ export const nutritionRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const { start: mealDate } = resolveUserDayRange({
+        dateMs: input.dateMs,
+        timezoneOffsetMinutes: input.timezoneOffsetMinutes,
+      });
+
       // Batch-fetch all foods that already have a known ID (1 query instead of N).
       const knownFoodIds = input.items.flatMap((item) => (item.foodId ? [item.foodId] : []));
       const existingFoods =
@@ -992,6 +1000,7 @@ export const nutritionRouter = router({
         data: {
           userId: ctx.user.id,
           mealType: input.mealType,
+          date: mealDate,
           items: {
             create: await Promise.all(
               input.items.map(async (item) => {
@@ -1041,10 +1050,9 @@ export const nutritionRouter = router({
     }),
 
   todayMeals: protectedProcedure
-    .input(timezoneOffsetInput.optional())
+    .input(dayQueryInput.optional())
     .query(async ({ ctx, input }) => {
-      const startOfDay = startOfUserDay(new Date(), input?.timezoneOffsetMinutes);
-      const endOfDay = new Date(startOfDay.getTime() + DAY_MS);
+      const { start: startOfDay, end: endOfDay } = resolveUserDayRange(input ?? undefined);
 
       return ctx.prisma.mealLog.findMany({
         where: { userId: ctx.user.id, date: { gte: startOfDay, lt: endOfDay } },

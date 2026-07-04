@@ -63,8 +63,13 @@ export async function scheduleMealPlanNotifications(plan: MealReminderPlan) {
   const permitted = await requestMealReminderPermissionOnce();
   if (!permitted) return;
 
+  // Cancel ALL previously-scheduled meal-plan notifications (not just those with the
+  // current plan.id) so regenerated plans don't leave orphaned notifications behind.
+  const allScheduled = await Notifications.getAllScheduledNotificationsAsync();
   await Promise.all(
-    plan.meals.map((meal) => Notifications.cancelScheduledNotificationAsync(notificationId(plan.id, meal.mealType)).catch(() => undefined)),
+    allScheduled
+      .filter((n) => n.content.data != null && (n.content.data as { kind?: string }).kind === "mealPlan")
+      .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => undefined)),
   );
 
   const now = Date.now();

@@ -3,7 +3,7 @@ import type { RouterOutputs } from "@kak-fit/api/router";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { Button, Card, EmptyState, ListGroup, ListRow, Screen, SectionHeader } from "../src/components/ui";
+import { Button, Card, EmptyState, ListGroup, ListRow, Screen, SectionHeader, useToast } from "../src/components/ui";
 import { trpc } from "../src/lib/trpc";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
 
@@ -58,6 +58,7 @@ export default function NutritionFoodsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { showToast } = useToast();
   const utils = trpc.useUtils();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CustomFood | null>(null);
@@ -91,6 +92,7 @@ export default function NutritionFoodsScreen() {
     onSuccess: () => {
       utils.nutrition.listCustomFoods.invalidate();
       utils.nutrition.searchFoods.invalidate();
+      showToast("Food deleted", "success");
     },
     onError: (error) => Alert.alert("Could not delete food", error.message),
   });

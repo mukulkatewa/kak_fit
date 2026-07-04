@@ -250,6 +250,8 @@ function AnimatedCalorieRing({
   );
 }
 
+const SKIP_UNDO_SECONDS = 5;
+
 function PlanMealCard({
   meal,
   completed,
@@ -283,6 +285,26 @@ function PlanMealCard({
 }) {
   const flashProgress = useSharedValue(0);
   const baseBackground = completed ? colors.successMuted : colors.bg;
+  const [skipCountdown, setSkipCountdown] = useState(SKIP_UNDO_SECONDS);
+
+  // Reset and run countdown whenever a skip enters pending state
+  useEffect(() => {
+    if (!pendingSkip) {
+      setSkipCountdown(SKIP_UNDO_SECONDS);
+      return;
+    }
+    setSkipCountdown(SKIP_UNDO_SECONDS);
+    const id = setInterval(() => {
+      setSkipCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(id);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [pendingSkip]);
 
   useEffect(() => {
     if (!highlight) return;
@@ -319,7 +341,7 @@ function PlanMealCard({
       </View>
       <View style={styles.planMealMetaRow}>
         <Text style={styles.planMealMeta}>
-          {Math.round(meal.calories)} kcal · {Math.round(meal.protein)}g protein ·
+          {Math.round(meal.calories)} kcal · {Math.round(meal.protein)}g protein
         </Text>
         <View style={styles.planPrepRow}>
           <ClockIcon color={colors.accent} size={12} />
@@ -343,7 +365,9 @@ function PlanMealCard({
         </View>
       ) : pendingSkip ? (
         <Pressable style={styles.skipUndoBanner} onPress={onUndoSkip}>
-          <Text style={styles.skipUndoBannerText}>Meal skipped — tap to undo</Text>
+          <Text style={styles.skipUndoBannerText}>
+            Meal skipped — tap to undo ({skipCountdown}s)
+          </Text>
         </Pressable>
       ) : !visuallySkipped ? (
         <View style={styles.planActions}>
@@ -352,7 +376,11 @@ function PlanMealCard({
             disabled={markAtePending}
             onPress={onAte}
           >
-            <Text style={styles.planButtonPrimaryText}>Ate this meal</Text>
+            {markAtePending ? (
+              <ActivityIndicator size="small" color={colors.onAccent} />
+            ) : (
+              <Text style={styles.planButtonPrimaryText}>Ate this meal</Text>
+            )}
           </Pressable>
           <View style={styles.planSecondaryActions}>
             <Pressable style={styles.planIconPill} onPress={onSkip}>
@@ -1293,7 +1321,7 @@ function LogFoodSheet({
                   </Text>
                   {renderMacroPills(item)}
                   <View style={styles.quantityControls}>
-                    <Text style={styles.quantityLabel}>Servings</Text>
+                    <Text style={styles.quantityLabel}>Amount</Text>
                     <Input
                       value={logQuantityFor.qty}
                       onChangeText={(qty) => setLogQuantityFor({ food: item, qty })}

@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "1.4.0";
+const WIDGET_VERSION = "1.5.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -30,7 +30,7 @@ function addWorkoutManifestEntries(androidManifest) {
 
   addManifestChildOnce(app, "receiver", {
     "android:name": ".widget.KakWorkoutWidgetActionReceiver",
-    "android:exported": "false",
+    "android:exported": "true",
   }, "android:name");
   addManifestChildOnce(app, "service", {
     "android:name": ".widget.KakWorkoutOverlayService",
@@ -116,6 +116,8 @@ public class KakWorkoutWidgetPackage implements ReactPackage {
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 class KakWorkoutWidgetState {
   static final String PREFS = "kak_workout_widget";
@@ -138,6 +140,9 @@ class KakWorkoutWidgetState {
   final int repsCompleted;
   final long restEndsAtMs;
   final boolean complete;
+  final int completedSetsCount;
+  final int totalSetsCount;
+  final int defaultRestSeconds;
 
   private KakWorkoutWidgetState(SharedPreferences prefs) {
     active = prefs.getBoolean("active", false);
@@ -153,6 +158,9 @@ class KakWorkoutWidgetState {
     repsCompleted = prefs.getInt("repsCompleted", 0);
     restEndsAtMs = prefs.getLong("restEndsAtMs", 0L);
     complete = prefs.getBoolean("complete", false);
+    completedSetsCount = prefs.getInt("completedSetsCount", 0);
+    totalSetsCount = prefs.getInt("totalSetsCount", 0);
+    defaultRestSeconds = Math.max(0, prefs.getInt("defaultRestSeconds", 90));
   }
 
   static KakWorkoutWidgetState read(Context context) {
@@ -180,6 +188,96 @@ class KakWorkoutWidgetState {
       .edit()
       .putLong("restEndsAtMs", 0L)
       .apply();
+  }
+
+  static String completeCurrentSetLocally(Context context, String expectedSetId) {
+    SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    KakWorkoutWidgetState state = new KakWorkoutWidgetState(prefs);
+    if (!state.active || state.complete || state.isResting()) return null;
+    if (state.nextSetId == null || state.nextSetId.length() == 0) return null;
+    if (expectedSetId != null && expectedSetId.length() > 0 && !expectedSetId.equals(state.nextSetId)) {
+      return null;
+    }
+
+    String completedSetId = state.nextSetId;
+    int completed = state.completedSetsCount + 1;
+    int total = state.totalSetsCount > 0 ? state.totalSetsCount : completed;
+    long restEnds = state.defaultRestSeconds > 0
+      ? System.currentTimeMillis() + state.defaultRestSeconds * 1000L
+      : 0L;
+
+    JSONArray remaining = new JSONArray();
+    try {
+      JSONArray source = new JSONArray(prefs.getString("remainingSetsJson", "[]"));
+      boolean removed = false;
+      for (int i = 0; i < source.length(); i++) {
+        JSONObject item = source.getJSONObject(i);
+        String setId = item.optString("setId", "");
+        if (!removed && setId.equals(completedSetId)) {
+          removed = true;
+          continue;
+        }
+        remaining.put(item);
+      }
+    } catch (Exception ignored) {}
+
+    SharedPreferences.Editor editor = prefs.edit()
+      .putInt("completedSetsCount", completed)
+      .putString("progressLabel", completed + "/" + total + " sets")
+      .putInt("repsCompleted", 0)
+      .putLong("restEndsAtMs", restEnds)
+      .putString("remainingSetsJson", remaining.toString());
+
+    appendPendingSync(editor, prefs, completedSetId);
+
+    if (remaining.length() == 0) {
+      editor.putBoolean("complete", true)
+        .putString("nextSetId", "")
+        .putString("setLabel", "")
+        .putString("shortExerciseName", "Workout complete");
+    } else {
+      try {
+        JSONObject next = remaining.getJSONObject(0);
+        editor.putBoolean("complete", false)
+          .putString("nextSetId", next.optString("setId", ""))
+          .putInt("nextSetNumber", next.optInt("setNumber", 0))
+          .putInt("nextSetReps", Math.max(1, next.optInt("reps", 1)))
+          .putFloat("nextSetWeight", (float) next.optDouble("weight", 0))
+          .putString("shortExerciseName", next.optString("shortExerciseName", "Active workout"))
+          .putString("setLabel", next.optString("setLabel", ""));
+      } catch (Exception ignored) {}
+    }
+    editor.apply();
+    return completedSetId;
+  }
+
+  private static void appendPendingSync(SharedPreferences.Editor editor, SharedPreferences prefs, String setId) {
+    if (setId == null || setId.length() == 0) return;
+    String existing = prefs.getString("pendingSyncSetIds", "");
+    if (existing.contains(setId)) return;
+    editor.putString("pendingSyncSetIds", existing.length() == 0 ? setId : existing + "," + setId);
+  }
+
+  static String[] getPendingSyncSetIds(Context context) {
+    String raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("pendingSyncSetIds", "");
+    if (raw == null || raw.length() == 0) return new String[0];
+    return raw.split(",");
+  }
+
+  static void clearPendingSyncSetIds(Context context) {
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove("pendingSyncSetIds").apply();
+  }
+
+  static int getOverlayX(Context context, int fallback) {
+    return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("overlayX", fallback);
+  }
+
+  static int getOverlayY(Context context, int fallback) {
+    return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("overlayY", fallback);
+  }
+
+  static void saveOverlayPosition(Context context, int x, int y) {
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt("overlayX", x).putInt("overlayY", y).apply();
   }
 
   boolean isResting() {
@@ -262,6 +360,7 @@ import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
@@ -309,6 +408,9 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       .putString("workoutName", summary.hasKey("workoutName") ? summary.getString("workoutName") : "Workout")
       .putString("elapsedLabel", summary.hasKey("elapsedLabel") ? summary.getString("elapsedLabel") : "0s")
       .putString("progressLabel", summary.hasKey("progressLabel") ? summary.getString("progressLabel") : "0/0 sets")
+      .putInt("completedSetsCount", summary.hasKey("completedSets") ? summary.getInt("completedSets") : 0)
+      .putInt("totalSetsCount", summary.hasKey("totalSets") ? summary.getInt("totalSets") : 0)
+      .putInt("defaultRestSeconds", summary.hasKey("defaultRestSeconds") ? summary.getInt("defaultRestSeconds") : 90)
       .putString("shortExerciseName", summary.hasKey("shortExerciseName") ? summary.getString("shortExerciseName") : "Active workout")
       .putString("setLabel", setLabel)
       .putString("nextSetId", nextSetId)
@@ -316,6 +418,28 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       .putInt("nextSetReps", nextSetReps)
       .putFloat("nextSetWeight", (float) nextSetWeight)
       .putBoolean("complete", summary.hasKey("isComplete") && summary.getBoolean("isComplete"));
+
+    if (summary.hasKey("remainingSets") && !summary.isNull("remainingSets")) {
+      ReadableArray remaining = summary.getArray("remainingSets");
+      org.json.JSONArray json = new org.json.JSONArray();
+      if (remaining != null) {
+        for (int i = 0; i < remaining.size(); i++) {
+          ReadableMap item = remaining.getMap(i);
+          if (item == null) continue;
+          org.json.JSONObject obj = new org.json.JSONObject();
+          try {
+            obj.put("setId", item.hasKey("setId") && !item.isNull("setId") ? item.getString("setId") : "");
+            obj.put("setNumber", item.hasKey("setNumber") ? item.getInt("setNumber") : 0);
+            obj.put("reps", item.hasKey("reps") && !item.isNull("reps") ? item.getInt("reps") : 1);
+            obj.put("weight", item.hasKey("weight") && !item.isNull("weight") ? item.getDouble("weight") : 0);
+            obj.put("shortExerciseName", item.hasKey("shortExerciseName") && !item.isNull("shortExerciseName") ? item.getString("shortExerciseName") : "");
+            obj.put("setLabel", item.hasKey("setLabel") && !item.isNull("setLabel") ? item.getString("setLabel") : "");
+            json.put(obj);
+          } catch (Exception ignored) {}
+        }
+      }
+      editor.putString("remainingSetsJson", json.toString());
+    }
 
     if (!nextSetId.equals(previousSetId)) {
       editor.putInt("repsCompleted", 0).putLong("restEndsAtMs", 0L);
@@ -414,6 +538,25 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
+  public void getPendingSyncSetIds(Promise promise) {
+    try {
+      String[] ids = KakWorkoutWidgetState.getPendingSyncSetIds(getReactApplicationContext());
+      com.facebook.react.bridge.WritableArray array = Arguments.createArray();
+      for (String id : ids) {
+        if (id != null && id.length() > 0) array.pushString(id);
+      }
+      promise.resolve(array);
+    } catch (Exception error) {
+      promise.reject("pending_sync_error", error);
+    }
+  }
+
+  @ReactMethod
+  public void clearPendingSyncSetIds() {
+    KakWorkoutWidgetState.clearPendingSyncSetIds(getReactApplicationContext());
+  }
+
+  @ReactMethod
   public void startOverlay() {
     Context context = getReactApplicationContext();
     context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE)
@@ -445,12 +588,6 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       payload.putString("setId", setId == null ? "" : setId);
       reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
         .emit("KakWorkoutWidgetCompleteSet", payload);
-      return;
-    }
-    Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-    if (launch != null) {
-      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-      context.startActivity(launch);
     }
   }
 
@@ -478,8 +615,8 @@ public class KakWorkoutWidgetActionReceiver extends BroadcastReceiver {
       int completed = KakWorkoutWidgetState.tickRep(context);
       KakWorkoutWidgetState updated = KakWorkoutWidgetState.read(context);
       if (completed >= updated.nextSetReps && updated.nextSetId != null && updated.nextSetId.length() > 0) {
-        KakWorkoutWidgetState.resetRepProgress(context);
-        KakWorkoutWidgetModule.emitCompleteSet(context, updated.nextSetId);
+        String setId = KakWorkoutWidgetState.completeCurrentSetLocally(context, updated.nextSetId);
+        if (setId != null) KakWorkoutWidgetModule.emitCompleteSet(context, setId);
       }
       KakWorkoutWidgetModule.refreshOverlay(context);
       KakWorkoutWidgetProvider.updateAll(context);
@@ -488,8 +625,8 @@ public class KakWorkoutWidgetActionReceiver extends BroadcastReceiver {
     if (KakWorkoutWidgetState.ACTION_COMPLETE_SET.equals(action)) {
       KakWorkoutWidgetState state = KakWorkoutWidgetState.read(context);
       if (state.active && !state.isResting() && state.nextSetId != null && state.nextSetId.length() > 0) {
-        KakWorkoutWidgetState.resetRepProgress(context);
-        KakWorkoutWidgetModule.emitCompleteSet(context, state.nextSetId);
+        String setId = KakWorkoutWidgetState.completeCurrentSetLocally(context, state.nextSetId);
+        if (setId != null) KakWorkoutWidgetModule.emitCompleteSet(context, setId);
       }
       KakWorkoutWidgetModule.refreshOverlay(context);
       KakWorkoutWidgetProvider.updateAll(context);
@@ -595,14 +732,16 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.util.DisplayMetrics;
 import android.widget.RemoteViews;
 import android.widget.TextView;
 import ${packageName}.R;
 
 public class KakWorkoutOverlayService extends Service {
-  private static final String CHANNEL_ID = "kak_workout_overlay";
+  private static final String CHANNEL_ID = "kak_workout_live_v5";
   private static final int NOTIFICATION_ID = 9001;
 
   private WindowManager windowManager;
@@ -651,6 +790,8 @@ public class KakWorkoutOverlayService extends Service {
     handler.removeCallbacks(tickRunnable);
     if (state.isResting()) {
       handler.post(tickRunnable);
+    } else {
+      refreshUi(state);
     }
     return START_STICKY;
   }
@@ -658,8 +799,8 @@ public class KakWorkoutOverlayService extends Service {
   private void createNotificationChannel() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       NotificationChannel channel = new NotificationChannel(
-        CHANNEL_ID, "Active workout", NotificationManager.IMPORTANCE_LOW);
-      channel.setDescription("Workout bar and lock screen controls");
+        CHANNEL_ID, "Active workout", NotificationManager.IMPORTANCE_HIGH);
+      channel.setDescription("Workout bar on lock screen and notifications");
       channel.setShowBadge(false);
       channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
       channel.enableVibration(false);
@@ -756,20 +897,62 @@ public class KakWorkoutOverlayService extends Service {
       int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         : WindowManager.LayoutParams.TYPE_PHONE;
+      int overlayWidth = WindowManager.LayoutParams.MATCH_PARENT;
       params = new WindowManager.LayoutParams(
-        WindowManager.LayoutParams.MATCH_PARENT,
+        overlayWidth,
         WindowManager.LayoutParams.WRAP_CONTENT,
         type,
-        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+          | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+          | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED,
         PixelFormat.TRANSLUCENT
       );
-      params.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-      params.x = 0;
-      params.y = dp(8);
+      params.gravity = Gravity.TOP | Gravity.START;
+      DisplayMetrics metrics = getResources().getDisplayMetrics();
+      int defaultX = dp(10);
+      int defaultY = metrics.heightPixels - dp(160);
+      params.x = KakWorkoutWidgetState.getOverlayX(this, defaultX);
+      params.y = KakWorkoutWidgetState.getOverlayY(this, defaultY);
       wireOverlayButtons();
+      installDragHandle();
       windowManager.addView(overlay, params);
     }
     bindOverlay(state);
+  }
+
+  private void installDragHandle() {
+    View handle = overlay.findViewById(R.id.kak_bar_drag_handle);
+    View header = overlay.findViewById(R.id.kak_bar_header);
+    View.OnTouchListener dragListener = new View.OnTouchListener() {
+      private int initialX;
+      private int initialY;
+      private float initialTouchX;
+      private float initialTouchY;
+
+      @Override
+      public boolean onTouch(View view, MotionEvent event) {
+        switch (event.getAction()) {
+          case MotionEvent.ACTION_DOWN:
+            initialX = params.x;
+            initialY = params.y;
+            initialTouchX = event.getRawX();
+            initialTouchY = event.getRawY();
+            return true;
+          case MotionEvent.ACTION_MOVE:
+            params.x = initialX + Math.round(event.getRawX() - initialTouchX);
+            params.y = initialY + Math.round(event.getRawY() - initialTouchY);
+            windowManager.updateViewLayout(overlay, params);
+            return true;
+          case MotionEvent.ACTION_UP:
+          case MotionEvent.ACTION_CANCEL:
+            KakWorkoutWidgetState.saveOverlayPosition(KakWorkoutOverlayService.this, params.x, params.y);
+            return true;
+        }
+        return false;
+      }
+    };
+    handle.setOnTouchListener(dragListener);
+    header.setOnTouchListener(dragListener);
   }
 
   private void wireOverlayButtons() {
@@ -996,7 +1179,16 @@ function writeNativeFiles(projectRoot, packageName) {
     android:background="@drawable/kak_widget_bg"
     android:elevation="12dp">
 
+    <View
+        android:id="@+id/kak_bar_drag_handle"
+        android:layout_width="52dp"
+        android:layout_height="5dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/kak_widget_drag_handle" />
+
     <LinearLayout
+        android:id="@+id/kak_bar_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"

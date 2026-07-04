@@ -12,6 +12,8 @@ import {
   addWorkoutWidgetCompleteSetListener,
   addWorkoutWidgetSkipRestListener,
   clearWorkoutNativeWidget,
+  clearPendingWorkoutWidgetSyncSetIds,
+  getPendingWorkoutWidgetSyncSetIds,
   hideWorkoutFloatingOverlay,
   refreshWorkoutNativeLockscreen,
   showWorkoutFloatingOverlayWhenAllowed,
@@ -67,8 +69,11 @@ export function WorkoutLiveNotificationBridge() {
   });
 
   const widgetSummary = useMemo(
-    () => (activeWorkout ? buildWorkoutWidgetSummary(activeWorkout) : null),
-    [activeWorkout],
+    () =>
+      activeWorkout
+        ? buildWorkoutWidgetSummary(activeWorkout, Date.now(), defaultRestSeconds)
+        : null,
+    [activeWorkout, defaultRestSeconds],
   );
 
   widgetSummaryRef.current = widgetSummary;
@@ -112,11 +117,66 @@ export function WorkoutLiveNotificationBridge() {
     }
   }, [widgetSummary, showBackgroundControls]);
 
+  const completeSetById = useCallback(
+    async (setIdFromWidget?: string) => {
+      let workout = activeRef.current;
+      if (!workout) {
+        const fetched = await utils.workout.active.fetch().catch(() => null);
+        workout = fetched ?? undefined;
+      }
+      if (!workout) return;
+
+      const targetSetId = setIdFromWidget ?? findNextIncompleteSet(workout)?.setId;
+      if (!targetSetId) {
+        router.push("/workout/active");
+        return;
+      }
+
+      const alreadyCompleted = workout.exercises.some((exercise) =>
+        exercise.sets.some((set) => set.id === targetSetId && set.isCompleted),
+      );
+      if (alreadyCompleted) return;
+
+      const variables = { setId: targetSetId, isCompleted: true };
+
+      utils.workout.active.setData(undefined, (current) =>
+        current ? applySetPatchToWorkout(current, targetSetId, { isCompleted: true }) : current,
+      );
+
+      const restSeconds = defaultRestSecondsRef.current;
+      if (restSeconds > 0) {
+        useRestTimer.getState().start(restSeconds);
+        workoutNativeWidgetStartRestTimer(restSeconds);
+      }
+
+      try {
+        await updateSet.mutateAsync(variables);
+      } catch (error) {
+        if (!isNetworkError(error)) {
+          console.error("Failed to complete workout set from widget", error);
+          return;
+        }
+        await enqueueWorkoutMutation("updateSet", variables);
+      }
+    },
+    [router, updateSet, utils.workout.active],
+  );
+
+  const flushPendingWidgetSync = useCallback(async () => {
+    const pendingSetIds = await getPendingWorkoutWidgetSyncSetIds();
+    for (const setId of pendingSetIds) {
+      await completeSetById(setId);
+    }
+    clearPendingWorkoutWidgetSyncSetIds();
+    await utils.workout.active.invalidate();
+  }, [completeSetById, utils.workout.active]);
+
   useEffect(() => {
     if (!widgetSummary) return;
 
     const handleAppState = (nextState: AppStateStatus) => {
       if (isAppInForeground(nextState)) {
+        void flushPendingWidgetSync();
         hideBackgroundControls();
         return;
       }
@@ -124,6 +184,7 @@ export function WorkoutLiveNotificationBridge() {
     };
 
     if (isAppInForeground()) {
+      void flushPendingWidgetSync();
       hideBackgroundControls();
     } else {
       void showBackgroundControls();
@@ -134,48 +195,11 @@ export function WorkoutLiveNotificationBridge() {
       subscription.remove();
       hideBackgroundControls();
     };
-  }, [widgetSummary, hideBackgroundControls, showBackgroundControls]);
-
-  const completeNextSet = useCallback(async () => {
-    let workout = activeRef.current;
-    if (!workout) {
-      const fetched = await utils.workout.active.fetch().catch(() => null);
-      workout = fetched ?? undefined;
-    }
-    if (!workout) return;
-
-    const nextSet = findNextIncompleteSet(workout);
-    if (!nextSet) {
-      router.push("/workout/active");
-      return;
-    }
-
-    const variables = { setId: nextSet.setId, isCompleted: true };
-
-    utils.workout.active.setData(undefined, (current) =>
-      current ? applySetPatchToWorkout(current, nextSet.setId, { isCompleted: true }) : current,
-    );
-
-    const restSeconds = defaultRestSecondsRef.current;
-    if (restSeconds > 0) {
-      useRestTimer.getState().start(restSeconds);
-      workoutNativeWidgetStartRestTimer(restSeconds);
-    }
-
-    try {
-      await updateSet.mutateAsync(variables);
-    } catch (error) {
-      if (!isNetworkError(error)) {
-        console.error("Failed to complete workout set from widget", error);
-        return;
-      }
-      await enqueueWorkoutMutation("updateSet", variables);
-    }
-  }, [router, updateSet, utils.workout.active]);
+  }, [widgetSummary, hideBackgroundControls, showBackgroundControls, flushPendingWidgetSync]);
 
   useEffect(() => {
-    const subscription = addWorkoutWidgetCompleteSetListener(async () => {
-      await completeNextSet();
+    const subscription = addWorkoutWidgetCompleteSetListener(async (setId) => {
+      await completeSetById(setId);
     });
 
     const skipRestSubscription = addWorkoutWidgetSkipRestListener(() => {
@@ -203,7 +227,7 @@ export function WorkoutLiveNotificationBridge() {
       skipRestSubscription.remove();
       notificationSubscription.remove();
     };
-  }, [completeNextSet, router]);
+  }, [completeSetById, router]);
 
   return null;
 }

@@ -17,6 +17,8 @@ type NativeWorkoutWidget = {
   startOverlay?: () => void;
   stopOverlay?: () => void;
   refreshLockscreen?: () => void;
+  getPendingSyncSetIds?: () => Promise<string[]>;
+  clearPendingSyncSetIds?: () => void;
   addListener?: (eventName: string) => void;
   removeListeners?: (count: number) => void;
 };
@@ -51,6 +53,20 @@ export function hideWorkoutFloatingOverlay() {
 
 export function refreshWorkoutNativeLockscreen() {
   nativeModule()?.refreshLockscreen?.();
+}
+
+export async function getPendingWorkoutWidgetSyncSetIds() {
+  const module = nativeModule();
+  if (!module?.getPendingSyncSetIds) return [] as string[];
+  try {
+    return (await module.getPendingSyncSetIds()) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export function clearPendingWorkoutWidgetSyncSetIds() {
+  nativeModule()?.clearPendingSyncSetIds?.();
 }
 
 export function tickWorkoutNativeWidgetRep() {

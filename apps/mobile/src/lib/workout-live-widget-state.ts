@@ -23,6 +23,15 @@ export type WorkoutWidgetSummary = {
   shortExerciseName: string;
   nextSet: WorkoutWidgetNextSet | null;
   isComplete: boolean;
+  remainingSets: Array<{
+    setId: string;
+    setNumber: number;
+    reps: number;
+    weight: number;
+    shortExerciseName: string;
+    setLabel: string;
+  }>;
+  defaultRestSeconds: number;
 };
 
 /** Compact exercise title for widgets/notifications. */
@@ -98,6 +107,7 @@ export function getCurrentExerciseName(workout: ActiveWorkout): string {
 export function buildWorkoutWidgetSummary(
   workout: ActiveWorkout,
   nowMs = Date.now(),
+  defaultRestSeconds = 90,
 ): WorkoutWidgetSummary {
   const completedSets = workout.exercises.reduce(
     (sum, exercise) => sum + exercise.sets.filter((set) => set.isCompleted).length,
@@ -107,6 +117,26 @@ export function buildWorkoutWidgetSummary(
   const elapsedSeconds = Math.max(0, Math.floor((nowMs - startedAtMs(workout.startedAt)) / 1000));
   const nextSet = findNextIncompleteSet(workout);
   const currentName = getCurrentExerciseName(workout);
+  const remainingSets: WorkoutWidgetSummary["remainingSets"] = [];
+
+  for (const workoutExercise of workout.exercises) {
+    for (const set of workoutExercise.sets) {
+      if (set.isCompleted) continue;
+      const shortName = shortExerciseName(workoutExercise.exercise.name);
+      remainingSets.push({
+        setId: set.id,
+        setNumber: set.setNumber,
+        reps: set.reps ?? 1,
+        weight: set.weight ?? 0,
+        shortExerciseName: shortName,
+        setLabel: formatSetLabel({
+          setNumber: set.setNumber,
+          weight: set.weight,
+          reps: set.reps,
+        }),
+      });
+    }
+  }
 
   return {
     workoutId: workout.id,
@@ -120,6 +150,8 @@ export function buildWorkoutWidgetSummary(
     shortExerciseName: shortExerciseName(currentName),
     nextSet,
     isComplete: totalSets > 0 && completedSets === totalSets,
+    remainingSets,
+    defaultRestSeconds,
   };
 }
 

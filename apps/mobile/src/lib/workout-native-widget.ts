@@ -1,10 +1,8 @@
-import { Alert, NativeEventEmitter, NativeModules, Platform } from "react-native";
+import { NativeEventEmitter, NativeModules, Platform } from "react-native";
 import type { WorkoutWidgetSummary } from "./workout-live-widget-state";
 
 const COMPLETE_EVENT = "KakWorkoutWidgetCompleteSet";
 const SKIP_REST_EVENT = "KakWorkoutWidgetSkipRest";
-
-let overlayPromptShownThisSession = false;
 
 type NativeWorkoutWidget = {
   update?: (summary: WorkoutWidgetSummary) => void;
@@ -12,10 +10,6 @@ type NativeWorkoutWidget = {
   tickRep?: () => void;
   skipRest?: () => void;
   startRestTimer?: (seconds: number) => void;
-  canDrawOverlays?: () => Promise<boolean>;
-  requestOverlayPermission?: () => void;
-  startOverlay?: () => void;
-  stopOverlay?: () => void;
   refreshLockscreen?: () => void;
   getPendingSyncSetIds?: () => Promise<string[]>;
   clearPendingSyncSetIds?: () => void;
@@ -32,25 +26,17 @@ export function workoutNativeWidgetAvailable() {
   return Boolean(nativeModule());
 }
 
-/** Sync workout state to native prefs + home-screen widget (no floating overlay). */
+/** Sync workout state to native prefs + home-screen widget + foreground notification. */
 export function updateWorkoutNativeWidget(summary: WorkoutWidgetSummary) {
   nativeModule()?.update?.(summary);
 }
 
+/** Stop the foreground notification service and clear shared prefs. */
 export function clearWorkoutNativeWidget() {
-  const module = nativeModule();
-  module?.clear?.();
-  module?.stopOverlay?.();
+  nativeModule()?.clear?.();
 }
 
-export function showWorkoutFloatingOverlay() {
-  nativeModule()?.startOverlay?.();
-}
-
-export function hideWorkoutFloatingOverlay() {
-  nativeModule()?.stopOverlay?.();
-}
-
+/** Refresh the MediaStyle lockscreen notification with latest state. */
 export function refreshWorkoutNativeLockscreen() {
   nativeModule()?.refreshLockscreen?.();
 }
@@ -80,29 +66,6 @@ export function skipWorkoutNativeWidgetRest() {
 export function workoutNativeWidgetStartRestTimer(seconds: number) {
   if (seconds <= 0) return;
   nativeModule()?.startRestTimer?.(seconds);
-}
-
-/** Start lockscreen + bottom workout bar; prompt for overlay permission when needed. */
-export async function showWorkoutFloatingOverlayWhenAllowed() {
-  const module = nativeModule();
-  if (!module) return;
-
-  module.startOverlay?.();
-
-  const canDraw = await module.canDrawOverlays?.().catch(() => false);
-  if (canDraw) return;
-
-  if (overlayPromptShownThisSession) return;
-  overlayPromptShownThisSession = true;
-
-  Alert.alert(
-    "Enable workout bar",
-    "Allow Kak Fit to show a workout bar at the bottom of your screen (like a music mini-player). Tap Enable, then turn on \"Display over other apps\".",
-    [
-      { text: "Notification only", style: "cancel" },
-      { text: "Enable bar", onPress: () => module.requestOverlayPermission?.() },
-    ],
-  );
 }
 
 export function addWorkoutWidgetSkipRestListener(listener: () => void | Promise<void>) {

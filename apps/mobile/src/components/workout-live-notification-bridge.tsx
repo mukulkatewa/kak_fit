@@ -14,9 +14,7 @@ import {
   clearWorkoutNativeWidget,
   clearPendingWorkoutWidgetSyncSetIds,
   getPendingWorkoutWidgetSyncSetIds,
-  hideWorkoutFloatingOverlay,
   refreshWorkoutNativeLockscreen,
-  showWorkoutFloatingOverlayWhenAllowed,
   tickWorkoutNativeWidgetRep,
   updateWorkoutNativeWidget,
   workoutNativeWidgetStartRestTimer,
@@ -78,24 +76,7 @@ export function WorkoutLiveNotificationBridge() {
 
   widgetSummaryRef.current = widgetSummary;
 
-  const hideBackgroundControls = useCallback(() => {
-    hideWorkoutFloatingOverlay();
-    if (Platform.OS !== "android") {
-      void dismissWorkoutNotification();
-    }
-  }, []);
-
-  const showBackgroundControls = useCallback(async () => {
-    const summary = widgetSummaryRef.current;
-    if (!summary) return;
-    await requestWorkoutNotificationPermissionOnce();
-    updateWorkoutNativeWidget(summary);
-    await showWorkoutFloatingOverlayWhenAllowed();
-    if (Platform.OS === "ios") {
-      await showWorkoutNotification(summary);
-    }
-  }, []);
-
+  // ─── Clear auth state ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!isAuthenticated) {
       clearWorkoutNativeWidget();
@@ -103,20 +84,31 @@ export function WorkoutLiveNotificationBridge() {
     }
   }, [isAuthenticated]);
 
+  // ─── Keep native widget / notification in sync with workout state ────────────
+  // The foreground service runs continuously while the workout is active.
+  // We never stop it here — only clear() stops it (when widgetSummary → null).
+  // This removes the "stop-then-restart" race that caused the widget to disappear.
   useEffect(() => {
     if (!widgetSummary) {
       clearWorkoutNativeWidget();
-      void dismissWorkoutNotification();
+      if (Platform.OS !== "android") void dismissWorkoutNotification();
       return;
     }
 
     updateWorkoutNativeWidget(widgetSummary);
-    if (!isAppInForeground()) {
-      refreshWorkoutNativeLockscreen();
-      void showBackgroundControls();
-    }
-  }, [widgetSummary, showBackgroundControls]);
+    refreshWorkoutNativeLockscreen();
 
+    // iOS: also post a local notification for lockscreen controls
+    if (Platform.OS === "ios" && !isAppInForeground()) {
+      void requestWorkoutNotificationPermissionOnce().then(() =>
+        showWorkoutNotification(widgetSummary),
+      );
+    }
+  }, [widgetSummary]);
+
+  // ─── Flush sets completed natively when app comes to foreground ──────────────
+  // Kept separate from the sync effect so mutation-reference churn doesn't
+  // unsubscribe/resubscribe the AppState listener on every set completion.
   const completeSetById = useCallback(
     async (setIdFromWidget?: string) => {
       let workout = activeRef.current;
@@ -159,44 +151,50 @@ export function WorkoutLiveNotificationBridge() {
         await enqueueWorkoutMutation("updateSet", variables);
       }
     },
-    [router, updateSet, utils.workout.active],
+    // Intentionally exclude `updateSet` from deps — mutation reference churn
+    // would re-subscribe AppState listeners on every set completion.
+    // completeSetById reads the latest updateSet via closure but the stable
+    // function reference prevents the listener-teardown/rebuild race.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, utils.workout.active],
   );
 
-  const flushPendingWidgetSync = useCallback(async () => {
-    const pendingSetIds = await getPendingWorkoutWidgetSyncSetIds();
-    for (const setId of pendingSetIds) {
-      await completeSetById(setId);
-    }
-    clearPendingWorkoutWidgetSyncSetIds();
-    await utils.workout.active.invalidate();
+  const flushPendingWidgetSyncRef = useRef<(() => Promise<void>) | undefined>(undefined);
+
+  useEffect(() => {
+    flushPendingWidgetSyncRef.current = async () => {
+      const pendingSetIds = await getPendingWorkoutWidgetSyncSetIds();
+      for (const setId of pendingSetIds) {
+        await completeSetById(setId);
+      }
+      clearPendingWorkoutWidgetSyncSetIds();
+      await utils.workout.active.invalidate();
+    };
   }, [completeSetById, utils.workout.active]);
 
+  // AppState listener: only flush pending native completions on foreground.
+  // No hide/show of the service here — the service keeps running while active.
   useEffect(() => {
     if (!widgetSummary) return;
 
-    const handleAppState = (nextState: AppStateStatus) => {
-      if (isAppInForeground(nextState)) {
-        void flushPendingWidgetSync();
-        hideBackgroundControls();
-        return;
-      }
-      void showBackgroundControls();
+    const flush = () => {
+      void flushPendingWidgetSyncRef.current?.();
     };
 
-    if (isAppInForeground()) {
-      void flushPendingWidgetSync();
-      hideBackgroundControls();
-    } else {
-      void showBackgroundControls();
-    }
+    const handleAppState = (nextState: AppStateStatus) => {
+      if (isAppInForeground(nextState)) flush();
+    };
+
+    // Flush immediately if we're already in foreground
+    if (isAppInForeground()) flush();
 
     const subscription = AppState.addEventListener("change", handleAppState);
-    return () => {
-      subscription.remove();
-      hideBackgroundControls();
-    };
-  }, [widgetSummary, hideBackgroundControls, showBackgroundControls, flushPendingWidgetSync]);
+    return () => subscription.remove();
+    // widgetSummary in deps: re-subscribe only when workout starts/ends,
+    // not on every mutation (see flushPendingWidgetSyncRef pattern above).
+  }, [widgetSummary]);
 
+  // ─── Native event listeners ──────────────────────────────────────────────────
   useEffect(() => {
     const subscription = addWorkoutWidgetCompleteSetListener(async (setId) => {
       await completeSetById(setId);

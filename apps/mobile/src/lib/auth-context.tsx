@@ -50,12 +50,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshSession = useCallback(async () => {
+    if (authLib.isWithinAuthGracePeriod()) return "skipped" as authLib.RefreshTokenResult;
+
     setIsRefreshing(true);
     try {
       const result = await authLib.refreshTokenIfNeeded();
       if (result === "refreshed") {
         setIsAuthenticated(true);
-        showAppToast("Session renewed", "info");
       } else if (result === "failed") {
         const expiry = await authLib.getTokenExpiry();
         if (authLib.isAccessTokenExpired(expiry)) {
@@ -113,24 +114,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
 
-    void refreshSession();
+    const initialDelay = authLib.isWithinAuthGracePeriod() ? authLib.AUTH_GRACE_MS : 0;
+    const startId = setTimeout(() => {
+      void refreshSession();
+    }, initialDelay);
 
     const id = setInterval(() => {
       void refreshSession();
     }, TOKEN_REFRESH_INTERVAL_MS);
 
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(startId);
+      clearInterval(id);
+    };
   }, [isAuthenticated, isLoading, refreshSession]);
 
   const signInWithGoogle = useCallback(async () => {
     const result = await authLib.signInWithGoogle();
     if (Platform.OS !== "web") {
-      setIsAuthenticated(true);
-      setIsLoading(false);
+      const ok = await refresh();
+      if (!ok) {
+        throw new Error("Sign-in completed but session could not be saved. Try again.");
+      }
       void queryClient.invalidateQueries();
     }
     return result;
-  }, []);
+  }, [refresh]);
 
   return (
     <AuthContext.Provider

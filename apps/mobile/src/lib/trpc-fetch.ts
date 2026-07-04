@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { getToken, getTokenSync, refreshToken } from "./auth";
+import { getToken, getTokenSync, isWithinAuthGracePeriod, refreshToken } from "./auth";
 import { notifySessionExpired } from "./auth-session-events";
 import { apiHeaders } from "./api-client";
 import { dedupedFetch } from "./trpc-request-cache";
@@ -62,6 +62,10 @@ async function fetchWithAuthRetry(
   const response = await fetch(url, { ...options, credentials: "include", signal });
 
   if (response.status !== 401) {
+    return response;
+  }
+
+  if (isWithinAuthGracePeriod()) {
     return response;
   }
 

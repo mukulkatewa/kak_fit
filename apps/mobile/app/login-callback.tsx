@@ -6,7 +6,11 @@ import * as authLib from "../src/lib/auth";
 import { useAuth } from "../src/lib/auth-context";
 import { useThemedStyles, spacing, type Palette } from "../src/lib/theme";
 
-/** OAuth return route — web redirect + Expo Go deep link land here. */
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** OAuth return route — web redirect + native deep link land here. */
 export default function LoginCallbackScreen() {
   const router = useRouter();
   const { refresh } = useAuth();
@@ -15,7 +19,6 @@ export default function LoginCallbackScreen() {
   const attemptedRef = useRef(false);
 
   useEffect(() => {
-    // Prevent double-execution in React strict mode
     if (attemptedRef.current) return;
     attemptedRef.current = true;
 
@@ -23,27 +26,29 @@ export default function LoginCallbackScreen() {
 
     async function finish() {
       try {
-        // On web, use the full page URL which contains the OAuth state
         const url =
           Platform.OS === "web" && typeof window !== "undefined"
             ? window.location.href
             : callbackUrl;
 
-        const result = await authLib.completeAuthSession(url);
-        if (cancelled) return;
+        const maxAttempts = 5;
+        let result: Awaited<ReturnType<typeof authLib.completeAuthSession>> = null;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          if (attempt > 0) {
+            await delay(400 * attempt);
+          }
+          result = await authLib.completeAuthSession(url);
+          if (cancelled) return;
+          if (result) break;
+        }
 
         if (!result) {
-          // Small delay before redirecting to login — gives cookie time to settle
-          if (Platform.OS === "web") {
-            await new Promise((r) => setTimeout(r, 500));
-            // Try once more on web
-            const retry = await authLib.completeAuthSession(url);
-            if (cancelled) return;
-            if (retry) {
-              await refresh();
-              router.replace("/(tabs)");
-              return;
-            }
+          const hasToken = Boolean(authLib.getTokenSync() ?? (await authLib.getToken()));
+          if (hasToken) {
+            await refresh();
+            router.replace("/(tabs)");
+            return;
           }
           router.replace("/login");
           return;

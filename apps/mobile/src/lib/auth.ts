@@ -7,7 +7,10 @@ import { authClient, AUTH_COOKIE_KEY, persistOAuthCookieFromUrl } from "./auth-c
 const TOKEN_KEY = "kak_fit_token";
 const REFRESH_TOKEN_KEY = "auth_refresh_token";
 const TOKEN_EXPIRY_KEY = "kak_fit_token_expiry";
-const REFRESH_THRESHOLD_MS = 10 * 60 * 1000;
+/** Refresh only when the access token is within this window of expiring. */
+const REFRESH_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+/** Skip background validation right after sign-in while cookies/tokens settle. */
+export const AUTH_GRACE_MS = 60 * 1000;
 
 /** OAuth return path — no parentheses (Better Auth rejects `/(tabs)`-style paths). */
 export const AUTH_CALLBACK_PATH = "/login-callback";
@@ -26,6 +29,15 @@ let cachedExpiryMs: number | null | undefined =
     : undefined;
 
 let refreshPromise: Promise<boolean> | null = null;
+let authEstablishedAt = 0;
+
+export function markAuthEstablished() {
+  authEstablishedAt = Date.now();
+}
+
+export function isWithinAuthGracePeriod(): boolean {
+  return authEstablishedAt > 0 && Date.now() - authEstablishedAt < AUTH_GRACE_MS;
+}
 
 export type AuthUser = {
   id: string;
@@ -165,10 +177,12 @@ async function persistSessionCredentials(
 
   const jwtExpiry = decodeJwtExpiryMs(accessToken);
   const sessionExpiry = parseExpiry(options?.expiresAt ?? null);
-  const expiryMs = jwtExpiry ?? sessionExpiry?.getTime() ?? null;
-  if (expiryMs != null) {
-    await writeStoredExpiry(expiryMs);
-  }
+  const expiryMs =
+    jwtExpiry ??
+    sessionExpiry?.getTime() ??
+    Date.now() + 7 * 24 * 60 * 60 * 1000;
+  await writeStoredExpiry(expiryMs);
+  markAuthEstablished();
 }
 
 /** Deep link the in-app browser returns to after Google sign-in. */
@@ -259,7 +273,8 @@ export async function shouldRefreshToken(): Promise<boolean> {
   if (!token) return false;
 
   const expiry = await getTokenExpiry();
-  if (!expiry) return true;
+  // Unknown expiry — keep using the token; 401 handler will refresh or sign out.
+  if (!expiry) return false;
   return expiry.getTime() - Date.now() < REFRESH_THRESHOLD_MS;
 }
 
@@ -301,7 +316,13 @@ async function performTokenRefresh(): Promise<boolean> {
     });
 
     const data = session.data as SessionPayload | null;
-    if (!data?.user?.id) return false;
+    if (!data?.user?.id) {
+      if (Platform.OS !== "web") {
+        const recovered = await completeAuthSession();
+        return Boolean(recovered?.token);
+      }
+      return false;
+    }
 
     const cookieToken = await readTokenFromAuthCookies();
     const bodyToken = data.session?.token ?? null;
@@ -361,11 +382,11 @@ export async function completeAuthSession(callbackUrl?: string | null): Promise<
 } | null> {
   await persistOAuthCookieFromUrl(callbackUrl);
 
-  const maxAttempts = Platform.OS === "web" ? 3 : 1;
+  const maxAttempts = 5;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (attempt > 0) {
-      await delay(500 * attempt);
+      await delay(400 * attempt);
     }
 
     let headerToken: string | null = null;
@@ -380,7 +401,7 @@ export async function completeAuthSession(callbackUrl?: string | null): Promise<
 
     const data = session.data as SessionPayload | null;
     if (!data?.user?.id) {
-      if (Platform.OS === "web" && attempt < maxAttempts - 1) {
+      if (attempt < maxAttempts - 1) {
         continue;
       }
       return null;
@@ -456,7 +477,14 @@ export async function signInWithGoogle() {
     return new Promise<{ token: string; user: AuthUser }>(() => {});
   }
 
-  const result = await completeAuthSession();
+  // Cookies can land in SecureStore slightly after the browser closes.
+  await delay(300);
+
+  const callbackFromLink = await Linking.getInitialURL();
+  let result = await completeAuthSession(callbackFromLink ?? callbackURL);
+  if (!result) {
+    result = await completeAuthSession(callbackURL);
+  }
   if (!result) {
     throw new Error("Sign-in was cancelled");
   }

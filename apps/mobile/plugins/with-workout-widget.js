@@ -21,9 +21,12 @@ function addWorkoutManifestEntries(androidManifest) {
     "android:name": ".widget.KakWorkoutWidgetProvider",
     "android:exported": "true",
   }, "android:name");
-  const provider = app.receiver.find((entry) => entry.$["android:name"] === ".widget.KakWorkoutWidgetProvider");
+  const receivers = ensureArray(app.receiver);
+  const provider = receivers.find((entry) => entry.$["android:name"] === ".widget.KakWorkoutWidgetProvider");
+  if (!provider) throw new Error("Failed to register KakWorkoutWidgetProvider");
   provider["intent-filter"] = [{ action: [{ $: { "android:name": "android.appwidget.action.APPWIDGET_UPDATE" } }] }];
   provider["meta-data"] = [{ $: { "android:name": "android.appwidget.provider", "android:resource": "@xml/kak_workout_widget_info" } }];
+  app.receiver = receivers;
 
   addManifestChildOnce(app, "receiver", {
     "android:name": ".widget.KakWorkoutWidgetActionReceiver",
@@ -32,11 +35,19 @@ function addWorkoutManifestEntries(androidManifest) {
   addManifestChildOnce(app, "service", {
     "android:name": ".widget.KakWorkoutOverlayService",
     "android:exported": "false",
+    "android:foregroundServiceType": "specialUse",
   }, "android:name");
 
   const permissions = ensureArray(androidManifest.manifest["uses-permission"]);
-  if (!permissions.some((permission) => permission.$?.["android:name"] === "android.permission.SYSTEM_ALERT_WINDOW")) {
-    permissions.push({ $: { "android:name": "android.permission.SYSTEM_ALERT_WINDOW" } });
+  const requiredPerms = [
+    "android.permission.SYSTEM_ALERT_WINDOW",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+  ];
+  for (const perm of requiredPerms) {
+    if (!permissions.some((p) => p.$?.["android:name"] === perm)) {
+      permissions.push({ $: { "android:name": perm } });
+    }
   }
   androidManifest.manifest["uses-permission"] = permissions;
 }
@@ -51,7 +62,16 @@ function patchMainApplication(projectRoot, packageName) {
 
   if (file.endsWith(".kt")) {
     src = src.replace(/(import com\.facebook\.react\.PackageList\n)/, `$1import ${packageName}.widget.KakWorkoutWidgetPackage\n`);
-    src = src.replace(/(val packages = PackageList\(this\)\.packages\n)/, `$1        packages.add(KakWorkoutWidgetPackage())\n`);
+    // Modern Expo Kotlin template uses .apply { } block
+    if (src.includes("PackageList(this).packages.apply")) {
+      src = src.replace(
+        /(PackageList\(this\)\.packages\.apply\s*\{[^\n]*\n)/,
+        `$1              add(KakWorkoutWidgetPackage())\n`
+      );
+    } else {
+      // Legacy pattern: val packages = PackageList(this).packages
+      src = src.replace(/(val packages = PackageList\(this\)\.packages\n)/, `$1        packages.add(KakWorkoutWidgetPackage())\n`);
+    }
   } else {
     src = src.replace(/(import com\.facebook\.react\.PackageList;\n)/, `$1import ${packageName}.widget.KakWorkoutWidgetPackage;\n`);
     src = src.replace(/(List<ReactPackage> packages = new PackageList\(this\)\.getPackages\(\);\n)/, `$1        packages.add(new KakWorkoutWidgetPackage());\n`);
@@ -203,7 +223,7 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       .apply();
 
     KakWorkoutWidgetProvider.updateAll(context);
-    context.startService(new Intent(context, KakWorkoutOverlayService.class).setAction(KakWorkoutWidgetState.ACTION_REFRESH));
+    startOverlayServiceSafely(context);
   }
 
   @ReactMethod
@@ -215,7 +235,9 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       .remove("nextSetId")
       .apply();
     KakWorkoutWidgetProvider.updateAll(context);
-    context.stopService(new Intent(context, KakWorkoutOverlayService.class));
+    try {
+      context.stopService(new Intent(context, KakWorkoutOverlayService.class));
+    } catch (Exception ignored) {}
   }
 
   @ReactMethod
@@ -240,13 +262,32 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   public void startOverlay() {
     Context context = getReactApplicationContext();
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) return;
-    context.startService(new Intent(context, KakWorkoutOverlayService.class).setAction(KakWorkoutWidgetState.ACTION_REFRESH));
+    startOverlayServiceSafely(context);
   }
 
   @ReactMethod
   public void stopOverlay() {
     Context context = getReactApplicationContext();
-    context.stopService(new Intent(context, KakWorkoutOverlayService.class));
+    try {
+      context.stopService(new Intent(context, KakWorkoutOverlayService.class));
+    } catch (Exception ignored) {}
+  }
+
+  private static void startOverlayServiceSafely(Context context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+      return;
+    }
+    try {
+      Intent intent = new Intent(context, KakWorkoutOverlayService.class)
+        .setAction(KakWorkoutWidgetState.ACTION_REFRESH);
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        context.startForegroundService(intent);
+      } else {
+        context.startService(intent);
+      }
+    } catch (Exception e) {
+      android.util.Log.w("KakWorkoutWidget", "Could not start overlay service", e);
+    }
   }
 
   static void emitCompleteSet(Context context, String setId) {
@@ -340,6 +381,9 @@ public class KakWorkoutWidgetProvider extends AppWidgetProvider {
 `,
     "KakWorkoutOverlayService.java": `package ${pkg};
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
@@ -357,6 +401,9 @@ import android.widget.TextView;
 import ${packageName}.R;
 
 public class KakWorkoutOverlayService extends Service {
+  private static final String CHANNEL_ID = "kak_workout_overlay";
+  private static final int NOTIFICATION_ID = 9001;
+
   private WindowManager windowManager;
   private View overlay;
   private WindowManager.LayoutParams params;
@@ -364,6 +411,12 @@ public class KakWorkoutOverlayService extends Service {
   @Override
   public IBinder onBind(Intent intent) {
     return null;
+  }
+
+  @Override
+  public void onCreate() {
+    super.onCreate();
+    createNotificationChannel();
   }
 
   @Override
@@ -377,8 +430,43 @@ public class KakWorkoutOverlayService extends Service {
       stopSelf();
       return START_NOT_STICKY;
     }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      startForeground(NOTIFICATION_ID, buildNotification(state));
+    }
     showOrUpdate(state);
     return START_STICKY;
+  }
+
+  private void createNotificationChannel() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      NotificationChannel channel = new NotificationChannel(
+        CHANNEL_ID, "Workout Overlay", NotificationManager.IMPORTANCE_LOW);
+      channel.setDescription("Shows workout controls while exercising");
+      channel.setShowBadge(false);
+      NotificationManager manager = getSystemService(NotificationManager.class);
+      if (manager != null) manager.createNotificationChannel(channel);
+    }
+  }
+
+  private Notification buildNotification(KakWorkoutWidgetState state) {
+    Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
+    PendingIntent pendingLaunch = null;
+    if (launch != null) {
+      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+      pendingLaunch = PendingIntent.getActivity(this, 0, launch,
+        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+    Notification.Builder builder;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      builder = new Notification.Builder(this, CHANNEL_ID);
+    } else {
+      builder = new Notification.Builder(this);
+    }
+    builder.setContentTitle(state.title()).setContentText(state.subtitle())
+      .setSmallIcon(android.R.drawable.ic_media_play)
+      .setOngoing(true).setShowWhen(false);
+    if (pendingLaunch != null) builder.setContentIntent(pendingLaunch);
+    return builder.build();
   }
 
   private void showOrUpdate(KakWorkoutWidgetState state) {
@@ -669,13 +757,14 @@ function writeNativeFiles(projectRoot, packageName) {
 }
 
 function withWorkoutWidget(config) {
+  const packageName = config.android?.package;
+
   config = withAndroidManifest(config, (mod) => {
     addWorkoutManifestEntries(mod.modResults);
     return mod;
   });
 
   return withDangerousMod(config, ["android", (mod) => {
-    const packageName = mod.modRequest.config.android?.package;
     if (!packageName) throw new Error("Workout widget requires expo.android.package");
     writeNativeFiles(mod.modRequest.projectRoot, packageName);
     patchMainApplication(mod.modRequest.projectRoot, packageName);

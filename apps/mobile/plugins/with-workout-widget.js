@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "2.6.3";
+const WIDGET_VERSION = "2.7.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -160,6 +160,7 @@ class KakWorkoutWidgetState {
   final int totalSetsCount;
   final int defaultRestSeconds;
   final long startedAtMs;
+  final String nextExerciseName;
 
   private KakWorkoutWidgetState(SharedPreferences prefs) {
     active = prefs.getBoolean("active", false);
@@ -180,6 +181,7 @@ class KakWorkoutWidgetState {
     totalSetsCount = prefs.getInt("totalSetsCount", 0);
     defaultRestSeconds = Math.max(0, prefs.getInt("defaultRestSeconds", 90));
     startedAtMs = prefs.getLong("startedAtMs", 0L);
+    nextExerciseName = prefs.getString("nextExerciseName", "");
   }
 
   static KakWorkoutWidgetState read(Context context) {
@@ -276,17 +278,25 @@ class KakWorkoutWidgetState {
         .putLong("restEndsAtMs", 0L)      // clear rest timer so title never reads "Rest •…" on a finished workout
         .putString("nextSetId", "")
         .putString("setLabel", "")
-        .putString("shortExerciseName", "Workout complete");
+        .putString("shortExerciseName", "Workout complete")
+        .putString("nextExerciseName", "");
     } else {
       try {
         JSONObject next = remaining.getJSONObject(0);
+        String nextEx = "";
+        String current = next.optString("shortExerciseName", "");
+        for (int i = 1; i < remaining.length(); i++) {
+          String ex = remaining.getJSONObject(i).optString("shortExerciseName", "");
+          if (ex.length() > 0 && !ex.equals(current)) { nextEx = ex; break; }
+        }
         editor.putBoolean("complete", false)
           .putString("nextSetId", next.optString("setId", ""))
           .putInt("nextSetNumber", next.optInt("setNumber", 0))
           .putInt("nextSetReps", Math.max(1, next.optInt("reps", 1)))
           .putFloat("nextSetWeight", (float) next.optDouble("weight", 0))
           .putString("shortExerciseName", next.optString("shortExerciseName", "Active workout"))
-          .putString("setLabel", next.optString("setLabel", ""));
+          .putString("setLabel", next.optString("setLabel", ""))
+          .putString("nextExerciseName", nextEx);
       } catch (Exception ignored) {}
     }
     editor.apply();
@@ -350,9 +360,54 @@ class KakWorkoutWidgetState {
   String barSubtitle() {
     if (!active) return "Start a workout";
     if (complete) return "All sets complete";
+    if (isResting()) {
+      String next = nextExerciseLabel();
+      return next.length() > 0 ? next : "Up next • " + shortExerciseName;
+    }
+    return setDetailLine() + " • " + repProgressLabel();
+  }
+
+  String setDetailLine() {
+    if (!active || complete) return "";
+    if (setLabel != null && setLabel.length() > 0 && !setLabel.contains("?")) return setLabel;
+    String weight = nextSetWeight > 0 ? String.valueOf((int) nextSetWeight) + "kg × " : "";
+    return "Set " + nextSetNumber + " • " + weight + nextSetReps + " reps";
+  }
+
+  String nextExerciseLabel() {
+    if (nextExerciseName == null || nextExerciseName.length() == 0) return "";
+    return "Next: " + nextExerciseName;
+  }
+
+  String repTickLabel() {
+    if (!active || complete || isResting()) return "";
+    boolean done = repsCompleted >= nextSetReps;
+    return (done ? "✓ " : "☐ ") + repsCompleted + "/" + nextSetReps;
+  }
+
+  /** Lock-screen MediaStyle primary line — exercise name, not generic "Workout". */
+  String lockTitle() {
+    if (!active) return "Kak Fit";
+    if (isResting()) return "Rest • " + formatRest(restSecondsLeft());
+    if (complete) return "Workout complete";
+    return shortExerciseName;
+  }
+
+  /** Lock-screen MediaStyle secondary line. */
+  String lockSubtitle() {
+    if (!active) return "Start a workout in Kak Fit";
     if (isResting()) return "Up next • " + shortExerciseName;
-    if (setLabel != null && setLabel.length() > 0) return setLabel + " • " + repProgressLabel();
-    return "Set " + nextSetNumber + " • " + repProgressLabel();
+    if (complete) return progressLabel;
+    return setDetailLine() + " • " + repProgressLabel();
+  }
+
+  /** Lock-screen third line / description. */
+  String lockDescription() {
+    if (!active) return "";
+    String next = nextExerciseLabel();
+    if (isResting() && next.length() > 0) return next + " • " + progressLabel;
+    if (!isResting() && !complete && next.length() > 0) return progressLabel + " • " + next;
+    return progressLabel;
   }
 
   String repProgressLabel() {
@@ -560,12 +615,19 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
     if (summary.hasKey("remainingSets") && !summary.isNull("remainingSets")) {
       ReadableArray remaining = summary.getArray("remainingSets");
       org.json.JSONArray json = new org.json.JSONArray();
+      String nextExercise = "";
+      String currentEx = summary.hasKey("shortExerciseName") ? summary.getString("shortExerciseName") : "";
       if (remaining != null) {
         for (int i = 0; i < remaining.size(); i++) {
           ReadableMap item = remaining.getMap(i);
           if (item == null) continue;
           org.json.JSONObject obj = new org.json.JSONObject();
           try {
+            String exName = item.hasKey("shortExerciseName") && !item.isNull("shortExerciseName")
+              ? item.getString("shortExerciseName") : "";
+            if (nextExercise.length() == 0 && exName.length() > 0 && !exName.equals(currentEx)) {
+              nextExercise = exName;
+            }
             obj.put("setId", item.hasKey("setId") && !item.isNull("setId") ? item.getString("setId") : "");
             obj.put("setNumber", item.hasKey("setNumber") ? item.getInt("setNumber") : 0);
             obj.put("reps", item.hasKey("reps") && !item.isNull("reps") ? item.getInt("reps") : 1);
@@ -577,6 +639,7 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
         }
       }
       editor.putString("remainingSetsJson", json.toString());
+      editor.putString("nextExerciseName", nextExercise);
     }
 
     if (!nextSetId.equals(previousSetId)) {
@@ -673,6 +736,7 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       .putBoolean("controlsVisible", false)
       .remove("nextSetId")
       .remove("startedAtMs")
+      .remove("nextExerciseName")
       .apply();
     KakWorkoutWidgetProvider.updateAll(context);
     stopNotification(context);
@@ -826,6 +890,30 @@ public class KakWorkoutWidgetProvider extends AppWidgetProvider {
     views.setTextViewText(R.id.kak_widget_title, state.barTitle());
     views.setTextViewText(R.id.kak_widget_detail, state.barSubtitle());
     views.setTextViewText(R.id.kak_widget_progress, state.active ? state.progressLabel : "Ready");
+    views.setTextViewText(R.id.kak_widget_rep_tick, state.repTickLabel());
+    if (state.active && !state.complete && !state.isResting() && state.repTickLabel().length() > 0) {
+      views.setViewVisibility(R.id.kak_widget_rep_tick, android.view.View.VISIBLE);
+    } else {
+      views.setViewVisibility(R.id.kak_widget_rep_tick, android.view.View.GONE);
+    }
+
+    String nextLabel = state.nextExerciseLabel();
+    if (nextLabel.length() > 0 && state.active && !state.complete) {
+      views.setViewVisibility(R.id.kak_widget_next, android.view.View.VISIBLE);
+      views.setTextViewText(R.id.kak_widget_next, nextLabel);
+    } else {
+      views.setViewVisibility(R.id.kak_widget_next, android.view.View.GONE);
+    }
+
+    if (state.isResting()) {
+      views.setViewVisibility(R.id.kak_widget_rest_row, android.view.View.VISIBLE);
+      views.setTextViewText(R.id.kak_widget_rest_time, state.restTimerLabel());
+      views.setProgressBar(R.id.kak_widget_rest_bar, 100, state.restTimerProgressPct(), false);
+      views.setViewVisibility(R.id.kak_widget_rep_tick, android.view.View.GONE);
+    } else {
+      views.setViewVisibility(R.id.kak_widget_rest_row, android.view.View.GONE);
+    }
+
     if (state.isResting()) {
       views.setViewVisibility(R.id.kak_bar_btn_rep, android.view.View.GONE);
       views.setViewVisibility(R.id.kak_bar_btn_set, android.view.View.GONE);
@@ -895,7 +983,7 @@ import ${packageName}.R;
  * that surface is always the MediaStyle card when a MediaSession is active.
  */
 public class KakWorkoutOverlayService extends Service {
-  private static final String CHANNEL_ID = "kak_workout_live_v8";
+  private static final String CHANNEL_ID = "kak_workout_live_v9";
   private static final int NOTIFICATION_ID = 9001;
   private static volatile boolean running = false;
 
@@ -988,9 +1076,12 @@ public class KakWorkoutOverlayService extends Service {
       .setState(pbState, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f)
       .build());
     mediaSession.setMetadata(new MediaMetadata.Builder()
-      .putString(MediaMetadata.METADATA_KEY_TITLE,  state.barTitle())
-      .putString(MediaMetadata.METADATA_KEY_ARTIST, state.barSubtitle())
-      .putString(MediaMetadata.METADATA_KEY_ALBUM,  state.progressLabel)
+      .putString(MediaMetadata.METADATA_KEY_TITLE, state.lockTitle())
+      .putString(MediaMetadata.METADATA_KEY_ARTIST, state.lockSubtitle())
+      .putString(MediaMetadata.METADATA_KEY_ALBUM, state.lockDescription())
+      .putString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE, state.lockTitle())
+      .putString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE, state.lockSubtitle())
+      .putString(MediaMetadata.METADATA_KEY_DISPLAY_DESCRIPTION, state.lockDescription())
       .build());
   }
 
@@ -1033,9 +1124,9 @@ public class KakWorkoutOverlayService extends Service {
 
     // Collapsed line (shown when notification is minimised)
     builder
-      .setContentTitle(state.barTitle())
-      .setContentText(state.barSubtitle())
-      .setSubText(state.progressLabel)
+      .setContentTitle(state.lockTitle())
+      .setContentText(state.lockSubtitle())
+      .setSubText(state.lockDescription())
       .setSmallIcon(R.drawable.kak_notif_icon)
       .setOngoing(true)
       .setOnlyAlertOnce(true)
@@ -1097,7 +1188,20 @@ public class KakWorkoutOverlayService extends Service {
 
     views.setTextViewText(R.id.kak_notif_workout_header, state.workoutHeaderLabel());
     views.setTextViewText(R.id.kak_notif_exercise, state.exerciseLabel());
-    views.setTextViewText(R.id.kak_notif_set_detail, state.barSubtitle());
+    views.setTextViewText(R.id.kak_notif_set_detail, state.setDetailLine() + " • " + state.repProgressLabel());
+    String nextLabel = state.nextExerciseLabel();
+    if (nextLabel.length() > 0 && state.active && !state.complete) {
+      views.setViewVisibility(R.id.kak_notif_next, android.view.View.VISIBLE);
+      views.setTextViewText(R.id.kak_notif_next, nextLabel);
+    } else {
+      views.setViewVisibility(R.id.kak_notif_next, android.view.View.GONE);
+    }
+    views.setTextViewText(R.id.kak_notif_rep_tick, state.repTickLabel());
+    if (state.active && !state.complete && !state.isResting() && state.repTickLabel().length() > 0) {
+      views.setViewVisibility(R.id.kak_notif_rep_tick, android.view.View.VISIBLE);
+    } else {
+      views.setViewVisibility(R.id.kak_notif_rep_tick, android.view.View.GONE);
+    }
 
     // Rest timer section
     if (state.isResting()) {
@@ -1490,12 +1594,12 @@ function writeNativeFiles(projectRoot, packageName) {
 
   write(path.join(res, "xml/kak_workout_widget_info.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="280dp"
-    android:minHeight="130dp"
+    android:minWidth="250dp"
+    android:minHeight="72dp"
     android:targetCellWidth="4"
-    android:targetCellHeight="2"
-    android:minResizeWidth="220dp"
-    android:minResizeHeight="110dp"
+    android:targetCellHeight="1"
+    android:minResizeWidth="200dp"
+    android:minResizeHeight="72dp"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/kak_workout_widget"
     android:resizeMode="horizontal|vertical"
@@ -1506,9 +1610,12 @@ function writeNativeFiles(projectRoot, packageName) {
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/kak_widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="12dp"
+    android:paddingLeft="12dp"
+    android:paddingRight="12dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
     android:background="@drawable/kak_widget_bg">
 
     <LinearLayout
@@ -1529,38 +1636,90 @@ function writeNativeFiles(projectRoot, packageName) {
                 android:ellipsize="end"
                 android:text="Exercise"
                 android:textColor="#FFFFFF"
-                android:textSize="15sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
             <TextView
                 android:id="@+id/kak_widget_detail"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:text="Set 1 • 0/8 reps"
+                android:text="Set 1 • 8 reps"
                 android:textColor="#CBD5E1"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
         </LinearLayout>
         <TextView
             android:id="@+id/kak_widget_progress"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingLeft="8dp"
-            android:paddingRight="8dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:paddingLeft="7dp"
+            android:paddingRight="7dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
             android:background="@drawable/kak_widget_progress_bg"
             android:text="0/0"
             android:textColor="#93C5FD"
-            android:textSize="11sp"
+            android:textSize="10sp"
             android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/kak_widget_next"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#64748B"
+        android:textSize="10sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/kak_widget_rep_tick"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#10B981"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/kak_widget_rest_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="vertical"
+        android:background="@drawable/kak_widget_rest_bg"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:visibility="gone">
+        <ProgressBar
+            android:id="@+id/kak_widget_rest_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:max="100"
+            android:progressDrawable="@drawable/kak_widget_rest_progress" />
+        <TextView
+            android:id="@+id/kak_widget_rest_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:gravity="center"
+            android:textColor="#10B981"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace" />
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="36dp"
-        android:layout_marginTop="8dp"
+        android:layout_height="32dp"
+        android:layout_marginTop="6dp"
         android:orientation="horizontal">
         <TextView
             android:id="@+id/kak_bar_btn_rep"
@@ -1571,31 +1730,31 @@ function writeNativeFiles(projectRoot, packageName) {
             android:background="@drawable/kak_widget_primary_button"
             android:text="+ Rep"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textStyle="bold" />
         <TextView
             android:id="@+id/kak_bar_btn_set"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginLeft="6dp"
+            android:layout_marginLeft="5dp"
             android:gravity="center"
             android:background="@drawable/kak_widget_set_button"
-            android:text="Done set"
+            android:text="✓ Done"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textStyle="bold" />
         <TextView
             android:id="@+id/kak_bar_btn_skip"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginLeft="6dp"
+            android:layout_marginLeft="5dp"
             android:gravity="center"
             android:background="@drawable/kak_widget_skip_button"
             android:text="Skip rest"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textStyle="bold"
             android:visibility="gone" />
         <TextView
@@ -1603,12 +1762,12 @@ function writeNativeFiles(projectRoot, packageName) {
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginLeft="6dp"
+            android:layout_marginLeft="5dp"
             android:gravity="center"
             android:background="@drawable/kak_widget_secondary_button"
             android:text="Open"
             android:textColor="#F8FAFC"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textStyle="bold" />
     </LinearLayout>
 </LinearLayout>
@@ -1911,6 +2070,27 @@ function writeNativeFiles(projectRoot, packageName) {
         android:textColor="#94A3B8"
         android:textSize="12sp" />
 
+    <TextView
+        android:id="@+id/kak_notif_next"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#64748B"
+        android:textSize="11sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/kak_notif_rep_tick"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#10B981"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/kak_notif_rest_section"
         android:layout_width="match_parent"
@@ -1997,7 +2177,7 @@ function writeNativeFiles(projectRoot, packageName) {
             android:layout_marginLeft="8dp"
             android:gravity="center"
             android:background="@drawable/kak_widget_set_button"
-            android:text="Done set"
+            android:text="✓ Done"
             android:textColor="#FFFFFF"
             android:textSize="12sp"
             android:textStyle="bold" />

@@ -55,12 +55,14 @@ export function formatSetLabel(
   },
   weightUnit: WeightUnit = "KG",
 ): string {
-  const weight =
+  const weightStr =
     set.weight != null && set.weight > 0
       ? `${formatWidgetWeight(set.weight, weightUnit)}${weightLabel(weightUnit)} × `
       : "";
-  const reps = set.reps != null && set.reps > 0 ? set.reps : "?";
-  return `Set ${set.setNumber} • ${weight}${reps} reps`;
+  const reps = set.reps != null && set.reps > 0 ? set.reps : null;
+  if (weightStr && reps != null) return `Set ${set.setNumber} • ${weightStr}${reps} reps`;
+  if (reps != null) return `Set ${set.setNumber} • ${reps} reps`;
+  return `Set ${set.setNumber}`;
 }
 
 function formatWidgetWeight(weightKg: number, unit: WeightUnit): string {

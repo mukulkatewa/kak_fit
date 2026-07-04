@@ -10,6 +10,7 @@ import { useAuth } from "../lib/auth-context";
 import { queryStaleTime, trpc } from "../lib/trpc";
 import {
   addWorkoutWidgetCompleteSetListener,
+  addWorkoutWidgetSkipRestListener,
   clearWorkoutNativeWidget,
   hideWorkoutFloatingOverlay,
   refreshWorkoutNativeLockscreen,
@@ -177,6 +178,10 @@ export function WorkoutLiveNotificationBridge() {
       await completeNextSet();
     });
 
+    const skipRestSubscription = addWorkoutWidgetSkipRestListener(() => {
+      useRestTimer.getState().stop();
+    });
+
     const notificationSubscription =
       Platform.OS === "ios"
         ? addWorkoutNotificationResponseListener(async (actionIdentifier) => {
@@ -195,6 +200,7 @@ export function WorkoutLiveNotificationBridge() {
 
     return () => {
       subscription.remove();
+      skipRestSubscription.remove();
       notificationSubscription.remove();
     };
   }, [completeNextSet, router]);

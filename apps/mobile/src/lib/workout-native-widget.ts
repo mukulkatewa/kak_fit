@@ -1,14 +1,16 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert, NativeEventEmitter, NativeModules, Platform } from "react-native";
 import type { WorkoutWidgetSummary } from "./workout-live-widget-state";
 
-const OVERLAY_PROMPTED_KEY = "@kak_fit/workout_overlay_prompted";
 const COMPLETE_EVENT = "KakWorkoutWidgetCompleteSet";
+const SKIP_REST_EVENT = "KakWorkoutWidgetSkipRest";
+
+let overlayPromptShownThisSession = false;
 
 type NativeWorkoutWidget = {
   update?: (summary: WorkoutWidgetSummary) => void;
   clear?: () => void;
   tickRep?: () => void;
+  skipRest?: () => void;
   startRestTimer?: (seconds: number) => void;
   canDrawOverlays?: () => Promise<boolean>;
   requestOverlayPermission?: () => void;
@@ -55,12 +57,16 @@ export function tickWorkoutNativeWidgetRep() {
   nativeModule()?.tickRep?.();
 }
 
+export function skipWorkoutNativeWidgetRest() {
+  nativeModule()?.skipRest?.();
+}
+
 export function workoutNativeWidgetStartRestTimer(seconds: number) {
   if (seconds <= 0) return;
   nativeModule()?.startRestTimer?.(seconds);
 }
 
-/** Start lockscreen controls always; prompt only for floating overlay permission. */
+/** Start lockscreen + bottom workout bar; prompt for overlay permission when needed. */
 export async function showWorkoutFloatingOverlayWhenAllowed() {
   const module = nativeModule();
   if (!module) return;
@@ -70,18 +76,28 @@ export async function showWorkoutFloatingOverlayWhenAllowed() {
   const canDraw = await module.canDrawOverlays?.().catch(() => false);
   if (canDraw) return;
 
-  const prompted = await AsyncStorage.getItem(OVERLAY_PROMPTED_KEY);
-  if (prompted === "1") return;
-  await AsyncStorage.setItem(OVERLAY_PROMPTED_KEY, "1");
+  if (overlayPromptShownThisSession) return;
+  overlayPromptShownThisSession = true;
 
   Alert.alert(
-    "Enable workout widget",
-    "Allow Kak Fit to show workout controls when you leave the app during a workout.",
+    "Enable workout bar",
+    "Allow Kak Fit to show a workout bar at the bottom of your screen (like a music mini-player). Tap Enable, then turn on \"Display over other apps\".",
     [
-      { text: "Not now", style: "cancel" },
-      { text: "Enable", onPress: () => module.requestOverlayPermission?.() },
+      { text: "Notification only", style: "cancel" },
+      { text: "Enable bar", onPress: () => module.requestOverlayPermission?.() },
     ],
   );
+}
+
+export function addWorkoutWidgetSkipRestListener(listener: () => void | Promise<void>) {
+  const module = nativeModule();
+  if (!module) return { remove: () => undefined };
+  const emitter = new NativeEventEmitter(NativeModules.KakWorkoutWidget);
+  return emitter.addListener(SKIP_REST_EVENT, () => {
+    void Promise.resolve(listener()).catch((error) => {
+      console.error("Failed to handle workout skip rest", error);
+    });
+  });
 }
 
 export function addWorkoutWidgetCompleteSetListener(

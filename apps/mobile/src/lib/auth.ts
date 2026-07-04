@@ -220,6 +220,9 @@ export const tokenHydrationPromise: Promise<string | null> =
           cachedRefreshToken = refreshToken;
           const expiryMs = expiryRaw ? Number(expiryRaw) : null;
           cachedExpiryMs = expiryMs && !Number.isNaN(expiryMs) ? expiryMs : null;
+          // Mark established so the 60s grace period activates — prevents an immediate
+          // token refresh (and spurious "session expired" toast) on every cold start.
+          if (token) markAuthEstablished();
           return token;
         })
         .catch(() => {

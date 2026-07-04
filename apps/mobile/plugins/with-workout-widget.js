@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "3.1.0";
+const WIDGET_VERSION = "3.2.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -582,7 +582,14 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   private static void onAppBackground(Context context) {
     SharedPreferences prefs = context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE);
     if (!prefs.getBoolean("active", false)) return;
-    refreshNotification(context);
+    // Never call startForegroundService() from ActivityLifecycleCallbacks.onActivityStopped():
+    // on Android 12+ this is a background-restricted context and throws IllegalStateException.
+    // If the service is already running, nudge it with a plain startService() (safe).
+    // The JS bridge (refreshLockscreen) starts the service from a proper foreground context.
+    if (KakWorkoutOverlayService.isRunning()) {
+      context.startService(new Intent(context, KakWorkoutOverlayService.class)
+        .setAction(KakWorkoutWidgetState.ACTION_REFRESH));
+    }
     KakWorkoutWidgetProvider.updateAll(context);
   }
 
@@ -751,13 +758,29 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
   @ReactMethod
   public void clear() {
     Context context = getReactApplicationContext();
+    // Reset ALL display fields so the widget never shows stale "Set 0 • 1 reps" defaults.
     context.getSharedPreferences(KakWorkoutWidgetState.PREFS, Context.MODE_PRIVATE)
       .edit()
       .putBoolean("active", false)
       .putBoolean("controlsVisible", false)
+      .putBoolean("complete", false)
+      .putString("shortExerciseName", "")
+      .putString("workoutName", "")
+      .putString("progressLabel", "")
+      .putString("elapsedLabel", "")
+      .putString("setLabel", "")
+      .putInt("nextSetNumber", 0)
+      .putInt("nextSetReps", 0)
+      .putFloat("nextSetWeight", 0f)
+      .putInt("repsCompleted", 0)
+      .putInt("completedSetsCount", 0)
+      .putInt("totalSetsCount", 0)
+      .putLong("restEndsAtMs", 0L)
       .remove("nextSetId")
       .remove("startedAtMs")
       .remove("nextExerciseName")
+      .remove("remainingSetsJson")
+      .remove("pendingSyncSetIds")
       .apply();
     KakWorkoutWidgetProvider.updateAll(context);
     stopNotification(context);
@@ -985,18 +1008,18 @@ public class KakWorkoutWidgetProvider extends AppWidgetProvider {
       views.setViewVisibility(R.id.kak_widget_rest_time, android.view.View.GONE);
     }
 
+    // kak_bar_btn_rep is always GONE — home widget uses a single "Done Set" button (simpler UX).
+    // The notification shade keeps the full "+Rep / Done set" pair for power users.
+    views.setViewVisibility(R.id.kak_bar_btn_rep, android.view.View.GONE);
     if (state.isResting()) {
-      views.setViewVisibility(R.id.kak_bar_btn_rep, android.view.View.GONE);
       views.setViewVisibility(R.id.kak_bar_btn_set, android.view.View.GONE);
       views.setViewVisibility(R.id.kak_bar_btn_skip, android.view.View.VISIBLE);
       views.setViewVisibility(R.id.kak_bar_btn_open, android.view.View.VISIBLE);
     } else if (state.complete || !state.active) {
-      views.setViewVisibility(R.id.kak_bar_btn_rep, android.view.View.GONE);
       views.setViewVisibility(R.id.kak_bar_btn_set, android.view.View.GONE);
       views.setViewVisibility(R.id.kak_bar_btn_skip, android.view.View.GONE);
       views.setViewVisibility(R.id.kak_bar_btn_open, android.view.View.VISIBLE);
     } else {
-      views.setViewVisibility(R.id.kak_bar_btn_rep, android.view.View.VISIBLE);
       views.setViewVisibility(R.id.kak_bar_btn_set, android.view.View.VISIBLE);
       views.setViewVisibility(R.id.kak_bar_btn_skip, android.view.View.GONE);
       views.setViewVisibility(R.id.kak_bar_btn_open, android.view.View.VISIBLE);
@@ -1025,9 +1048,11 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.graphics.Color;
+import android.media.MediaMetadata;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -1036,16 +1061,22 @@ import android.widget.RemoteViews;
 import ${packageName}.R;
 
 /**
- * Foreground service that drives lock screen + notification shade with the same
- * interactive RemoteViews layout as the home-screen widget (+ Rep, Done, Skip rest).
+ * Foreground service that drives two surfaces:
+ *
+ *  1. Lock screen — MediaSession / MediaStyle card (same as Spotify).
+ *     Buttons: +Rep | Done set | Skip rest (or Open when resting/done).
+ *
+ *  2. Notification shade (expanded) — custom RemoteViews with workout header,
+ *     exercise name, set detail, rest timer, and action buttons.
  */
 public class KakWorkoutOverlayService extends Service {
-  private static final String CHANNEL_ID = "kak_workout_live_v10";
+  private static final String CHANNEL_ID = "kak_workout_live_v11";
   private static final int NOTIFICATION_ID = 9001;
   private static volatile boolean running = false;
 
   static boolean isRunning() { return running; }
 
+  private MediaSession mediaSession;
   private final Handler handler = new Handler(Looper.getMainLooper());
 
   /** Ticks every second while a workout is active to refresh elapsed time + rest countdown. */
@@ -1066,6 +1097,71 @@ public class KakWorkoutOverlayService extends Service {
     super.onCreate();
     running = true;
     createNotificationChannel();
+    setupMediaSession();
+  }
+
+  private void setupMediaSession() {
+    mediaSession = new MediaSession(this, "KakFitWorkout");
+    mediaSession.setFlags(
+      MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
+    mediaSession.setCallback(new MediaSession.Callback() {
+      @Override public void onPlay()       { sendBroadcastAction(KakWorkoutWidgetState.ACTION_COMPLETE_SET); }
+      @Override public void onRewind()     { sendBroadcastAction(KakWorkoutWidgetState.ACTION_TICK_REP); }
+      @Override public void onSkipToNext() { sendBroadcastAction(KakWorkoutWidgetState.ACTION_SKIP_REST); }
+    });
+    mediaSession.setActive(true);
+  }
+
+  private void updateMediaSession(KakWorkoutWidgetState state) {
+    if (mediaSession == null) return;
+
+    long actions;
+    int pbState;
+    long position;
+    float speed;
+    long duration = -1L;
+
+    if (state.isResting()) {
+      actions = PlaybackState.ACTION_SKIP_TO_NEXT;
+      pbState = PlaybackState.STATE_PAUSED;
+      long totalMs = (long) state.defaultRestSeconds * 1000L;
+      long remaining = Math.max(0L, state.restEndsAtMs - System.currentTimeMillis());
+      position = totalMs - remaining;
+      speed = 0f;
+      duration = totalMs;
+    } else if (state.complete) {
+      actions = 0;
+      pbState = PlaybackState.STATE_STOPPED;
+      position = PlaybackState.PLAYBACK_POSITION_UNKNOWN;
+      speed = 0f;
+    } else {
+      actions = PlaybackState.ACTION_REWIND | PlaybackState.ACTION_PLAY;
+      pbState = PlaybackState.STATE_PLAYING;
+      position = PlaybackState.PLAYBACK_POSITION_UNKNOWN;
+      speed = 1f;
+    }
+
+    mediaSession.setPlaybackState(new PlaybackState.Builder()
+      .setActions(actions)
+      .setState(pbState, position, speed)
+      .build());
+
+    // Lock screen card layout (like Spotify):
+    //   Title  = exercise name          (large, bold)
+    //   Artist = set detail / rest time (subtitle)
+    //   Album  = workout name + progress
+    MediaMetadata.Builder meta = new MediaMetadata.Builder()
+      .putString(MediaMetadata.METADATA_KEY_TITLE, state.lockTitle())
+      .putString(MediaMetadata.METADATA_KEY_ARTIST,
+          state.isResting() ? "Rest • " + state.restTimerLabel() : state.lockSubtitle())
+      .putString(MediaMetadata.METADATA_KEY_ALBUM, state.lockDescription());
+    if (duration > 0) meta.putLong(MediaMetadata.METADATA_KEY_DURATION, duration);
+    mediaSession.setMetadata(meta.build());
+  }
+
+  private void sendBroadcastAction(String action) {
+    sendBroadcast(new Intent(this, KakWorkoutWidgetActionReceiver.class)
+      .setAction(action).setPackage(getPackageName()));
   }
 
   @Override
@@ -1185,28 +1281,36 @@ public class KakWorkoutOverlayService extends Service {
 
     if (piOpen != null) builder.setContentIntent(piOpen);
 
-    // Same interactive layout as the home widget — shown on lock screen + collapsed shade.
-    RemoteViews compact = KakWorkoutWidgetProvider.buildRemoteViews(this);
-    builder.setCustomContentView(compact);
+    // Custom big card shown in the expanded notification shade (NOT lock screen —
+    // lock screen uses the MediaStyle card below).
     builder.setCustomBigContentView(buildBigView(state, piRep, piDone, piSkip, piOpen));
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-      builder.setStyle(new Notification.DecoratedCustomViewStyle());
-    }
-
-    // Fallback action buttons for launchers that show them below the custom view.
-    if (state.isResting()) {
-      builder.addAction(new Notification.Action.Builder(
-        android.R.drawable.ic_media_ff, "Skip rest", piSkip).build());
-    } else if (!state.complete && state.active) {
-      builder.addAction(new Notification.Action.Builder(
-        android.R.drawable.ic_input_add, "+ Rep", piRep).build());
-      builder.addAction(new Notification.Action.Builder(
-        android.R.drawable.ic_menu_save, "Done set", piDone).build());
-    }
-    if (piOpen != null) {
-      builder.addAction(new Notification.Action.Builder(
-        android.R.drawable.ic_menu_view, "Open", piOpen).build());
+    // MediaStyle: drives the Spotify-style lock-screen card.
+    // The MediaSession must be active + STATE_PLAYING for Android to show it on the lock screen.
+    updateMediaSession(state);
+    if (mediaSession != null) {
+      Notification.MediaStyle style = new Notification.MediaStyle()
+          .setMediaSession(mediaSession.getSessionToken());
+      if (state.isResting()) {
+        builder.addAction(new Notification.Action.Builder(
+          android.R.drawable.ic_media_ff, "Skip rest", piSkip).build());
+        if (piOpen != null) builder.addAction(new Notification.Action.Builder(
+          android.R.drawable.ic_media_next, "Open", piOpen).build());
+        style.setShowActionsInCompactView(0);
+      } else if (state.complete || !state.active) {
+        if (piOpen != null) builder.addAction(new Notification.Action.Builder(
+          android.R.drawable.ic_media_next, "Open", piOpen).build());
+        style.setShowActionsInCompactView(0);
+      } else {
+        builder.addAction(new Notification.Action.Builder(
+          android.R.drawable.ic_media_rew, "+ Rep", piRep).build());
+        builder.addAction(new Notification.Action.Builder(
+          android.R.drawable.ic_media_play, "Done set", piDone).build());
+        if (piOpen != null) builder.addAction(new Notification.Action.Builder(
+          android.R.drawable.ic_media_next, "Open", piOpen).build());
+        style.setShowActionsInCompactView(0, 1, 2);
+      }
+      builder.setStyle(style);
     }
 
     return builder.build();
@@ -1284,6 +1388,11 @@ public class KakWorkoutOverlayService extends Service {
   public void onDestroy() {
     running = false;
     handler.removeCallbacks(tickRunnable);
+    if (mediaSession != null) {
+      mediaSession.setActive(false);
+      mediaSession.release();
+      mediaSession = null;
+    }
     super.onDestroy();
   }
 }
@@ -1498,16 +1607,17 @@ function writeNativeFiles(projectRoot, packageName) {
             android:text="+ Rep"
             android:textColor="#FFFFFFFF"
             android:textSize="11sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:visibility="gone" />
         <TextView
             android:id="@+id/kak_bar_btn_set"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1"
+            android:layout_weight="2"
             android:layout_marginLeft="5dp"
             android:gravity="center"
             android:background="#FF059669"
-            android:text="Done"
+            android:text="Done Set"
             android:textColor="#FFFFFFFF"
             android:textSize="11sp"
             android:textStyle="bold" />

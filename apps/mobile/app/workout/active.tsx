@@ -345,7 +345,17 @@ function ActiveWorkoutScreen() {
     setId: string,
     data: { weight?: number; reps?: number; isCompleted?: boolean; setType?: SetType; rpe?: number | null },
   ) => {
-    if (data.isCompleted === true) start();
+    // Only start rest timer when completing a set for the first time
+    // (not when toggling off + on again — that would restart the timer)
+    if (data.isCompleted === true) {
+      const currentWorkout = getActiveWorkout();
+      const currentSet = currentWorkout?.exercises
+        .flatMap((e) => e.sets)
+        .find((s) => s.id === setId);
+      if (!currentSet?.isCompleted) {
+        start();
+      }
+    }
     updateSet({ setId, ...data });
   };
 
@@ -1359,7 +1369,7 @@ function SetRow({
   };
 
   const handleCompletePress = () => {
-    onUpdateSet(set.id, { ...flushDraft(true), isCompleted: !set.isCompleted });
+    onUpdateSet(set.id, { ...flushDraft(false), isCompleted: !set.isCompleted });
     completingRef.current = false;
   };
 

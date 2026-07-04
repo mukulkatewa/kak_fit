@@ -98,7 +98,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const recovered = await authLib.ensureBearerFromExistingSession();
+      // Skip session recovery on clean install (no auth cookies stored) to avoid 4s delay
+      const hasPossibleSession = await authLib.hasPossibleStoredSession();
+      const recovered = hasPossibleSession ? await authLib.ensureBearerFromExistingSession() : false;
       if (cancelled) return;
 
       setIsAuthenticated(recovered);
@@ -114,19 +116,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
 
-    const initialDelay = authLib.isWithinAuthGracePeriod() ? authLib.AUTH_GRACE_MS : 0;
-    const startId = setTimeout(() => {
-      void refreshSession();
-    }, initialDelay);
-
+    // Background refresh only; immediate post-sign-in refresh is handled by signInWithGoogle → refresh()
     const id = setInterval(() => {
       void refreshSession();
     }, TOKEN_REFRESH_INTERVAL_MS);
 
-    return () => {
-      clearTimeout(startId);
-      clearInterval(id);
-    };
+    return () => clearInterval(id);
   }, [isAuthenticated, isLoading, refreshSession]);
 
   const signInWithGoogle = useCallback(async () => {

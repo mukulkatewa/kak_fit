@@ -363,7 +363,9 @@ class KakWorkoutWidgetState {
 
   int restSecondsLeft() {
     if (!isResting()) return 0;
-    return Math.max(1, (int) Math.ceil((restEndsAtMs - System.currentTimeMillis()) / 1000.0));
+    long ms = restEndsAtMs - System.currentTimeMillis();
+    if (ms <= 0) return 0;
+    return (int) Math.ceil(ms / 1000.0);
   }
 
   String barTitle() {
@@ -1084,6 +1086,15 @@ public class KakWorkoutOverlayService extends Service {
     @Override public void run() {
       KakWorkoutWidgetState state = KakWorkoutWidgetState.read(KakWorkoutOverlayService.this);
       if (!state.active || state.complete) { stopSelf(); return; }
+      // If rest just expired, clear rest state so the notification transitions back
+      // to the working state immediately rather than hanging at "Rest • 0s".
+      if (state.restEndsAtMs > 0 && state.restEndsAtMs <= System.currentTimeMillis()) {
+        android.content.SharedPreferences.Editor ed =
+          KakWorkoutOverlayService.this.getSharedPreferences(
+            KakWorkoutWidgetState.PREFS, android.content.Context.MODE_PRIVATE).edit();
+        ed.putLong("restEndsAtMs", 0L).apply();
+        state = KakWorkoutWidgetState.read(KakWorkoutOverlayService.this);
+      }
       postNotification(state);
       KakWorkoutWidgetProvider.updateAll(KakWorkoutOverlayService.this);
       handler.postDelayed(this, 1000L);
@@ -1123,11 +1134,13 @@ public class KakWorkoutOverlayService extends Service {
 
     if (state.isResting()) {
       actions = PlaybackState.ACTION_SKIP_TO_NEXT;
-      pbState = PlaybackState.STATE_PAUSED;
+      // STATE_PLAYING + speed=1.0 tells Android the rest timer is actively counting down,
+      // so the system lock-screen card animates the progress bar automatically.
+      pbState = PlaybackState.STATE_PLAYING;
       long totalMs = (long) state.defaultRestSeconds * 1000L;
       long remaining = Math.max(0L, state.restEndsAtMs - System.currentTimeMillis());
-      position = totalMs - remaining;
-      speed = 0f;
+      position = totalMs - remaining; // elapsed time — advances as rest counts down
+      speed = 1.0f;
       duration = totalMs;
     } else if (state.complete) {
       actions = 0;
@@ -1277,6 +1290,8 @@ public class KakWorkoutOverlayService extends Service {
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       builder.setCategory(Notification.CATEGORY_WORKOUT);
+    } else {
+      builder.setCategory(Notification.CATEGORY_STATUS);
     }
 
     if (piOpen != null) builder.setContentIntent(piOpen);
@@ -1308,7 +1323,7 @@ public class KakWorkoutOverlayService extends Service {
           android.R.drawable.ic_media_play, "Done set", piDone).build());
         if (piOpen != null) builder.addAction(new Notification.Action.Builder(
           android.R.drawable.ic_media_next, "Open", piOpen).build());
-        style.setShowActionsInCompactView(0, 1, 2);
+        style.setShowActionsInCompactView(1);  // Only "Done set" in compact view
       }
       builder.setStyle(style);
     }

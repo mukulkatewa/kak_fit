@@ -14,7 +14,7 @@ export const bodyMeasurementRouter = router({
     }),
 
   chart: protectedProcedure
-    .input(z.object({ field: z.enum(["weight", "bodyFat", "waist", "chest", "arms"]), limit: z.number().default(20) }))
+    .input(z.object({ field: z.enum(["weight", "bodyFat", "waist", "chest", "arms"]), limit: z.number().int().min(1).max(365).default(90) }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.prisma.bodyMeasurement.findMany({
         where: { userId: ctx.user.id },

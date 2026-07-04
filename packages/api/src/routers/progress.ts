@@ -62,7 +62,7 @@ async function queryDashboard(
         },
         select: { finishedAt: true },
         orderBy: { finishedAt: "desc" },
-        take: 730,
+        take: 365,
       }),
       prisma.workout.count({
         where: { userId, finishedAt: { not: null } },

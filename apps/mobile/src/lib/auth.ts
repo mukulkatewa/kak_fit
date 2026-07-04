@@ -454,6 +454,21 @@ export async function ensureBearerFromExistingSession(): Promise<boolean> {
   return Boolean(completed?.token);
 }
 
+/**
+ * Returns true if there might be a stored Better Auth session cookie to recover from.
+ * On a clean install with no cookies, returns false immediately — avoids the 4-second
+ * retry delay in completeAuthSession() on first launch.
+ */
+export async function hasPossibleStoredSession(): Promise<boolean> {
+  if (Platform.OS === "web") return true;
+  try {
+    const cookie = await SecureStore.getItemAsync(AUTH_COOKIE_KEY);
+    return Boolean(cookie);
+  } catch {
+    return false;
+  }
+}
+
 export async function signInWithGoogle() {
   const callbackURL = getAuthCallbackUrl();
 
@@ -497,6 +512,8 @@ export async function signInWithGoogle() {
 
 export async function signOut() {
   const token = await getToken();
+  const signOutErrors: string[] = [];
+
   if (token) {
     await fetch(`${getApiUrl()}/api/auth/sign-out`, {
       method: "POST",
@@ -505,8 +522,18 @@ export async function signOut() {
         Authorization: `Bearer ${token}`,
       }),
       body: "{}",
-    }).catch(() => undefined);
+    }).catch((err: unknown) => {
+      signOutErrors.push(`API: ${err instanceof Error ? err.message : String(err)}`);
+    });
   }
-  await authClient.signOut().catch(() => undefined);
+
+  await authClient.signOut().catch((err: unknown) => {
+    signOutErrors.push(`Client: ${err instanceof Error ? err.message : String(err)}`);
+  });
+
   await clearToken();
+
+  if (signOutErrors.length > 0) {
+    console.warn("[Auth] Sign-out had server-side errors (local session cleared):", signOutErrors);
+  }
 }

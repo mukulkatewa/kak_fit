@@ -27,7 +27,7 @@ export const progressPhotoRouter = router({
   upload: protectedProcedure
     .input(
       z.object({
-        base64: z.string().min(1),
+        base64: z.string().min(1).max(10_485_760), // ~10MB base64 limit
         contentType: z.string().default("image/jpeg"),
         note: z.string().max(200).optional(),
         weight: z.number().positive().optional(),
@@ -40,6 +40,11 @@ export const progressPhotoRouter = router({
           code: "PRECONDITION_FAILED",
           message: "Photo storage is not configured on the server.",
         });
+      }
+
+      const VALID_PREFIXES = ['data:image/jpeg;base64,', 'data:image/png;base64,', 'data:image/webp;base64,'];
+      if (!VALID_PREFIXES.some(p => input.base64.startsWith(p))) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Only JPEG, PNG, and WebP images are supported.' });
       }
 
       if (input.workoutId) {

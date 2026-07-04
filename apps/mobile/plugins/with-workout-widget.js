@@ -2,7 +2,7 @@ const { AndroidConfig, createRunOncePlugin, withAndroidManifest, withDangerousMo
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET_VERSION = "2.1.0";
+const WIDGET_VERSION = "2.2.0";
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -237,6 +237,7 @@ class KakWorkoutWidgetState {
 
     if (remaining.length() == 0) {
       editor.putBoolean("complete", true)
+        .putLong("restEndsAtMs", 0L)      // clear rest timer so title never reads "Rest •…" on a finished workout
         .putString("nextSetId", "")
         .putString("setLabel", "")
         .putString("shortExerciseName", "Workout complete");
@@ -460,6 +461,7 @@ public class KakWorkoutWidgetModule extends ReactContextBaseJavaModule {
       .putInt("repsCompleted", 0)
       .apply();
     refreshNotification(context);
+    KakWorkoutWidgetProvider.updateAll(context); // sync home-screen widget to rest mode
   }
 
   /** Start or refresh the foreground notification service. */
@@ -661,6 +663,7 @@ import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Handler;
+import android.content.pm.ServiceInfo;
 import android.os.IBinder;
 import android.os.Looper;
 import ${packageName}.R;
@@ -683,7 +686,13 @@ public class KakWorkoutOverlayService extends Service {
       KakWorkoutWidgetState state = KakWorkoutWidgetState.read(KakWorkoutOverlayService.this);
       if (!state.active) { stopSelf(); return; }
       postNotification(state);
-      if (state.isResting()) handler.postDelayed(this, 1000L);
+      if (state.isResting()) {
+        handler.postDelayed(this, 1000L);
+      } else {
+        // Rest just expired — push one final widget refresh so the home-screen buttons
+        // switch back from "Skip rest" mode to "Done set / +Rep" mode immediately.
+        KakWorkoutWidgetProvider.updateAll(KakWorkoutOverlayService.this);
+      }
     }
   };
 
@@ -700,7 +709,12 @@ public class KakWorkoutOverlayService extends Service {
   public int onStartCommand(Intent intent, int flags, int startId) {
     KakWorkoutWidgetState state = KakWorkoutWidgetState.read(this);
     if (!state.active) { stopSelf(); return START_NOT_STICKY; }
-    startForeground(NOTIFICATION_ID, buildNotification(state));
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      startForeground(NOTIFICATION_ID, buildNotification(state),
+          ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+    } else {
+      startForeground(NOTIFICATION_ID, buildNotification(state));
+    }
     handler.removeCallbacks(tickRunnable);
     if (state.isResting()) handler.post(tickRunnable);
     return START_STICKY;

@@ -405,3 +405,62 @@ export function useThemedStyles<T>(factory: (c: Palette, shadows: ShadowSet) => 
   const { colors: active, shadows } = useTheme();
   return useMemo(() => factory(active, shadows), [active, shadows, factory]);
 }
+
+// ─── Meal reminder accents ────────────────────────────────────────────────────
+
+export type MealTypeKey = "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
+
+export type MealReminderTheme = {
+  gradient: [string, string];
+  wallpaper: [string, string, string];
+  accent: string;
+  accentSecondary: string;
+};
+
+/** Meal-specific gradients derived from the active palette (light + dark). */
+export function mealReminderTheme(
+  mealType: MealTypeKey,
+  colors: Palette,
+  isDark: boolean,
+): MealReminderTheme {
+  switch (mealType) {
+    case "BREAKFAST":
+      return {
+        gradient: isDark
+          ? [colors.gold, colors.goldBright]
+          : [colors.gold, colors.goldBright],
+        wallpaper: isDark
+          ? ["#3D2E1A", "#5C4030", "#6B4A5A"]
+          : ["#FFD9A0", "#F2A48B", "#C98FB0"],
+        accent: colors.gold,
+        accentSecondary: colors.goldBright,
+      };
+    case "LUNCH":
+      return {
+        gradient: [colors.carbsColor, colors.accent],
+        wallpaper: isDark
+          ? ["#1A2840", "#1E3A5F", "#2A5080"]
+          : ["#BFE4FF", "#7CC0FF", "#4B9BE8"],
+        accent: colors.carbsColor,
+        accentSecondary: colors.accent,
+      };
+    case "DINNER":
+      return {
+        gradient: [colors.proteinColor, colors.accentDark],
+        wallpaper: isDark
+          ? ["#1A1A2E", "#2D2450", "#5A3D55"]
+          : ["#3A3F6B", "#5B4A86", "#C47F8F"],
+        accent: colors.proteinColor,
+        accentSecondary: colors.accentDark,
+      };
+    case "SNACK":
+      return {
+        gradient: [colors.fatColor, colors.gold],
+        wallpaper: isDark
+          ? ["#2A2418", "#3D3520", "#4A4030"]
+          : ["#FFF0C2", "#FFD98A", "#E8B86D"],
+        accent: colors.fatColor,
+        accentSecondary: colors.gold,
+      };
+  }
+}

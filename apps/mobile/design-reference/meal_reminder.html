@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DayLog — Meal Reminder</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:-apple-system,"SF Pro Display","SF Pro Text","Segoe UI",system-ui,sans-serif;
+    background:#0c0d10; color:#1d1d1f;
+    display:flex; align-items:center; justify-content:center; min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- phone / lock screen ---------- */
+  .phone{
+    position:relative; width:390px; height:800px; border-radius:52px; overflow:hidden;
+    box-shadow:0 40px 90px -30px rgba(0,0,0,.7), 0 0 0 10px #17181c, 0 0 0 12px #303138;
+    isolation:isolate;
+  }
+  .wallpaper{
+    position:absolute; inset:0; transition:background 1s ease;
+    background:linear-gradient(165deg,#ffd9a0 0%,#f2a48b 48%,#c98fb0 100%);
+  }
+  .wallpaper::after{ /* subtle depth vignette */
+    content:""; position:absolute; inset:0;
+    background:radial-gradient(120% 80% at 50% -10%, rgba(255,255,255,.35), transparent 55%),
+               radial-gradient(120% 90% at 50% 120%, rgba(0,0,0,.28), transparent 55%);
+  }
+  .lock-clock{
+    position:absolute; top:64px; left:0; right:0; text-align:center; color:#fff;
+    text-shadow:0 2px 18px rgba(0,0,0,.25); pointer-events:none; z-index:1;
+  }
+  .lock-date{ font-size:16px; font-weight:600; letter-spacing:.01em; opacity:.95; }
+  .lock-time{ font-size:78px; font-weight:600; letter-spacing:-0.02em; line-height:1.02; font-variant-numeric:tabular-nums; }
+  .lock-hint{ position:absolute; bottom:22px; left:0; right:0; text-align:center; color:rgba(255,255,255,.8);
+    font-size:12.5px; font-weight:500; z-index:1; }
+
+  /* meal preview pills */
+  .meal-pills{ position:absolute; top:16px; left:0; right:0; display:flex; gap:6px; justify-content:center; z-index:4; }
+  .meal-pills button{
+    all:unset; cursor:pointer; font-size:11.5px; font-weight:700; letter-spacing:.02em;
+    padding:6px 12px; border-radius:20px; color:#fff;
+    background:rgba(255,255,255,.18); backdrop-filter:blur(8px);
+  }
+  .meal-pills button.active{ background:rgba(255,255,255,.9); color:#1d1d1f; }
+
+  /* ---------- reminder card ---------- */
+  .reminder{
+    position:absolute; left:12px; right:12px; bottom:14px; z-index:3;
+    background:rgba(255,255,255,0.78);
+    backdrop-filter:blur(30px) saturate(180%); -webkit-backdrop-filter:blur(30px) saturate(180%);
+    border:1px solid rgba(255,255,255,0.65);
+    border-radius:30px; padding:16px 16px 16px;
+    box-shadow:0 24px 50px -20px rgba(15,20,35,.5), 0 1px 1px rgba(255,255,255,.6) inset;
+  }
+  .reminder.enter{ animation:cardIn .62s cubic-bezier(.2,.9,.25,1) both; }
+  .reminder.leaving{ animation:cardOut .4s cubic-bezier(.4,0,.9,.3) both; }
+  @keyframes cardIn{
+    0%{ transform:translateY(70px) scale(.94); opacity:0; filter:blur(6px); }
+    100%{ transform:translateY(0) scale(1); opacity:1; filter:blur(0); }
+  }
+  @keyframes cardOut{
+    100%{ transform:translateY(90px) scale(.96); opacity:0; filter:blur(4px); }
+  }
+
+  /* timer bar */
+  .timerbar{ height:4px; border-radius:4px; background:rgba(120,120,128,.16); overflow:hidden; margin-bottom:12px; }
+  .timerbar i{ display:block; height:100%; width:100%; border-radius:4px;
+    background:linear-gradient(90deg,var(--meal-a),var(--meal-b)); transform-origin:left;
+    transition:transform 1s linear; }
+
+  .r-head{ display:flex; align-items:center; gap:11px; margin-bottom:3px; }
+  .r-badge{ width:40px; height:40px; border-radius:13px; display:grid; place-items:center; flex:none;
+    background:linear-gradient(160deg,var(--meal-a),var(--meal-b)); box-shadow:0 6px 14px -6px var(--meal-b);
+    animation:badgePulse 2.6s ease-in-out infinite; }
+  @keyframes badgePulse{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.06);} }
+  .r-title{ flex:1; text-align:left; }
+  .r-title h2{ margin:0; font-size:18px; font-weight:700; letter-spacing:-0.01em; }
+  .r-title p{ margin:2px 0 0; font-size:12px; color:#86868b; font-weight:500; }
+  .r-timer{ text-align:right; font-size:11px; font-weight:600; color:#86868b; font-variant-numeric:tabular-nums; }
+  .r-timer b{ display:block; font-size:12.5px; color:var(--meal-b); }
+
+  .r-sub{ text-align:left; font-size:12.5px; color:#86868b; font-weight:500; margin:8px 2px 10px; }
+
+  /* item rows */
+  .rows{ display:flex; flex-direction:column; gap:7px; }
+  .row{
+    display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:16px;
+    background:rgba(255,255,255,0.5); border:1px solid rgba(255,255,255,0.5);
+    animation:rowIn .5s ease both; transition:opacity .25s ease, filter .25s ease;
+  }
+  @keyframes rowIn{ 0%{opacity:0; transform:translateY(8px);} 100%{opacity:1; transform:translateY(0);} }
+  .row.excluded{ opacity:.42; filter:saturate(.4); }
+
+  .check{ width:24px; height:24px; border-radius:50%; flex:none; cursor:pointer;
+    border:2px solid rgba(120,120,128,.35); display:grid; place-items:center;
+    transition:background .18s ease, border-color .18s ease; }
+  .row:not(.excluded) .check{ background:var(--it-accent); border-color:var(--it-accent); }
+  .check svg{ width:13px; height:13px; opacity:0; transition:opacity .18s ease; }
+  .row:not(.excluded) .check svg{ opacity:1; }
+
+  .r-icon{ width:38px; height:44px; flex:none; }
+
+  .r-info{ flex:1; text-align:left; min-width:0; }
+  .r-name{ font-size:14.5px; font-weight:600; letter-spacing:-0.01em; }
+  .r-usual{ font-size:11px; color:#98989d; font-weight:500; margin-top:1px; }
+  .r-usual.changed{ color:var(--it-accent); font-weight:600; }
+
+  .stepper{ display:flex; align-items:center; gap:2px; flex:none; }
+  .sbtn{ all:unset; cursor:pointer; width:28px; height:28px; border-radius:9px; display:grid; place-items:center;
+    font-size:18px; line-height:1; color:#1d1d1f; background:rgba(120,120,128,.12);
+    transition:background .15s ease, transform .1s ease; }
+  .sbtn:hover{ background:rgba(120,120,128,.2); }
+  .sbtn:active{ transform:scale(.9); }
+  .amt{ min-width:64px; text-align:center; font-size:13.5px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-0.01em; }
+  .amt small{ font-weight:500; color:#86868b; font-size:11px; }
+
+  .addrow{ all:unset; display:block; width:100%; text-align:center; cursor:pointer; margin-top:8px;
+    font-size:12.5px; font-weight:600; color:#86868b; padding:8px; border-radius:12px;
+    border:1px dashed rgba(120,120,128,.3); transition:background .15s ease,color .15s ease; }
+  .addrow:hover{ background:rgba(120,120,128,.08); color:#1d1d1f; }
+  .addmenu{ display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:8px; }
+  .addmenu button{ all:unset; cursor:pointer; font-size:12px; font-weight:600; padding:6px 11px; border-radius:11px;
+    color:#1d1d1f; background:rgba(120,120,128,.12); }
+  .addmenu button:hover{ background:rgba(120,120,128,.2); }
+
+  /* actions */
+  .actions{ margin-top:13px; display:flex; flex-direction:column; gap:8px; }
+  .btn{ border:none; border-radius:15px; padding:14px 0; font-size:15px; font-weight:700; letter-spacing:-0.01em;
+    cursor:pointer; font-family:inherit; transition:transform .12s ease, box-shadow .15s ease, background .2s ease, opacity .2s; }
+  .btn-primary{ color:#fff; background:linear-gradient(180deg,var(--meal-a),var(--meal-b));
+    box-shadow:0 10px 20px -8px var(--meal-b); }
+  .btn-primary:active{ transform:translateY(1px); }
+  .btn-primary:disabled{ opacity:.45; cursor:default; box-shadow:none; }
+  .btn-primary.done{ background:linear-gradient(180deg,#34d399,#0ea968); box-shadow:0 10px 20px -8px rgba(14,169,104,.6); }
+  .btn-row{ display:flex; gap:8px; }
+  .btn-ghost{ flex:1; background:rgba(120,120,128,.12); color:#1d1d1f; }
+  .btn-ghost:hover{ background:rgba(120,120,128,.18); }
+
+  /* toast + replay */
+  .toast{ position:absolute; left:50%; bottom:120px; transform:translateX(-50%) translateY(20px);
+    background:rgba(28,28,30,.92); color:#fff; font-size:13px; font-weight:600; padding:11px 18px;
+    border-radius:14px; opacity:0; pointer-events:none; transition:opacity .3s ease, transform .3s ease; z-index:6;
+    backdrop-filter:blur(10px); }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .replay{ position:absolute; left:50%; bottom:60px; transform:translateX(-50%); z-index:5;
+    all:unset; cursor:pointer; color:#fff; font-size:13px; font-weight:600;
+    padding:10px 18px; border-radius:20px; background:rgba(255,255,255,.18); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .3s ease; }
+  .replay.show{ opacity:1; pointer-events:auto; }
+
+  @media (prefers-reduced-motion: reduce){
+    .reminder.enter,.row,.r-badge{ animation:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="wallpaper" id="wallpaper"></div>
+
+  <div class="meal-pills" id="mealPills"></div>
+
+  <div class="lock-clock">
+    <div class="lock-date" id="lockDate">Tuesday, 7 July</div>
+    <div class="lock-time" id="lockTime">7:52</div>
+  </div>
+
+  <div class="reminder enter" id="reminder">
+    <div class="timerbar"><i id="timerFill"></i></div>
+
+    <div class="r-head">
+      <div class="r-badge" id="mealBadge"></div>
+      <div class="r-title">
+        <h2 id="mealTitle">Breakfast</h2>
+        <p id="mealWindow">Usual window · 7:00–9:30 AM</p>
+      </div>
+      <div class="r-timer">Auto-snoozes in<b id="countdown">5:00</b></div>
+    </div>
+
+    <div class="r-sub" id="mealSub">Your usual breakfast — tweak anything that’s off, then log.</div>
+
+    <div class="rows" id="rows"></div>
+
+    <button class="addrow" id="addBtn">+ Add something else</button>
+    <div class="addmenu" id="addMenu" style="display:none;"></div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="logBtn">Log breakfast</button>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="snoozeBtn">Snooze 30 min</button>
+        <button class="btn btn-ghost" id="skipBtn">Not eating</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <button class="replay" id="replayBtn">Show reminder again</button>
+  <div class="lock-hint">Swipe up to open · reminder from DayLog</div>
+</div>
+
+<script>
+/* ============================================================
+   ITEMS  — one entry per food/drink. usual = the person's typical
+   amount, which your app computes from their history (mode, or
+   fall back to average). fillMax = the level at which the little
+   icon reads as "full", so the fill acts as a how-much marker.
+   ============================================================ */
+const ITEMS = {
+  water:   { name:'Water',   mode:'fill',   unit:'mL', step:50, usual:250, fillMax:500,
+             vessel:'glass', c:{a:'#4cb8f5',b:'#0a84ff',fillT:'#7dd0ff',fillB:'#0a84ff',line:'#7fb8db'} },
+  milk:    { name:'Milk',    mode:'fill',   unit:'mL', step:25, usual:200, fillMax:400,
+             vessel:'glass', c:{a:'#c0a05e',b:'#9c7a45',fillT:'#fbf4e3',fillB:'#e6cf9f',line:'#c2a878'} },
+  coffee:  { name:'Coffee',  mode:'fill',   unit:'mL', step:30, usual:120, fillMax:300,
+             vessel:'mug',   c:{a:'#a9754a',b:'#6f4322',fillT:'#b07d52',fillB:'#5a3413',line:'#7a4f30'} },
+  chapati: { name:'Chapati', mode:'count',  nS:'roti', nP:'rotis', step:1, usual:2, fillMax:5,
+             vessel:'chapati',c:{a:'#d59a45',b:'#b1701f',fillT:'#f3d18f',fillB:'#c88a37',line:'#b3843e'} },
+  egg:     { name:'Egg',     mode:'count',  nS:'egg',  nP:'eggs',  step:1, usual:2, fillMax:4,
+             vessel:'egg',   c:{a:'#e0ac33',b:'#c9922f',fillT:'#ffe9a8',fillB:'#f0c451',line:'#cdac5f'} },
+  apple:   { name:'Apple',   mode:'count',  nS:'apple',nP:'apples',step:1, usual:1, fillMax:3,
+             vessel:'apple', c:{a:'#ef5a5a',b:'#d81f2a',fillT:'#ff7d7d',fillB:'#cf1f28',line:'#b83036'} },
+  rice:    { name:'Rice',    mode:'weight', unit:'g',  step:25, usual:150, fillMax:400,
+             vessel:'bowl',  c:{a:'#8a97a8',b:'#6b7686',fillT:'#ffffff',fillB:'#dfe4ea',line:'#9aa6b4'} }
+};
+
+/* meals — each references usual items; wallpaper + clock set the mood */
+const MEALS = {
+  breakfast:{ title:'Breakfast', window:'7:00–9:30 AM', clock:'7:52', date:'Tuesday, 7 July',
+    items:['milk','chapati','egg','water'], a:'#f6a35b', b:'#e8746b',
+    wall:'linear-gradient(165deg,#ffd9a0 0%,#f2a48b 48%,#c98fb0 100%)' },
+  lunch:{ title:'Lunch', window:'12:30–2:00 PM', clock:'12:58', date:'Tuesday, 7 July',
+    items:['rice','chapati','water'], a:'#4cb8f5', b:'#0a84ff',
+    wall:'linear-gradient(165deg,#bfe4ff 0%,#7cc0ff 55%,#4b9be8 100%)' },
+  dinner:{ title:'Dinner', window:'8:00–9:30 PM', clock:'8:41', date:'Tuesday, 7 July',
+    items:['rice','milk','water'], a:'#8a6fd0', b:'#4a3f8a',
+    wall:'linear-gradient(170deg,#3a3f6b 0%,#5b4a86 45%,#c47f8f 100%)' }
+};
+
+/* ============================================================
+   VESSEL SILHOUETTES (128×160). Every opening is a curved rim —
+   no flat diameter line across any top.
+   ============================================================ */
+const VESSELS = {
+  glass:{ body:'M22,16 A42,7 0 0 0 106,16 L97,138 Q64,148 31,138 Z', top:16, bottom:138,
+    front:'<ellipse cx="64" cy="16" rx="42" ry="7" fill="none" stroke="var(--it-line)" stroke-width="2.4" stroke-opacity=".85"/>'+
+          '<ellipse cx="64" cy="16" rx="42" ry="7" fill="#fff" fill-opacity=".16"/>' },
+  mug:{ body:'M32,30 A32,7 0 0 0 96,30 L92,130 Q64,144 36,130 Z', top:30, bottom:130,
+    back:'<path d="M95,52 C120,52 120,96 95,96" fill="none" stroke="var(--it-line)" stroke-width="7" stroke-opacity=".9"/>',
+    front:'<ellipse cx="64" cy="30" rx="32" ry="7" fill="none" stroke="var(--it-line)" stroke-width="2.4" stroke-opacity=".9"/>'+
+          '<ellipse cx="64" cy="30" rx="32" ry="7" fill="#fff" fill-opacity=".16"/>' },
+  bowl:{ body:'M24,66 A56,50 0 0 0 104,66 Z', top:66, bottom:112,
+    back:'<ellipse cx="64" cy="66" rx="40" ry="7" fill="#fff" fill-opacity=".3"/>',
+    front:'<path d="M24,66 A56,50 0 0 0 104,66" fill="none" stroke="var(--it-line)" stroke-width="2.6" stroke-opacity=".9"/>'+
+          '<ellipse cx="64" cy="66" rx="40" ry="7" fill="none" stroke="var(--it-line)" stroke-width="2" stroke-opacity=".7"/>' },
+  apple:{ body:'M64,50 C54,36 34,38 30,60 C26,84 36,124 52,140 C59,147 69,147 76,140 C92,124 102,84 98,60 C94,38 74,36 64,50 Z', top:44, bottom:146,
+    back:'<path d="M64,48 C66,36 70,30 74,24" fill="none" stroke="#7a4a2a" stroke-width="4" stroke-linecap="round"/>'+
+         '<path d="M74,28 C86,20 98,24 95,36 C85,42 75,38 74,28 Z" fill="#57a659"/>',
+    front:'<path d="M42,62 C38,76 40,98 48,114" fill="none" stroke="#fff" stroke-width="4" stroke-opacity=".32" stroke-linecap="round"/>' },
+  chapati:{ body:'M64,40 C88,40 106,56 106,80 C106,104 88,120 64,120 C40,120 22,104 22,80 C22,56 40,40 64,40 Z', top:40, bottom:120,
+    front:'<circle cx="48" cy="66" r="3" fill="#9a6528" opacity=".5"/><circle cx="80" cy="60" r="2.4" fill="#9a6528" opacity=".45"/>'+
+          '<circle cx="82" cy="92" r="3.2" fill="#9a6528" opacity=".5"/><circle cx="52" cy="98" r="2.2" fill="#9a6528" opacity=".4"/>' },
+  egg:{ body:'M64,28 C84,28 98,58 98,90 C98,118 83,138 64,138 C45,138 30,118 30,90 C30,58 44,28 64,28 Z', top:28, bottom:138,
+    front:'<ellipse cx="52" cy="60" rx="9" ry="14" fill="#fff" opacity=".38" transform="rotate(-18 52 60)"/>' }
+};
+
+/* ---------- mini fill icon per row ---------- */
+function iconSVG(item, amount){
+  const v=VESSELS[item.vessel];
+  const frac=Math.max(0,Math.min(1, amount/item.fillMax));
+  const y=(v.bottom-frac*(v.bottom-v.top)).toFixed(1);
+  const cid='c'+Math.random().toString(36).slice(2,7);
+  return `<svg class="r-icon" viewBox="0 0 128 160" style="--it-line:${item.c.line}">
+    <defs><clipPath id="${cid}"><path d="${v.body}"/></clipPath>
+      <linearGradient id="g${cid}" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="${item.c.fillB}"/><stop offset="50%" stop-color="${item.c.fillT}"/>
+        <stop offset="100%" stop-color="${item.c.fillB}"/></linearGradient></defs>
+    ${v.back||''}
+    <path d="${v.body}" fill="#fff" fill-opacity=".34"/>
+    <g clip-path="url(#${cid})"><rect x="0" y="${y}" width="128" height="160" fill="url(#g${cid})"/></g>
+    <path d="${v.body}" fill="none" stroke="${item.c.line}" stroke-width="2.4" stroke-opacity=".85"/>
+    ${v.front||''}
+  </svg>`;
+}
+
+/* ---------- state ---------- */
+let mealKey='breakfast';
+let rowState={};   // key -> {amount, included}
+let timer=null, remaining=300;
+
+const $=id=>document.getElementById(id);
+const root=document.documentElement.style;
+
+/* ---------- audio + haptics ---------- */
+let ac=null; const ctx=()=>ac||(ac=new (window.AudioContext||window.webkitAudioContext)());
+function tick(){ const c=ctx(),o=c.createOscillator(),g=c.createGain(); o.type='square';
+  o.frequency.setValueAtTime(1500,c.currentTime); g.gain.setValueAtTime(.0001,c.currentTime);
+  g.gain.exponentialRampToValueAtTime(.08,c.currentTime+.002); g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+.03);
+  o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.035); }
+function chord(){ const c=ctx(); [660,880].forEach((f,i)=>{ const o=c.createOscillator(),g=c.createGain(); o.type='sine';
+  o.frequency.setValueAtTime(f,c.currentTime+i*.08); g.gain.setValueAtTime(.0001,c.currentTime+i*.08);
+  g.gain.exponentialRampToValueAtTime(.16,c.currentTime+i*.08+.01); g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+i*.08+.18);
+  o.connect(g);g.connect(c.destination);o.start(c.currentTime+i*.08);o.stop(c.currentTime+i*.08+.2); }); }
+const buzz=p=>{ if(navigator.vibrate) try{navigator.vibrate(p);}catch(e){} };
+
+/* ---------- value label ---------- */
+function valLabel(item,amt){
+  if(item.mode==='count') return `${amt} <small>${amt===1?item.nS:item.nP}</small>`;
+  return `${amt} <small>${item.unit}</small>`;
+}
+
+/* ---------- build rows ---------- */
+function buildRows(){
+  const meal=MEALS[mealKey];
+  $('rows').innerHTML='';
+  meal.items.forEach((key,idx)=>{
+    const item=ITEMS[key];
+    if(!(key in rowState)) rowState[key]={amount:item.usual, included:true};
+    const st=rowState[key];
+    const row=document.createElement('div');
+    row.className='row'+(st.included?'':' excluded');
+    row.style.animationDelay=(idx*55)+'ms';
+    row.style.setProperty('--it-accent',item.c.a);
+    row.dataset.key=key;
+    const changed = st.amount!==item.usual;
+    const usualTxt = item.mode==='count'
+      ? `usually ${item.usual} ${item.usual===1?item.nS:item.nP}`
+      : `usually ${item.usual} ${item.unit}`;
+    row.innerHTML=`
+      <div class="check" data-act="toggle" style="--it-accent:${item.c.a}">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      ${iconSVG(item, st.amount)}
+      <div class="r-info">
+        <div class="r-name">${item.name}</div>
+        <div class="r-usual ${changed?'changed':''}" style="--it-accent:${item.c.a}">${changed?'adjusted from '+usualTxt:usualTxt}</div>
+      </div>
+      <div class="stepper">
+        <button class="sbtn" data-act="minus">−</button>
+        <div class="amt">${valLabel(item,st.amount)}</div>
+        <button class="sbtn" data-act="plus">+</button>
+      </div>`;
+    $('rows').appendChild(row);
+  });
+  updateLogBtn();
+}
+
+/* refresh one row (icon + amount + usual hint) without full rebuild */
+function refreshRow(key){
+  const row=$('rows').querySelector(`.row[data-key="${key}"]`);
+  if(!row) return;
+  const item=ITEMS[key], st=rowState[key];
+  row.classList.toggle('excluded', !st.included);
+  row.querySelector('.r-icon').outerHTML=iconSVG(item, st.amount);
+  row.querySelector('.amt').innerHTML=valLabel(item, st.amount);
+  const changed=st.amount!==item.usual;
+  const usualTxt=item.mode==='count'
+    ? `usually ${item.usual} ${item.usual===1?item.nS:item.nP}`
+    : `usually ${item.usual} ${item.unit}`;
+  const u=row.querySelector('.r-usual');
+  u.textContent=changed?'adjusted from '+usualTxt:usualTxt;
+  u.classList.toggle('changed',changed);
+  updateLogBtn();
+}
+
+function updateLogBtn(){
+  const any=Object.values(rowState).some(s=>s.included && s.amount>0);
+  const meal=MEALS[mealKey];
+  const anyInMeal=meal.items.some(k=>rowState[k]&&rowState[k].included&&rowState[k].amount>0);
+  $('logBtn').disabled=!anyInMeal;
+  $('logBtn').textContent= anyInMeal ? 'Log '+meal.title.toLowerCase() : 'Nothing selected';
+}
+
+/* ---------- row interactions (event delegation) ---------- */
+$('rows').addEventListener('click',e=>{
+  const row=e.target.closest('.row'); if(!row) return;
+  const key=row.dataset.key, item=ITEMS[key], st=rowState[key];
+  const act=e.target.closest('[data-act]')?.dataset.act;
+  if(act==='toggle'){ st.included=!st.included; buzz(8); }
+  else if(act==='minus'){ st.amount=Math.max(0, st.amount-item.step); if(st.amount===0) st.included=false; tick(); buzz(5); }
+  else if(act==='plus'){ st.amount=Math.min(item.fillMax*2, st.amount+item.step); st.included=true; tick(); buzz(5); }
+  else return;
+  refreshRow(key);
+});
+
+/* ---------- add item (edge case: ate something extra) ---------- */
+$('addBtn').addEventListener('click',()=>{
+  const meal=MEALS[mealKey];
+  const remainingItems=Object.keys(ITEMS).filter(k=>!meal.items.includes(k));
+  const menu=$('addMenu');
+  if(menu.style.display==='flex'){ menu.style.display='none'; return; }
+  menu.innerHTML=''; 
+  if(!remainingItems.length){ menu.innerHTML='<span style="font-size:12px;color:#98989d;">Everything’s already here</span>'; }
+  remainingItems.forEach(k=>{
+    const b=document.createElement('button'); b.textContent='+ '+ITEMS[k].name;
+    b.onclick=()=>{ meal.items.push(k); rowState[k]={amount:ITEMS[k].usual,included:true}; menu.style.display='none'; buildRows(); buzz(8); };
+    menu.appendChild(b);
+  });
+  menu.style.display='flex';
+});
+
+/* ---------- meal theming ---------- */
+function applyMeal(){
+  const m=MEALS[mealKey];
+  root.setProperty('--meal-a',m.a); root.setProperty('--meal-b',m.b);
+  $('wallpaper').style.background=m.wall;
+  $('mealTitle').textContent=m.title;
+  $('mealWindow').textContent='Usual window · '+m.window;
+  $('mealSub').textContent=`Your usual ${m.title.toLowerCase()} — tweak anything that’s off, then log.`;
+  $('lockTime').textContent=m.clock; $('lockDate').textContent=m.date;
+  $('mealBadge').innerHTML=mealGlyph(mealKey);
+  [...$('mealPills').children].forEach(b=>b.classList.toggle('active',b.dataset.k===mealKey));
+}
+function mealGlyph(k){
+  const common='fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"';
+  if(k==='breakfast') return `<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5" ${common}/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19" ${common}/></svg>`;
+  if(k==='lunch')     return `<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5" ${common}/><path d="M12 8v8M8 12h8" ${common}/></svg>`;
+  return `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M20 13a8 8 0 1 1-8.5-8 6 6 0 0 0 8.5 8Z" ${common}/></svg>`;
+}
+
+/* ---------- countdown timer ----------
+   Meal reminder that isn't answered auto-snoozes so we never log
+   food the person didn't eat. Reset each time the card re-enters. */
+function startTimer(){
+  clearInterval(timer); remaining=300;
+  $('timerFill').style.transition='none'; $('timerFill').style.transform='scaleX(1)';
+  requestAnimationFrame(()=>{ $('timerFill').style.transition='transform 1s linear'; });
+  renderTimer();
+  timer=setInterval(()=>{
+    remaining--; renderTimer();
+    if(remaining<=0){ clearInterval(timer); autoSnooze(); }
+  },1000);
+}
+function renderTimer(){
+  const m=Math.floor(remaining/60), s=String(remaining%60).padStart(2,'0');
+  $('countdown').textContent=`${m}:${s}`;
+  $('timerFill').style.transform=`scaleX(${remaining/300})`;
+}
+
+/* ---------- send to app / database ---------- */
+function send(payload){
+  try{ window.DayLogBridge&&window.DayLogBridge.log&&window.DayLogBridge.log(JSON.stringify(payload)); }catch(e){}
+  try{ window.webkit&&webkit.messageHandlers&&webkit.messageHandlers.log&&webkit.messageHandlers.log.postMessage(payload); }catch(e){}
+  try{ window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify(payload)); }catch(e){}
+  try{ window.parent&&window.parent.postMessage({type:'daylog',payload},'*'); }catch(e){}
+  const ENDPOINT=''; // e.g. 'https://api.yourapp.com/meals'
+  if(ENDPOINT) fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
+  console.log('[DayLog]',payload);
+}
+
+function collectItems(){
+  return MEALS[mealKey].items
+    .filter(k=>rowState[k].included && rowState[k].amount>0)
+    .map(k=>{ const it=ITEMS[k], st=rowState[k];
+      return { product:k, amount:st.amount, unit: it.mode==='count'?(st.amount===1?it.nS:it.nP):it.unit, mode:it.mode }; });
+}
+
+/* ---------- dismiss helpers ---------- */
+function dismiss(){
+  const card=$('reminder');
+  card.classList.remove('enter'); card.classList.add('leaving');
+  clearInterval(timer);
+  setTimeout(()=>{ card.style.visibility='hidden'; $('replayBtn').classList.add('show'); },380);
+}
+function showToast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2200); }
+
+/* ---------- actions ---------- */
+$('logBtn').addEventListener('click',()=>{
+  if($('logBtn').disabled) return;
+  const payload={ event:'meal_logged', meal:mealKey, at:new Date().toISOString(), items:collectItems() };
+  send(payload); chord(); buzz([10,40,10]);
+  const b=$('logBtn'); b.classList.add('done'); b.textContent='✓ Logged';
+  setTimeout(()=>{ dismiss(); showToast(MEALS[mealKey].title+' logged'); },600);
+});
+$('snoozeBtn').addEventListener('click',()=>{
+  send({ event:'meal_snoozed', meal:mealKey, minutes:30, at:new Date().toISOString() });
+  buzz(10); dismiss(); showToast('Snoozed · back in 30 min');
+});
+$('skipBtn').addEventListener('click',()=>{
+  send({ event:'meal_skipped', meal:mealKey, at:new Date().toISOString() });
+  buzz(10); dismiss(); showToast('Marked as not eaten');
+});
+function autoSnooze(){
+  send({ event:'meal_auto_snoozed', meal:mealKey, minutes:30, at:new Date().toISOString() });
+  dismiss(); showToast('No response · snoozed 30 min');
+}
+
+/* ---------- replay (demo convenience) ---------- */
+$('replayBtn').addEventListener('click',()=>{
+  const card=$('reminder');
+  card.style.visibility='visible'; card.classList.remove('leaving');
+  void card.offsetWidth; card.classList.add('enter');
+  $('replayBtn').classList.remove('show');
+  buildRows(); startTimer();
+});
+
+/* ---------- meal switcher (preview; hide in production) ---------- */
+Object.keys(MEALS).forEach(k=>{
+  const b=document.createElement('button'); b.dataset.k=k; b.textContent=MEALS[k].title;
+  b.onclick=()=>{ mealKey=k; rowState={}; applyMeal(); const card=$('reminder');
+    card.style.visibility='visible'; card.classList.remove('leaving');
+    void card.offsetWidth; card.classList.add('enter'); $('replayBtn').classList.remove('show');
+    buildRows(); startTimer(); };
+  $('mealPills').appendChild(b);
+});
+
+/* ---------- boot ---------- */
+applyMeal(); buildRows(); startTimer();
+</script>
+</body>
+</html>

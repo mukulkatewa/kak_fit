@@ -23,6 +23,7 @@ import { StartupErrorBoundary } from "../src/components/startup-error-boundary";
 import { TokenRefreshBadge } from "../src/components/token-refresh-badge";
 import { TrpcPrefetchBootstrap } from "../src/components/trpc-prefetch-bootstrap";
 import { WorkoutLiveNotificationBridge } from "../src/components/workout-live-notification-bridge";
+import { MealReminderNotificationBridge } from "../src/components/meal-reminder-notification-bridge";
 import { ToastContainer, ToastProvider } from "../src/components/ui";
 import { AuthProvider, useAuth } from "../src/lib/auth-context";
 import { AuthSessionValidator } from "../src/lib/auth-session-validator";
@@ -126,6 +127,7 @@ function AppStack() {
           name="developer-api"
           options={{ presentation: "modal" }}
         />
+        <Stack.Screen name="meal-reminder" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         <Stack.Screen name="routine/share/[token]" />
       </Stack>
     </QueryErrorBoundary>
@@ -159,6 +161,7 @@ function ThemedApp() {
           <TokenRefreshBadge />
           <OfflineWorkoutSync />
           <WorkoutLiveNotificationBridge />
+          <MealReminderNotificationBridge />
           <ActiveWorkoutOverlay />
           <ToastContainer />
         </ToastProvider>

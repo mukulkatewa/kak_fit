@@ -1062,6 +1062,146 @@ export const nutritionRouter = router({
       });
     }),
 
+  usualMealItems: protectedProcedure
+    .input(
+      z.object({
+        mealType: MealTypeSchema,
+        timezoneOffsetMinutes: z.number().int().optional(),
+        dateMs: optionalDateMsSchema,
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const startOfDay = startOfUserDay(new Date(), input.timezoneOffsetMinutes);
+      const plan = await ctx.prisma.mealPlan.findUnique({
+        where: { userId_date: { userId: ctx.user.id, date: startOfDay } },
+        select: dailyPlanSelect(),
+      });
+
+      if (plan) {
+        const payload = parsePlanPayload(plan.meals, plan.notes);
+        const plannedMeal = payload.meals.find((meal) => meal.mealType === input.mealType);
+        if (plannedMeal && plannedMeal.items.length > 0) {
+          return {
+            source: "plan" as const,
+            planId: plan.id,
+            title: plannedMeal.title,
+            time: plannedMeal.time,
+            protein: plannedMeal.protein,
+            items: plannedMeal.items.map((item, index) => ({
+              key: `plan-${index}-${item.name}`,
+              name: item.name,
+              amountLabel: item.amount,
+              calories: item.calories,
+              protein: item.protein,
+              carbs: item.carbs,
+              fat: item.fat,
+            })),
+          };
+        }
+      }
+
+      const lookback = new Date(startOfDay.getTime() - 14 * DAY_MS);
+      const logs = await ctx.prisma.mealLog.findMany({
+        where: {
+          userId: ctx.user.id,
+          mealType: input.mealType,
+          date: { gte: lookback, lt: startOfDay },
+        },
+        include: { items: { include: { food: true } } },
+        orderBy: { date: "desc" },
+        take: 60,
+      });
+
+      type FreqEntry = {
+        count: number;
+        quantities: number[];
+        name: string;
+        food: (typeof logs)[number]["items"][number]["food"];
+      };
+
+      const freq = new Map<string, FreqEntry>();
+      for (const log of logs) {
+        for (const item of log.items) {
+          const name = item.food.name.replace(/^\[AI:[^\]]+\]\s*(.+?)(?:\s+-\s+.+)?$/, "$1").trim() || item.food.name;
+          const key = name.toLowerCase();
+          const existing = freq.get(key) ?? { count: 0, quantities: [], name, food: item.food };
+          existing.count += 1;
+          existing.quantities.push(item.quantity);
+          freq.set(key, existing);
+        }
+      }
+
+      const mode = (values: number[]) => {
+        const counts = new Map<number, number>();
+        for (const value of values) {
+          const rounded = Math.round(value * 10) / 10;
+          counts.set(rounded, (counts.get(rounded) ?? 0) + 1);
+        }
+        let best = values[0] ?? 1;
+        let bestCount = 0;
+        for (const [value, count] of counts) {
+          if (count > bestCount) {
+            best = value;
+            bestCount = count;
+          }
+        }
+        return best;
+      };
+
+      const sorted = [...freq.values()].sort((a, b) => b.count - a.count).slice(0, 6);
+      if (sorted.length > 0) {
+        return {
+          source: "history" as const,
+          planId: plan?.id ?? null,
+          title: null as string | null,
+          time: null as string | null,
+          protein: null as number | null,
+          items: sorted.map((entry, index) => {
+            const usualQty = mode(entry.quantities);
+            const unit = entry.food.servingUnit?.trim() || "g";
+            const servingSize = entry.food.servingSize || 100;
+            const ratio = usualQty / servingSize;
+            const amountLabel =
+              unit === "g"
+                ? `${Math.round(usualQty)} g`
+                : usualQty === 1 && unit !== "serving"
+                  ? unit
+                  : `${Math.round(usualQty * 10) / 10} ${unit}`;
+            return {
+              key: `hist-${index}-${entry.name}`,
+              name: entry.name,
+              amountLabel,
+              quantity: usualQty,
+              foodId: entry.food.id,
+              servingSize: entry.food.servingSize,
+              servingUnit: entry.food.servingUnit,
+              calories: Math.round(entry.food.calories * ratio),
+              protein: Math.round(entry.food.protein * ratio),
+              carbs: Math.round(entry.food.carbs * ratio),
+              fat: Math.round(entry.food.fat * ratio),
+            };
+          }),
+        };
+      }
+
+      return {
+        source: "default" as const,
+        planId: plan?.id ?? null,
+        title: null as string | null,
+        time: null as string | null,
+        protein: null as number | null,
+        items: [] as Array<{
+          key: string;
+          name: string;
+          amountLabel: string;
+          calories: number;
+          protein: number;
+          carbs: number;
+          fat: number;
+        }>,
+      };
+    }),
+
   deleteMealItem: protectedProcedure
     .input(z.object({ mealItemId: z.string() }))
     .mutation(async ({ ctx, input }) => {

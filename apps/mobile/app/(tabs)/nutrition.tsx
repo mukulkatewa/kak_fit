@@ -410,6 +410,7 @@ function PlanMealCard({
 
 function AiMealPlannerSection() {
   const { colors, shadows, isDark } = useTheme();
+  const router = useRouter();
   const styles = useMemo(() => StyleSheet.create(makePlannerStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
   const dayInput = useMemo(() => buildDayInput(new Date()), []);
   const utils = trpc.useUtils();
@@ -841,6 +842,16 @@ function AiMealPlannerSection() {
                 <ArrowPathIcon color={colors.accent} size={17} />
                 <Text style={styles.toolbarButtonText}>{generatePlan.isPending ? "Making..." : "New plan"}</Text>
               </Pressable>
+              {__DEV__ ? (
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => router.push(`/meal-reminder?meal=${defaultMealType()}`)}
+                  style={styles.toolbarButton}
+                >
+                  <Ionicons name="notifications-outline" color={colors.accent} size={17} />
+                  <Text style={styles.toolbarButtonText}>Preview reminder</Text>
+                </Pressable>
+              ) : null}
               {previousPlan ? (
                 <Pressable
                   hitSlop={8}

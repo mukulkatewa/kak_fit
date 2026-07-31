@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Prisma requires both; for CI they point at the same throwaway database.
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kak_fit_test
+  DIRECT_URL: postgresql://postgres:postgres@localhost:5432/kak_fit_test
+  TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kak_fit_test
+
+jobs:
+  static:
+    name: Typecheck & unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Must run before typecheck — a missing Prisma client produces ~244
+      # phantom errors that have nothing to do with the code.
+      - run: pnpm db:generate
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+  integration:
+    name: API integration tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kak_fit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm db:generate
+
+      - name: Push schema to test database
+        run: pnpm --filter @kak-fit/db exec prisma db push --accept-data-loss --skip-generate
+
+      - run: pnpm test:integration

@@ -18,9 +18,14 @@ const sessionUserCache = new Map<string, CachedContextUser>();
 const revokedTokens = new Set<string>();
 
 // Auto-clean every 5 minutes (tokens older than cache TTL are safe to remove)
-setInterval(() => {
+const revokedTokenCleanupTimer: unknown = setInterval(() => {
   revokedTokens.clear();
 }, 5 * 60 * 1000);
+
+// Don't hold the event loop open — otherwise `node --test` and one-off scripts hang.
+// Typed as unknown because this file is also compiled under DOM lib, where
+// setInterval returns a number rather than a Node Timeout.
+(revokedTokenCleanupTimer as { unref?: () => void })?.unref?.();
 
 export function parseBearerSessionToken(authHeader?: string | null) {
   if (!authHeader?.startsWith("Bearer ")) return null;

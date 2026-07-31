@@ -20,10 +20,20 @@ export function rateLimit(
   return true;
 }
 
+/** Clear all rate-limit windows. Used by the integration test harness. */
+export function resetRateLimits(): void {
+  windows.clear();
+}
+
 // Cleanup stale entries every 5 minutes to prevent memory leak
-setInterval(() => {
+const cleanupTimer: unknown = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of windows.entries()) {
     if (now >= entry.resetAt) windows.delete(key);
   }
 }, 5 * 60 * 1000);
+
+// Don't hold the event loop open — otherwise `node --test` and one-off scripts hang.
+// Typed as unknown because this file is also compiled under DOM lib, where
+// setInterval returns a number rather than a Node Timeout.
+(cleanupTimer as { unref?: () => void })?.unref?.();

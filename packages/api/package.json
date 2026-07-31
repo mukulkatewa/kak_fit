@@ -16,6 +16,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/services/**/*.test.ts",
+    "test:integration": "DATABASE_URL=\"${TEST_DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/kak_fit_test}\" tsx --test src/test/*.integration.test.ts",
     "send:daily-reminders": "dotenv -o -e ../../.env -- tsx scripts/send-daily-exercise-reminders.ts",
     "send:daily-reminders:dry": "dotenv -o -e ../../.env -- tsx scripts/send-daily-exercise-reminders.ts --dry-run"
   },

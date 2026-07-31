@@ -16,6 +16,7 @@ A mobile-first workout tracker — Hevy-style. **Core focus: logging + progress.
 
 ## Docs
 
+- [docs/WORKLOG.md](./docs/WORKLOG.md) — **dated work log**: what shipped when, decisions, and what's left
 - [docs/PROJECT_ROADMAP.md](./docs/PROJECT_ROADMAP.md) — competitive research and phased roadmap
 - [docs/HEVY_COMPARISON.md](./docs/HEVY_COMPARISON.md) — current end-to-end feature comparison vs Hevy + gap backlog
 - [docs/ENV_SETUP.md](./docs/ENV_SETUP.md) — environment variables and database setup

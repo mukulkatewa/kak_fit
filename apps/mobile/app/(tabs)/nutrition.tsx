@@ -1,22 +1,18 @@
-import type { RouterOutputs } from "@kak-fit/api/router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { flexFill, TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
+import { TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
 import {
   ArrowPathIcon,
   CheckCircleIcon,
@@ -26,7 +22,6 @@ import {
   TrashIcon,
 } from "react-native-heroicons/outline";
 import Animated, {
-  FadeInRight,
   interpolateColor,
   runOnJS,
   useAnimatedReaction,
@@ -34,8 +29,11 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import { MacroBars } from "../../src/components/macro-bars";
+import { MealLogSheet } from "../../src/components/meal-log-sheet";
 import {
   Button,
+  EmptyState,
   Input,
   ListGroup,
   ListRow,
@@ -58,7 +56,6 @@ const MEAL_TYPES = [
 ];
 
 type MealKey = (typeof MEAL_TYPES)[number]["key"];
-type FoodSearchResult = RouterOutputs["nutrition"]["searchFoods"][number];
 type NutritionDayInput = { timezoneOffsetMinutes: number; dateMs: number };
 
 /** Local calendar day at noon — stable anchor for server day-boundary math. */
@@ -76,14 +73,6 @@ function defaultMealType(): MealKey {
   if (hour >= 11 && hour <= 14) return "LUNCH";
   if (hour >= 15 && hour <= 17) return "SNACK";
   return "DINNER";
-}
-
-function foodSearchKey(food: FoodSearchResult) {
-  return food.id ?? `fdc-${food.fdcId}`;
-}
-
-function formatFoodMacros(food: FoodSearchResult) {
-  return `${Math.round(food.calories)}kcal · ${Math.round(food.protein)}g P · ${Math.round(food.carbs)}g C · ${Math.round(food.fat)}g F`;
 }
 
 type EditFoodMacros = {
@@ -157,11 +146,10 @@ function parsePlannedMeals(value: unknown): PlannedMeal[] {
 
 function calorieRingColor(calTarget: number, cals: number, colors: Palette) {
   if (calTarget <= 0) return colors.accent;
-  if (cals > calTarget) return colors.danger;
-  const remaining = Math.max(0, calTarget - cals);
-  const remainingPct = remaining / calTarget;
+  const remainingPct = (calTarget - cals) / calTarget;
   if (remainingPct > 0.2) return colors.accent;
-  if (remainingPct > 0.05) return colors.gold;
+  // Depleting, or slightly over — gold. Danger only when meaningfully over (~10%+).
+  if (remainingPct > -0.1) return colors.gold;
   return colors.danger;
 }
 
@@ -223,7 +211,6 @@ function AnimatedCalorieRing({
   const [displayProgress, setDisplayProgress] = useState(0);
 
   useEffect(() => {
-    animatedProgress.value = 0;
     animatedProgress.value = withTiming(progress, { duration: 1000 });
   }, [animatedProgress, progress]);
 
@@ -1105,299 +1092,19 @@ function AiMealPlannerSection() {
   );
 }
 
-function LogFoodSheet({
-  visible,
-  onClose,
-  dayInput,
-  logSearch,
-  setLogSearch,
-  logMealType,
-  setLogMealType,
-  logQuantityFor,
-  setLogQuantityFor,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  dayInput: NutritionDayInput;
-  logSearch: string;
-  setLogSearch: (value: string) => void;
-  logMealType: MealKey;
-  setLogMealType: (value: MealKey) => void;
-  logQuantityFor: { food: FoodSearchResult; qty: string } | null;
-  setLogQuantityFor: (value: { food: FoodSearchResult; qty: string } | null) => void;
-}) {
-  const router = useRouter();
-  const { colors, shadows, isDark } = useTheme();
-  const styles = useMemo(() => StyleSheet.create(makeLogSheetStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
-  const insets = useSafeAreaInsets();
-  const utils = trpc.useUtils();
-  const { showToast } = useToast();
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(logSearch.trim()), 300);
-    return () => clearTimeout(timer);
-  }, [logSearch]);
-
-  const {
-    data: searchResults = [],
-    isFetching: searchFetching,
-    isError: searchError,
-  } = trpc.nutrition.searchFoods.useQuery(
-    { query: debouncedSearch },
-    { enabled: debouncedSearch.length > 1 },
-  );
-
-  const logMeal = trpc.nutrition.logMeal.useMutation({
-    onSuccess: () => {
-      utils.nutrition.dailySummary.invalidate(dayInput);
-      utils.nutrition.todayMeals.invalidate(dayInput);
-      setLogQuantityFor(null);
-      setLogSearch("");
-      onClose();
-      showToast("Food logged", "success");
-    },
-    onError: (error) => showToast(error.message, "error"),
-  });
-
-  const submitLog = (food: FoodSearchResult, qtyText: string) => {
-    const quantity = Number(qtyText.replace(",", "."));
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      showToast("Enter a valid quantity", "error");
-      return;
-    }
-    logMeal.mutate({
-      mealType: logMealType,
-      timezoneOffsetMinutes: dayInput.timezoneOffsetMinutes,
-      dateMs: dayInput.dateMs,
-      items: [
-        {
-          foodId: food.id ?? undefined,
-          fdcId: food.fdcId > 0 ? food.fdcId : undefined,
-          name: food.name,
-          calories: food.calories,
-          protein: food.protein,
-          carbs: food.carbs,
-          fat: food.fat,
-          quantity,
-        },
-      ],
-    });
-  };
-
-  const showAddCustom = debouncedSearch.length > 2 && !searchFetching && !searchError && searchResults.length === 0;
-  const selectedMealLabel = MEAL_TYPES.find((m) => m.key === logMealType)?.label ?? "Meal";
-
-  const renderMacroPills = (food: FoodSearchResult) => (
-    <View style={styles.macroPillRow}>
-      <View style={[styles.macroPill, { backgroundColor: `${colors.accent}22` }]}>
-        <Text style={[styles.macroPillText, { color: colors.accent }]}>{Math.round(food.calories)} kcal</Text>
-      </View>
-      <View style={[styles.macroPill, { backgroundColor: `${colors.proteinColor}22` }]}>
-        <Text style={[styles.macroPillText, { color: colors.proteinColor }]}>{Math.round(food.protein)}g P</Text>
-      </View>
-      <View style={[styles.macroPill, { backgroundColor: `${colors.carbsColor}22` }]}>
-        <Text style={[styles.macroPillText, { color: colors.carbsColor }]}>{Math.round(food.carbs)}g C</Text>
-      </View>
-      <View style={[styles.macroPill, { backgroundColor: `${colors.fatColor}22` }]}>
-        <Text style={[styles.macroPillText, { color: colors.fatColor }]}>{Math.round(food.fat)}g F</Text>
-      </View>
-    </View>
-  );
-
-  const listEmpty = showAddCustom ? null : debouncedSearch.length > 1 && !searchFetching && !searchError && searchResults.length === 0 ? (
-    <View style={styles.emptyState}>
-      <View style={styles.emptyIconWrap}>
-        <Ionicons name="search-outline" size={28} color={colors.textMuted} />
-      </View>
-      <Text style={styles.emptyTitle}>No matching foods</Text>
-      <Text style={styles.emptySubtitle}>Try a different search or add a custom food</Text>
-    </View>
-  ) : logSearch.trim().length === 0 ? (
-    <View style={styles.emptyState}>
-      <View style={styles.emptyIconWrap}>
-        <Ionicons name="nutrition-outline" size={28} color={colors.textMuted} />
-      </View>
-      <Text style={styles.emptyTitle}>Find something to log</Text>
-      <Text style={styles.emptySubtitle}>Search by name — e.g. banana, oats, chicken breast</Text>
-    </View>
-  ) : debouncedSearch.length <= 1 && logSearch.trim().length > 0 ? (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptySubtitle}>Keep typing to search…</Text>
-    </View>
-  ) : null;
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={[styles.sheet, { paddingTop: Math.max(insets.top, spacing.md) }]}>
-        <View style={styles.sheetHandle} />
-
-        <View style={styles.sheetHeader}>
-          <View style={styles.sheetHeaderText}>
-            <Text style={styles.sheetTitle}>Log Food</Text>
-            <Text style={styles.sheetSubtitle}>Adding to {selectedMealLabel.toLowerCase()}</Text>
-          </View>
-          <Pressable
-            hitSlop={8}
-            onPress={onClose}
-            disabled={logMeal.isPending}
-            style={styles.closeBtn}
-          >
-            <Ionicons name="close" size={20} color={colors.textMuted} />
-          </Pressable>
-        </View>
-
-        <View style={styles.mealTypeGrid}>
-          {MEAL_TYPES.map((meal) => {
-            const selected = logMealType === meal.key;
-            const accent = mealAccentColor(meal.key, colors);
-            return (
-              <Pressable
-                key={meal.key}
-                onPress={() => setLogMealType(meal.key)}
-                style={[
-                  styles.mealTypeChip,
-                  selected && { backgroundColor: accent, borderColor: accent },
-                ]}
-              >
-                <Ionicons
-                  name={meal.icon}
-                  size={16}
-                  color={selected ? colors.onAccent : colors.textMuted}
-                />
-                <Text
-                  style={[styles.mealTypeChipText, selected && styles.mealTypeChipTextSelected]}
-                  numberOfLines={1}
-                >
-                  {meal.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.searchWrap}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color={colors.textDim} />
-            <TextInput
-              value={logSearch}
-              onChangeText={setLogSearch}
-              placeholder="Search foods…"
-              placeholderTextColor={colors.textDim}
-              style={styles.searchInput}
-              autoFocus
-              returnKeyType="search"
-            />
-            {searchFetching ? (
-              <ActivityIndicator size="small" color={colors.accent} />
-            ) : logSearch.length > 0 ? (
-              <Pressable hitSlop={8} onPress={() => setLogSearch("")}>
-                <Ionicons name="close-circle" size={20} color={colors.textDim} />
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-
-        {showAddCustom ? (
-          <View style={styles.emptyResults}>
-            <View style={styles.emptyIconWrap}>
-              <Ionicons name="add-circle-outline" size={28} color={colors.textMuted} />
-            </View>
-            <Text style={styles.emptyTitle}>No foods found</Text>
-            <Text style={styles.emptySubtitle}>Nothing matched "{logSearch.trim()}"</Text>
-            <Button
-              label="Add custom food"
-              onPress={() => {
-                onClose();
-                router.push("/nutrition-foods");
-              }}
-            />
-          </View>
-        ) : null}
-
-        <FlatList
-          style={flexFill}
-          data={debouncedSearch.length > 1 ? searchResults : []}
-          keyExtractor={(item) => foodSearchKey(item)}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.resultsList}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => {
-            const isEditing = logQuantityFor != null && foodSearchKey(logQuantityFor.food) === foodSearchKey(item);
-            if (isEditing) {
-              return (
-                <View style={[styles.foodCard, styles.foodCardActive]}>
-                  <Text style={styles.foodName} numberOfLines={2}>
-                    {item.name}
-                  </Text>
-                  {renderMacroPills(item)}
-                  <View style={styles.quantityControls}>
-                    <Text style={styles.quantityLabel}>Amount</Text>
-                    <Input
-                      value={logQuantityFor.qty}
-                      onChangeText={(qty) => setLogQuantityFor({ food: item, qty })}
-                      keyboardType="decimal-pad"
-                      style={styles.quantityInput}
-                      autoFocus
-                    />
-                    <Button
-                      label={logMeal.isPending ? "Logging…" : "Log"}
-                      onPress={() => submitLog(item, logQuantityFor.qty)}
-                      loading={logMeal.isPending}
-                    />
-                  </View>
-                </View>
-              );
-            }
-
-            return (
-              <Pressable
-                style={styles.foodCard}
-                onPress={() => setLogQuantityFor({ food: item, qty: "1" })}
-                disabled={logMeal.isPending}
-              >
-                <View style={styles.foodRowTop}>
-                  <Text style={styles.foodName} numberOfLines={2}>
-                    {item.name}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
-                </View>
-                {renderMacroPills(item)}
-              </Pressable>
-            );
-          }}
-          ListEmptyComponent={listEmpty}
-        />
-      </View>
-    </Modal>
-  );
-}
-
 export default function NutritionScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => StyleSheet.create(makeStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const isToday = selectedDate.toDateString() === new Date().toDateString();
   const dayInput = useMemo(() => buildDayInput(selectedDate), [selectedDate]);
   const [logSheetOpen, setLogSheetOpen] = useState(false);
-  const [logSearch, setLogSearch] = useState("");
   const [logMealType, setLogMealType] = useState<MealKey>(() => defaultMealType());
-  const [logQuantityFor, setLogQuantityFor] = useState<{ food: FoodSearchResult; qty: string } | null>(null);
 
-  const openLogSheet = () => {
-    setLogSearch("");
-    setLogQuantityFor(null);
-    setLogMealType(defaultMealType());
+  const openLogSheet = (mealType?: MealKey) => {
+    setLogMealType(mealType ?? defaultMealType());
     setLogSheetOpen(true);
-  };
-
-  const closeLogSheet = () => {
-    if (logSheetOpen) {
-      setLogSheetOpen(false);
-      setLogQuantityFor(null);
-    }
   };
 
   const {
@@ -1415,6 +1122,9 @@ export default function NutritionScreen() {
   const { data: targets } = trpc.nutrition.getTargets.useQuery(undefined, {
     staleTime: queryStaleTime.nutritionTargets,
   });
+  const { data: todayPlan } = trpc.nutrition.todayPlan.useQuery(dayInput, {
+    staleTime: queryStaleTime.nutritionDaily,
+  });
   const utils = trpc.useUtils();
   const { showToast } = useToast();
   const [editMealItem, setEditMealItem] = useState<{
@@ -1430,7 +1140,6 @@ export default function NutritionScreen() {
     mealItemId?: string;
     foodName?: string;
   }>({ visible: false });
-  const [expandedMeals, setExpandedMeals] = useState<Record<string, boolean>>({});
 
   const updateMeal = trpc.nutrition.updateMeal.useMutation({
     onSuccess: () => {
@@ -1466,61 +1175,31 @@ export default function NutritionScreen() {
   const remaining = calTarget > 0 ? Math.max(0, calTarget - cals) : 0;
   const calRingProgress = calTarget > 0 ? remaining / calTarget : 0;
   const calRingColor = calorieRingColor(calTarget, cals, colors);
-  const goalsUnset =
-    macroTargets?.configured === false ||
-    ((macroTargets?.calories ?? 0) === 0 &&
-      (macroTargets?.protein ?? 0) === 0 &&
-      (macroTargets?.carbs ?? 0) === 0 &&
-      (macroTargets?.fat ?? 0) === 0);
 
-  const groupedMeals = useMemo(() => {
+  const mealSections = useMemo(() => {
     type TodayMeal = NonNullable<typeof meals>[number];
-    const groups: Record<
-      string,
-      { meal: TodayMeal; items: TodayMeal["items"]; totalCal: number; totalProtein: number }
-    > = {};
+    type Item = TodayMeal["items"][number];
+    const buckets: Record<MealKey, { items: Item[]; totalCal: number; totalProtein: number }> = {
+      BREAKFAST: { items: [], totalCal: 0, totalProtein: 0 },
+      LUNCH: { items: [], totalCal: 0, totalProtein: 0 },
+      DINNER: { items: [], totalCal: 0, totalProtein: 0 },
+      SNACK: { items: [], totalCal: 0, totalProtein: 0 },
+    };
     for (const meal of meals ?? []) {
-      const items = meal.items;
-      const totalCal = items.reduce(
-        (sum, item) => sum + Math.round((item.food.calories * item.quantity) / (item.food.servingSize || 100)),
-        0,
-      );
-      const totalProtein = items.reduce(
-        (sum, item) => sum + Math.round((item.food.protein * item.quantity) / (item.food.servingSize || 100)),
-        0,
-      );
-      if (items.length > 0) {
-        groups[meal.mealType] = { meal, items, totalCal, totalProtein };
+      const bucket = buckets[meal.mealType as MealKey];
+      if (!bucket) continue;
+      for (const item of meal.items) {
+        const ratio = item.quantity / (item.food.servingSize || 100);
+        bucket.items.push(item);
+        bucket.totalCal += Math.round(item.food.calories * ratio);
+        bucket.totalProtein += Math.round(item.food.protein * ratio);
       }
     }
-    return MEAL_TYPES.map(({ key, label }) => ({ key, label, ...groups[key] })).filter((group) => group.items);
+    return MEAL_TYPES.map(({ key, label }) => ({ key, label, ...buckets[key] }));
   }, [meals]);
 
-  const loggedDayTotals = useMemo(
-    () =>
-      groupedMeals.reduce(
-        (acc, group) => ({
-          totalCal: acc.totalCal + group.totalCal,
-          totalProtein: acc.totalProtein + group.totalProtein,
-        }),
-        { totalCal: 0, totalProtein: 0 },
-      ),
-    [groupedMeals],
-  );
-
-  const isMealExpanded = (mealKey: string) => expandedMeals[mealKey] ?? true;
-
-  const toggleMealExpanded = (mealKey: string) => {
-    setExpandedMeals((current) => ({
-      ...current,
-      [mealKey]: !(current[mealKey] ?? true),
-    }));
-  };
-
+  const hasAnyLogged = mealSections.some((section) => section.items.length > 0);
   const dayLoading = summaryLoading || mealsLoading;
-  const logSectionLabel = isToday
-    ? "TODAY'S LOG"
-    : selectedDate.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }).toUpperCase();
   const editFood = editMealItem.item?.food;
   const editServingUnit = editFood?.servingUnit?.trim() || "g";
   const editIsGramServing = editServingUnit === "g";
@@ -1598,205 +1277,148 @@ export default function NutritionScreen() {
             </Text>
           </View>
         </View>
-      ) : summary ? (
-        <View style={styles.calorieCard}>
-          <LinearGradient
-            colors={isDark ? [colors.surface, colors.bg] : [colors.bgElevated, colors.bg]}
-            style={styles.calorieCardGradient}
+      ) : (
+        <View style={styles.hero}>
+          <AnimatedCalorieRing
+            progress={calRingProgress}
+            size={160}
+            color={calRingColor}
+            track={colors.surfaceHover}
+            ticks={56}
+            tickLength={14}
           >
-            <View style={styles.calHero}>
-              <AnimatedCalorieRing
-                progress={calRingProgress}
-                size={140}
-                color={calRingColor}
-                track={isDark ? colors.surfaceHover : "#E8E5DE"}
-                ticks={56}
-                tickLength={14}
-              >
-                <Text style={[styles.calValue, calTarget === 0 && styles.calValueSmall]}>
-                  {calTarget > 0 ? remaining.toLocaleString() : "Set a goal"}
-                </Text>
-                <Text style={styles.calUnit}>
-                  {calTarget > 0 ? "kcal left" : `${cals.toLocaleString()} kcal eaten`}
-                </Text>
-              </AnimatedCalorieRing>
-              <View style={styles.calEatenPills}>
-                <View style={styles.calEatenPillGreen}>
-                  <Text style={styles.calEatenPillGreenText}>Eaten: {cals.toLocaleString()} kcal</Text>
-                </View>
-                {calTarget > 0 ? (
-                  <View style={styles.calEatenPillMuted}>
-                    <Text style={styles.calEatenPillMutedText}>Target: {calTarget.toLocaleString()} kcal</Text>
-                  </View>
-                ) : (
-                  <View style={styles.calEatenPillMuted}>
-                    <Text style={styles.calEatenPillMutedText}>Set a goal</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </LinearGradient>
+            <Text style={styles.heroValue}>
+              {calTarget > 0 ? remaining.toLocaleString("en-US") : cals.toLocaleString("en-US")}
+            </Text>
+            <Text style={styles.heroCaption}>{calTarget > 0 ? "Remaining" : "kcal"}</Text>
+          </AnimatedCalorieRing>
         </View>
-      ) : null}
+      )}
 
       <View style={styles.body}>
         {summary && !dayLoading && !summaryError ? (
-          goalsUnset ? (
-            <View style={styles.goalsCta}>
-              <Text style={styles.goalsCtaTitle}>Set your daily nutrition goals</Text>
-              <Text style={styles.goalsCtaText}>
-                Add calorie and macro targets to track your progress with the rings below.
-              </Text>
-              <Button label="Set goals" onPress={() => router.push("/nutrition-goals")} />
-            </View>
-          ) : (
-            <View style={styles.macroSection}>
-              <Text style={styles.sectionEyebrow}>MACRONUTRIENTS</Text>
-              <View style={styles.macroBlock}>
-                <MacroBar
-                  index={0}
-                  label="Carbs"
-                  value={summary.carbs}
-                  target={macroTargets?.carbs ?? 0}
-                  color={colors.carbsColor}
-                />
-                <MacroBar
-                  index={1}
-                  label="Protein"
-                  value={summary.protein}
-                  target={macroTargets?.protein ?? 0}
-                  color={colors.proteinColor}
-                />
-                <MacroBar
-                  index={2}
-                  label="Fats"
-                  value={summary.fat}
-                  target={macroTargets?.fat ?? 0}
-                  color={colors.fatColor}
-                />
-              </View>
-            </View>
-          )
+          <MacroBars
+            protein={summary.protein}
+            carbs={summary.carbs}
+            fat={summary.fat}
+            targets={{
+              protein: macroTargets?.protein ?? 0,
+              carbs: macroTargets?.carbs ?? 0,
+              fat: macroTargets?.fat ?? 0,
+            }}
+          />
         ) : null}
 
-        <AiMealPlannerSection />
+        {dayLoading ? (
+          <ListSkeleton rows={2} />
+        ) : (
+          <View style={styles.mealSections}>
+            {!hasAnyLogged ? (
+              <View style={styles.screenEmpty}>
+                <EmptyState
+                  icon="restaurant-outline"
+                  title="Nothing logged yet"
+                  message="Add your first meal — a line of text is enough."
+                />
+                <Button label="Add a meal" onPress={() => openLogSheet()} />
+              </View>
+            ) : null}
 
-        <View style={styles.loggedSection}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionEyebrow}>{logSectionLabel}</Text>
-            <Text style={styles.sectionHeaderMeta}>{loggedDayTotals.totalCal} kcal</Text>
+            {mealSections.map((section) => (
+              <View key={section.key} style={styles.mealSection}>
+                <View style={styles.mealHeader}>
+                  <Text style={styles.mealHeaderTitle}>{section.label}</Text>
+                  <Text style={styles.mealHeaderMeta}>
+                    {section.totalCal} kcal · {section.totalProtein}g P
+                  </Text>
+                  <Pressable
+                    onPress={() => openLogSheet(section.key)}
+                    hitSlop={8}
+                    style={styles.quietAdd}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${section.label}`}
+                  >
+                    <Ionicons name="add" size={22} color={colors.textMuted} />
+                  </Pressable>
+                </View>
+                <ListGroup>
+                  {section.items.length === 0 ? (
+                    <ListRow
+                      title="Not logged yet"
+                      onPress={() => openLogSheet(section.key)}
+                      right={<View />}
+                      last
+                    />
+                  ) : (
+                    section.items.map((item, itemIndex) => {
+                      const ratio = item.quantity / (item.food.servingSize ?? 100);
+                      const cal = Math.round(item.food.calories * ratio);
+                      const portion = displayPortion(item);
+                      const title = displayFoodName(item.food);
+                      const isLast = itemIndex === section.items.length - 1;
+                      return (
+                        <Animated.View
+                          key={item.id}
+                          entering={entranceDown(itemIndex * 60)}
+                        >
+                          <ListRow
+                            title={title}
+                            subtitle={`${portion} · ${cal} kcal`}
+                            right={
+                              <View style={styles.loggedActions}>
+                                <Pressable
+                                  hitSlop={8}
+                                  style={styles.loggedIconButton}
+                                  onPress={() =>
+                                    setEditMealItem({
+                                      visible: true,
+                                      mealItemId: item.id,
+                                      foodName: title,
+                                      quantity: String(item.quantity),
+                                      portion,
+                                      item: {
+                                        food: {
+                                          servingUnit: item.food.servingUnit,
+                                          servingSize: item.food.servingSize,
+                                          calories: item.food.calories,
+                                          protein: item.food.protein,
+                                          carbs: item.food.carbs,
+                                          fat: item.food.fat,
+                                        },
+                                      },
+                                    })
+                                  }
+                                >
+                                  <PencilSquareIcon color={colors.accent} size={18} />
+                                </Pressable>
+                                <Pressable
+                                  hitSlop={8}
+                                  style={styles.loggedIconButton}
+                                  onPress={() =>
+                                    setDeleteMealItemDialog({
+                                      visible: true,
+                                      mealItemId: item.id,
+                                      foodName: title,
+                                    })
+                                  }
+                                >
+                                  <TrashIcon color={colors.textMuted} size={18} />
+                                </Pressable>
+                              </View>
+                            }
+                            last={isLast}
+                          />
+                        </Animated.View>
+                      );
+                    })
+                  )}
+                </ListGroup>
+              </View>
+            ))}
           </View>
-          {dayLoading ? (
-            <ListSkeleton rows={2} />
-          ) : groupedMeals.length === 0 ? (
-            <View style={styles.loggedEmptyState}>
-              <Ionicons name="restaurant-outline" size={40} color={colors.textDim} />
-              <Text style={styles.loggedEmptyText}>
-                {isToday
-                  ? "Nothing logged yet today.\nTap + to add your first meal."
-                  : "Nothing logged on this day.\nTap + to add a meal."}
-              </Text>
-            </View>
-          ) : (
-            <>
-              {groupedMeals.map((group, groupIndex) => {
-                const expanded = isMealExpanded(group.key);
-                return (
-                  <View key={group.key}>
-                    {groupIndex > 0 ? <View style={styles.loggedGroupDivider} /> : null}
-                    <Pressable
-                      style={styles.loggedGroupHeader}
-                      onPress={() => toggleMealExpanded(group.key)}
-                    >
-                      <Text style={styles.loggedGroupTitle}>{group.label}</Text>
-                      <Text style={styles.loggedGroupSubtotal}>
-                        {group.totalCal} kcal · {group.totalProtein}g P
-                      </Text>
-                      <Ionicons
-                        name={expanded ? "chevron-up" : "chevron-down"}
-                        size={18}
-                        color={colors.textMuted}
-                      />
-                    </Pressable>
-                    {expanded ? (
-                      <ListGroup>
-                        {group.items.map((item, itemIndex) => {
-                          const ratio = item.quantity / (item.food.servingSize ?? 100);
-                          const cal = Math.round(item.food.calories * ratio);
-                          const protein = Math.round(item.food.protein * ratio);
-                          const portion = displayPortion(item);
-                          const title = displayFoodName(item.food);
-                          const isLast = itemIndex === group.items.length - 1;
-                          return (
-                            <Animated.View
-                              key={`${group.meal.id}-${item.id}`}
-                              entering={entranceDown(itemIndex * 60)}
-                            >
-                              <ListRow
-                                title={title}
-                                subtitle={`${portion} · ${cal} cal`}
-                                icon="restaurant-outline"
-                                right={
-                                  <View style={styles.loggedActions}>
-                                    <View style={styles.loggedProteinPill}>
-                                      <Text style={styles.loggedProtein}>{protein}g P</Text>
-                                    </View>
-                                    <Pressable
-                                      hitSlop={8}
-                                      style={styles.loggedIconButton}
-                                      onPress={() =>
-                                        setEditMealItem({
-                                          visible: true,
-                                          mealItemId: item.id,
-                                          foodName: title,
-                                          quantity: String(item.quantity),
-                                          portion,
-                                          item: {
-                                            food: {
-                                              servingUnit: item.food.servingUnit,
-                                              servingSize: item.food.servingSize,
-                                              calories: item.food.calories,
-                                              protein: item.food.protein,
-                                              carbs: item.food.carbs,
-                                              fat: item.food.fat,
-                                            },
-                                          },
-                                        })
-                                      }
-                                    >
-                                      <PencilSquareIcon color={colors.accent} size={18} />
-                                    </Pressable>
-                                    <Pressable
-                                      hitSlop={8}
-                                      style={styles.loggedIconButton}
-                                      onPress={() =>
-                                        setDeleteMealItemDialog({
-                                          visible: true,
-                                          mealItemId: item.id,
-                                          foodName: title,
-                                        })
-                                      }
-                                    >
-                                      <TrashIcon color={colors.textMuted} size={18} />
-                                    </Pressable>
-                                  </View>
-                                }
-                                last={isLast}
-                              />
-                            </Animated.View>
-                          );
-                        })}
-                      </ListGroup>
-                    ) : null}
-                  </View>
-                );
-              })}
-              <Text style={styles.loggedDayTotal}>
-                Total: {loggedDayTotals.totalCal} kcal · {loggedDayTotals.totalProtein}g P
-              </Text>
-            </>
-          )}
-        </View>
+        )}
+
+        <AiMealPlannerSection />
       </View>
 
       <ThemedDialog
@@ -1898,71 +1520,17 @@ export default function NutritionScreen() {
       </Modal>
     </Screen>
 
-      <LogFoodSheet
-        visible={logSheetOpen}
-        onClose={closeLogSheet}
-        dayInput={dayInput}
-        logSearch={logSearch}
-        setLogSearch={setLogSearch}
-        logMealType={logMealType}
-        setLogMealType={setLogMealType}
-        logQuantityFor={logQuantityFor}
-        setLogQuantityFor={setLogQuantityFor}
-      />
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Log food"
-        onPress={openLogSheet}
-        style={[styles.fab, { bottom: 24 + insets.bottom }, shadows.lg]}
-      >
-        <Ionicons name="add" size={28} color={colors.onAccent} />
-      </Pressable>
-    </View>
-  );
-}
-
-function MacroBar({
-  index,
-  label,
-  value,
-  target,
-  color,
-}: {
-  index: number;
-  label: string;
-  value: number;
-  target: number;
-  color: string;
-}) {
-  const { colors } = useTheme();
-  const progress = target > 0 ? Math.min(1, value / target) : 0;
-  const remaining = Math.max(0, target - value);
-
-  return (
-    <Animated.View entering={FadeInRight.delay(index * 80).springify().damping(18)} style={{ gap: spacing.xs }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <Text style={{ ...typography.label, color: colors.text, fontWeight: "700" }}>{label}</Text>
-        <Text style={{ ...typography.caption, color: colors.textMuted }}>
-          {Math.round(value)}g {target > 0 ? `/ ${target}g` : ""}
-        </Text>
-      </View>
-      <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.surfaceHover, overflow: "hidden" }}>
-        <View
-          style={{
-            height: 8,
-            borderRadius: 4,
-            backgroundColor: color,
-            width: `${Math.round(progress * 100)}%`,
-          }}
+      {logSheetOpen ? (
+        <MealLogSheet
+          mealType={logMealType}
+          planId={todayPlan?.id}
+          initialSegment="USUAL"
+          presentation="sheet"
+          dayInput={dayInput}
+          onClose={() => setLogSheetOpen(false)}
         />
-      </View>
-      {target > 0 ? (
-        <Text style={{ ...typography.caption, color: colors.textDim }}>
-          {remaining > 0 ? `${Math.round(remaining)}g left` : "Goal reached ✓"}
-        </Text>
       ) : null}
-    </Animated.View>
+    </View>
   );
 }
 
@@ -2306,6 +1874,31 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
     },
     goalsBtnText: { ...typography.bodySmall, fontWeight: "700" as const, color: colors.accent },
 
+    hero: {
+      alignItems: "center" as const,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.md,
+    },
+    heroValue: { ...typography.h1, color: colors.text, textAlign: "center" as const },
+    heroCaption: { ...typography.caption, color: colors.textMuted, textAlign: "center" as const },
+    mealSections: { gap: spacing.lg },
+    mealSection: { gap: spacing.xs },
+    mealHeader: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    mealHeaderTitle: { flex: 1, ...typography.h3, color: colors.text },
+    mealHeaderMeta: { ...typography.caption, color: colors.textMuted },
+    quietAdd: {
+      width: TOUCH_TARGET_MIN,
+      height: TOUCH_TARGET_MIN,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
+    screenEmpty: { alignItems: "center" as const, gap: spacing.md, paddingVertical: spacing.sm },
+
     calorieCard: {
       margin: spacing.lg,
       borderRadius: radius.xl,
@@ -2500,179 +2093,5 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
     errorTitle: { ...typography.h3, color: colors.danger },
     errorMsg: { ...typography.bodySmall, color: colors.text },
     errorHint: { ...typography.bodySmall, color: colors.accent, fontWeight: "700" as const, marginTop: spacing.sm },
-  };
-}
-
-function makeLogSheetStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
-  return {
-    sheet: { flex: 1, backgroundColor: colors.bg },
-    sheetHandle: {
-      alignSelf: "center" as const,
-      width: 36,
-      height: 4,
-      borderRadius: radius.full,
-      backgroundColor: colors.borderSubtle,
-      marginBottom: spacing.sm,
-    },
-    sheetHeader: {
-      flexDirection: "row" as const,
-      alignItems: "flex-start" as const,
-      justifyContent: "space-between" as const,
-      paddingHorizontal: spacing.lg,
-      paddingBottom: spacing.md,
-    },
-    sheetHeaderText: { flex: 1, gap: 2 },
-    sheetTitle: { ...typography.h2, color: colors.text },
-    sheetSubtitle: { ...typography.caption, color: colors.textMuted },
-    closeBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: radius.full,
-      backgroundColor: colors.surfaceHover,
-      alignItems: "center" as const,
-      justifyContent: "center" as const,
-    },
-    mealTypeGrid: {
-      flexDirection: "row" as const,
-      paddingHorizontal: spacing.lg,
-      gap: spacing.xs,
-      paddingBottom: spacing.md,
-    },
-    mealTypeChip: {
-      flex: 1,
-      flexDirection: "column" as const,
-      alignItems: "center" as const,
-      justifyContent: "center" as const,
-      gap: 4,
-      paddingVertical: spacing.sm,
-      paddingHorizontal: 4,
-      borderRadius: radius.md,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.borderSubtle,
-      minHeight: 56,
-    },
-    mealTypeChipText: {
-      ...typography.caption,
-      color: colors.textMuted,
-      fontWeight: "600" as const,
-      fontSize: 11,
-    },
-    mealTypeChipTextSelected: { color: colors.onAccent },
-    searchWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
-    searchBar: {
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      gap: spacing.sm,
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      paddingHorizontal: spacing.md,
-      minHeight: 48,
-      borderWidth: 1,
-      borderColor: isDark ? colors.borderSubtle : colors.border,
-      ...(shadows.sm ?? {}),
-    },
-    searchInput: {
-      flex: 1,
-      ...typography.body,
-      color: colors.text,
-      paddingVertical: spacing.sm,
-    },
-    resultsList: {
-      paddingHorizontal: spacing.lg,
-      paddingBottom: spacing.xxl,
-      gap: spacing.sm,
-      flexGrow: 1,
-    },
-    foodCard: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      padding: spacing.md,
-      gap: spacing.sm,
-      borderWidth: 1,
-      borderColor: colors.borderSubtle,
-      marginBottom: spacing.sm,
-    },
-    foodCardActive: {
-      borderColor: colors.accent,
-      borderWidth: 1.5,
-    },
-    foodRowTop: {
-      flexDirection: "row" as const,
-      alignItems: "flex-start" as const,
-      justifyContent: "space-between" as const,
-      gap: spacing.sm,
-    },
-    foodName: {
-      ...typography.body,
-      color: colors.text,
-      fontWeight: "600" as const,
-      flex: 1,
-    },
-    macroPillRow: {
-      flexDirection: "row" as const,
-      flexWrap: "wrap" as const,
-      gap: spacing.xs,
-    },
-    macroPill: {
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 3,
-      borderRadius: radius.full,
-    },
-    macroPillText: {
-      ...typography.caption,
-      fontWeight: "700" as const,
-      fontSize: 11,
-    },
-    quantityControls: {
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      gap: spacing.sm,
-      marginTop: spacing.xs,
-    },
-    quantityLabel: {
-      ...typography.caption,
-      color: colors.textMuted,
-      fontWeight: "600" as const,
-    },
-    quantityInput: {
-      flex: 1,
-      minWidth: 64,
-      maxWidth: 80,
-      textAlign: "center" as const,
-    },
-    emptyResults: {
-      paddingHorizontal: spacing.lg,
-      paddingBottom: spacing.lg,
-      gap: spacing.md,
-      alignItems: "center" as const,
-    },
-    emptyState: {
-      alignItems: "center" as const,
-      paddingHorizontal: spacing.xl,
-      paddingTop: spacing.xxl,
-      gap: spacing.sm,
-    },
-    emptyIconWrap: {
-      width: 56,
-      height: 56,
-      borderRadius: radius.full,
-      backgroundColor: colors.surfaceHover,
-      alignItems: "center" as const,
-      justifyContent: "center" as const,
-      marginBottom: spacing.xs,
-    },
-    emptyTitle: {
-      ...typography.body,
-      color: colors.text,
-      fontWeight: "600" as const,
-      textAlign: "center" as const,
-    },
-    emptySubtitle: {
-      ...typography.bodySmall,
-      color: colors.textMuted,
-      textAlign: "center" as const,
-      lineHeight: 20,
-    },
   };
 }

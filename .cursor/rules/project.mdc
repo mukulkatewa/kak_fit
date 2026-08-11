@@ -1,0 +1,46 @@
+---
+alwaysApply: true
+---
+
+# Kak Fit — project rules (match THIS repo)
+
+Coaching platform being pivoted from a Hevy-style solo workout tracker.
+Read `.claude/context/` for the full picture (product, design, brand,
+conventions, deploy). This rule is the short version; project context wins over
+studio defaults.
+
+## Stack
+- pnpm workspaces + Turborepo monorepo. Package manager **pnpm@9.15.4**, Node 20.
+- **Mobile:** React Native + Expo Router + TS — `apps/mobile` (`@kak-fit/mobile`).
+- **Backend:** Next.js hosting tRPC v11 + Better Auth — `apps/web` (`@kak-fit/web`).
+- **Shared tRPC routers:** `packages/api` (`@kak-fit/api`).
+- **DB:** PostgreSQL + Prisma — `packages/db` (`@kak-fit/db`), Supabase.
+- TanStack Query, superjson, AWS Bedrock (AI), Resend/SES, EAS. TS strict.
+
+## Structure & naming
+- `apps/mobile/src/{components,lib,hooks}` + `app/` (Expo Router, file-based).
+- tRPC: one router file per domain in `packages/api/src/routers/`, composed in
+  `src/index.ts` as `appRouter`; export `RouterOutputs` for the app to consume.
+- **kebab-case** filenames; React components in `.tsx`; cross-package imports use
+  `workspace:*`.
+- 2-space indent, double quotes, semicolons — match surrounding code.
+
+## Non-negotiables
+- **Theming:** never hard-code colors. Read tokens from `useTheme()` /
+  `useThemedStyles()` (`apps/mobile/src/lib/theme.ts`), spacing/radius/typography
+  from its scales. Support light + dark. Moving toward the "quiet wealth" palette.
+- **Money:** integer **paise** in a ledger — never floats, never a mutable balance.
+- **No medical/diagnostic advice** in app copy or logic (`docs/legal.md`).
+- Reuse the existing UI primitives (`components/ui.tsx`, `hevy-ui.tsx`, …) before
+  adding new ones.
+
+## Checks (run from repo root — ALWAYS db:generate before typecheck)
+```
+pnpm db:generate      # first, or typecheck shows ~244 phantom errors
+pnpm typecheck
+pnpm lint             # web only
+pnpm test             # or: pnpm verify  (typecheck + test)
+pnpm test:integration # needs a test Postgres
+```
+
+Builds ship via **feature branch → PR → main** (see `.claude/context/deploy.md`).

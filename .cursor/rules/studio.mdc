@@ -1,0 +1,91 @@
+---
+description: Studio taste, voice, and security baseline. Always apply.
+alwaysApply: true
+---
+
+# Studio rules (auto-generated — edit the source in ~/.claude-pro/knowledge)
+
+## From design-taste
+
+# Studio Design Taste
+
+_Cross-project design taste. The Designer reads this every time, and it is
+synced into each repo's Cursor rules. Teach it: "teach the designer: ..."._
+
+## Principles
+- Restraint over decoration. If it doesn't help the user act, cut it.
+- Consistency beats cleverness — reuse patterns across apps.
+- Generous whitespace. Let content breathe.
+- Spend boldness in one place: one signature element carries the page;
+  keep everything around it quiet and disciplined.
+- Type carries personality. Pair a characterful display face (used with
+  restraint) with a clean body face, on a real type scale.
+- Avoid the AI-default looks unless the brief truly calls for one: cream +
+  high-contrast serif + terracotta; near-black + one acid accent;
+  hairline broadsheet with zero radius. They read as templated.
+
+## Rules (learnings accumulate here — these also govern Cursor's code)
+- Buttons: never pure black (#000). Use #111 minimum.
+- Build surfaces from theme tokens (`bg-background`, `bg-card`,
+  `text-foreground`, `text-muted-foreground`, `border-border`), never
+  ad-hoc hex.
+- Max one accent color per screen (drive it through `--color-primary`).
+- One density system per page (comfortable or compact). Consistent radius.
+  Quiet, consistent icons (Lucide, h-4/h-5).
+- Empty states always have one clear primary action.
+- Never ship empty / loading / error states as raw placeholder text —
+  design them (Skeleton, Alert, a designed empty card).
+- Destructive confirmations use AlertDialog, never a plain Dialog.
+- Don't nest cards inside cards inside cards; no gradients or
+  glassmorphism on every surface.
+- Prefer real components (Table, Tabs, Sheet, Dialog) over repeated
+  `div rounded-xl border p-6` shells.
+
+## From brand-voice
+
+# Studio Brand Voice
+
+_Cross-project voice. Brand/Copy reads this every time, and it is synced
+into each repo's Cursor rules. Teach it: "teach brand: ..."._
+
+## Voice
+- Plain, human, and short. Write like you'd talk to a smart friend.
+- Confident, not hype-y. No exclamation-mark spam, no "revolutionary".
+- Active voice. Say what the user gets, not what the system does.
+- Sentence case. No filler. Each element does exactly one job.
+
+## Rules (learnings accumulate here — these also govern Cursor's code)
+- Name things by what the user controls, never by how the system is built
+  ("Notifications", not "Webhook config").
+- Keep an action's name constant through a flow: a "Publish" button
+  produces a "Published" toast — not "Submit" → "Success".
+- Errors say what happened AND what to do next. Never apologize, never
+  blame the user ("You entered it wrong" → "That code didn't match").
+- An empty screen is an invitation to act — give it one clear action.
+- A control says exactly what happens: "Save changes", not "Submit".
+
+## From security-baseline
+
+# Studio Security Baseline
+
+_Non-negotiable security rules. The Cyberexpert reads this every time, and
+it is synced into each repo's Cursor rules so Cursor codes to it by
+default. Teach it: "teach the cyberexpert: ..."._
+
+## Non-negotiables
+- Secrets live in env vars, never in code, never in logs, never in the repo.
+- Authorize every mutation on the server — never trust the client.
+- Validate and size-limit all external input (bodies, uploads, params).
+- Parameterized queries only. Never build SQL by string concatenation.
+- HTTPS everywhere; secure, httpOnly cookies for sessions.
+- Prefer a managed auth provider (Clerk / Auth0 / Descope) over hand-rolled
+  JWT or session code.
+
+## How the Cyberexpert reviews
+- Default pass on every diff: the built-in `security-review` skill.
+- High-stakes changes (auth, payments, PII, uploads): also run
+  `/claude-security` → "scan changes" for a verified, panel-checked pass.
+
+## Rules (learnings accumulate here)
+- (none yet)
+

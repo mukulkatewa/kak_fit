@@ -9,8 +9,22 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC1090
-source "$ENV_FILE"
+# Parse dotenv values as data, never execute them as shell code.
+# NUL delimiters preserve spaces, punctuation and embedded newlines.
+ENV_VALUES=$(mktemp)
+trap 'rm -f "$ENV_VALUES"' EXIT
+node - "$ENV_FILE" "$ROOT" > "$ENV_VALUES" <<'JS'
+const fs = require('node:fs');
+const dotenv = require(require.resolve('dotenv', { paths: [process.argv[3]] }));
+for (const [key, value] of Object.entries(dotenv.parse(fs.readFileSync(process.argv[2])))) {
+  if (/^[A-Z_][A-Z0-9_]*$/.test(key)) {
+    process.stdout.write(`${key}\0${value}\0`);
+  }
+}
+JS
+while IFS= read -r -d '' key && IFS= read -r -d '' value; do
+  printf -v "$key" '%s' "$value"
+done < "$ENV_VALUES"
 
 IP=$(hostname -I | awk '{print $1}')
 CURRENT_API="${EXPO_PUBLIC_API_URL:-}"
@@ -19,7 +33,7 @@ if [[ "$CURRENT_API" == https://* ]]; then
   USE_LAN_API=false
 fi
 
-if [[ -n "$IP" && "$USE_LAN_API" == true ]]; then
+if [[ -n "$IP" && "$USE_LAN_API" == true && "${SYNC_LAN_IP:-true}" != false ]]; then
   if grep -q '^EXPO_PUBLIC_API_URL=' "$ENV_FILE"; then
     sed -i "s|^EXPO_PUBLIC_API_URL=.*|EXPO_PUBLIC_API_URL=\"http://${IP}:3000\"|" "$ENV_FILE"
   else
@@ -39,8 +53,9 @@ fi
 SUPABASE_REF="${SUPABASE_PROJECT_REF:-}"
 POOLER_HOST="${SUPABASE_POOLER_HOST:-}"
 if [[ -n "${SUPABASE_DB_PASSWORD:-}" && -n "$SUPABASE_REF" && -n "$POOLER_HOST" ]]; then
+  ENCODED_DB_PASSWORD=$(SUPABASE_DB_PASSWORD="$SUPABASE_DB_PASSWORD" python3 -c 'import os; from urllib.parse import quote; print(quote(os.environ["SUPABASE_DB_PASSWORD"], safe=""))')
   # Session pooler (:5432) for direct/migration connections and long-lived servers.
-  DIRECT_URL_VAL="postgresql://postgres.${SUPABASE_REF}:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?schema=public&sslmode=require"
+  DIRECT_URL_VAL="postgresql://postgres.${SUPABASE_REF}:${ENCODED_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?schema=public&sslmode=require"
 
   ACCELERATE_URL="${PRISMA_ACCELERATE_URL:-}"
   CURRENT_DB=$(grep -E '^DATABASE_URL=' "$ENV_FILE" | head -1 || true)
@@ -80,7 +95,7 @@ PY
       echo "Updated DIRECT_URL only (keeping Prisma Accelerate DATABASE_URL)"
     fi
   else
-    DB_URL="postgresql://postgres.${SUPABASE_REF}:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?schema=public&sslmode=require&connection_limit=5"
+    DB_URL="${DIRECT_URL_VAL}&connection_limit=5"
     python3 - "$ENV_FILE" "$DB_URL" "$DIRECT_URL_VAL" <<'PY'
 import pathlib, re, sys
 path, db_url, direct_url = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -116,4 +131,4 @@ echo "Synced env files"
 [[ -n "$IP" ]] && echo "  LAN IP: $IP"
 echo "  API: ${EXPO_PUBLIC_API_URL:-http://localhost:3000}"
 [[ -n "${USDA_API_KEY:-}" ]] && echo "  USDA_API_KEY: set" || echo "  ⚠ USDA_API_KEY: missing"
-[[ -n "${SUPABASE_DB_PASSWORD:-}" ]] && echo "  Database: Supabase (${SUPABASE_POOLER_HOST:-pooler})" || echo "  Database: ${DATABASE_URL:-local}"
+[[ -n "${SUPABASE_DB_PASSWORD:-}" ]] && echo "  Database: Supabase (${SUPABASE_POOLER_HOST:-pooler})" || echo "  Database: configured via DATABASE_URL"

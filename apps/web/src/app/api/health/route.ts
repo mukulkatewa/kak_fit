@@ -7,19 +7,19 @@ export const dynamic = "force-dynamic";
 const VERSION = "0.2.0";
 
 export async function GET() {
-  let db: string;
+  let db: "connected" | "unavailable";
   try {
     await prisma.$queryRaw`SELECT 1`;
     db = "connected";
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    db = `error: ${message}`;
+  } catch {
+    // Keep database connection details out of the public health response.
+    db = "unavailable";
   }
 
   return Response.json({
-    status: "ok",
+    status: db === "connected" ? "ok" : "degraded",
     db,
     auth: getAuthEnvStatus(),
     version: VERSION,
-  });
+  }, { status: db === "connected" ? 200 : 503 });
 }

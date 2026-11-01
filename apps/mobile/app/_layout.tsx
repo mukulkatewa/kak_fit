@@ -6,12 +6,12 @@ import {
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   Stack,
-  useRootNavigationState,
+  useNavigationContainerRef,
   useRouter,
   useSegments,
 } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -28,6 +28,7 @@ import { AuthProvider, useAuth } from "../src/lib/auth-context";
 import { AuthSessionValidator } from "../src/lib/auth-session-validator";
 import { queryClient } from "../src/lib/query-client";
 import { ThemeProvider, useTheme } from "../src/lib/theme";
+import { whenNavigationReady } from "../src/lib/navigation-ready";
 import { createTRPCClient, trpc } from "../src/lib/trpc";
 
 const trpcClient = createTRPCClient();
@@ -36,26 +37,24 @@ const trpcClient = createTRPCClient();
 function AuthRedirect() {
   const router = useRouter();
   const segments = useSegments();
-  const navigationState = useRootNavigationState();
+  const navigationRef = useNavigationContainerRef();
+  const [navigationReady, setNavigationReady] = useState(() => navigationRef.isReady());
   const { isAuthenticated, isLoading } = useAuth();
 
+  useEffect(() => whenNavigationReady(navigationRef, () => setNavigationReady(true)), [navigationRef]);
+
   useEffect(() => {
-    if (!navigationState?.key || isLoading) return;
+    if (!navigationReady || !navigationRef.isReady() || isLoading) return;
+    const first = segments[0];
+    const inAuth = first === "login" || first === "login-callback";
+    const onIndex = !first || first === "index";
 
-    const id = setTimeout(() => {
-      const first = segments[0];
-      const inAuth = first === "login" || first === "login-callback";
-      const onIndex = !first || first === "index";
-
-      if (!isAuthenticated && !inAuth) {
-        router.replace("/login");
-      } else if (isAuthenticated && (inAuth || onIndex)) {
-        router.replace("/(tabs)");
-      }
-    }, 0);
-
-    return () => clearTimeout(id);
-  }, [navigationState?.key, isLoading, isAuthenticated, segments, router]);
+    if (!isAuthenticated && !inAuth) {
+      router.replace("/login");
+    } else if (isAuthenticated && (inAuth || onIndex)) {
+      router.replace("/(tabs)");
+    }
+  }, [navigationReady, navigationRef, isLoading, isAuthenticated, segments, router]);
 
   return null;
 }

@@ -16,7 +16,7 @@ import { BoltIcon } from "react-native-heroicons/solid";
 import { ClockIcon } from "react-native-heroicons/outline";
 import { PlusCircleIcon } from "react-native-heroicons/outline";
 import Animated, {
-  SlideInRight,
+  FadeIn,
   runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -173,7 +173,7 @@ function WeeklyProgressHeroCard({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { heroFontSize, heroLineHeight } = useResponsive();
+  const { heroFontSize, heroLineHeight, isNarrow, fontScale } = useResponsive();
   const { scale, onPressIn, onPressOut } = useSpringPress();
   const glowOpacity = useSharedValue(0.35);
 
@@ -248,8 +248,8 @@ function WeeklyProgressHeroCard({
             ? ["M", "T", "W", "T", "F", "S", "S"]
             : chartData.map((d) => d.label)
           ).map((label, i) => (
-            <Text key={`${label}-${i}`} style={styles.heroDay}>
-              {label}
+            <Text key={`${label}-${i}`} style={styles.heroDay} numberOfLines={1} accessibilityLabel={label}>
+              {isNarrow || fontScale > 1.2 ? label.slice(0, 2) : label}
             </Text>
           ))}
         </View>
@@ -272,7 +272,7 @@ function ActiveWorkoutCard({
   const pulseStyle = usePulse();
 
   return (
-    <Animated.View entering={SlideInRight.delay(200).springify().damping(16)}>
+    <Animated.View entering={FadeIn.duration(160)}>
       <Pressable style={styles.activeCard} onPress={onPress}>
         <LinearGradient
           colors={[colors.accent, "rgba(61,181,74,0.2)"]}
@@ -973,7 +973,7 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) => {
       flex: 1,
       textAlign: "center",
       ...typography.label,
-      color: colors.onAccentFaint,
+      color: colors.onAccentMuted,
     },
     heroChartSkeleton: {
       flexDirection: "row",

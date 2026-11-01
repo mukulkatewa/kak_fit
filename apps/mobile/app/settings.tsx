@@ -11,8 +11,7 @@ import {
   SunIcon,
 } from "react-native-heroicons/outline";
 import Animated, {
-  FadeInDown,
-  ZoomIn,
+  FadeIn,
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
@@ -59,7 +58,7 @@ function AnimatedSection({
   children: ReactNode;
 }) {
   return (
-    <Animated.View entering={FadeInDown.delay(sectionIndex * 100).springify().damping(16)}>
+    <Animated.View entering={FadeIn.delay(Math.min(sectionIndex * 40, 120)).duration(160)}>
       {children}
     </Animated.View>
   );
@@ -113,7 +112,7 @@ function ThemeOptionRow({
       <Icon color={colors.textMuted} size={20} />
       <Text style={styles.rowLabel}>{label}</Text>
       {active ? (
-        <Animated.View entering={ZoomIn.springify().damping(14)}>
+        <Animated.View entering={FadeIn.duration(160)}>
           <CheckCircleIcon color={colors.accent} size={22} />
         </Animated.View>
       ) : (
@@ -270,7 +269,7 @@ export default function SettingsScreen() {
                 <Ionicons name="barbell-outline" size={20} color={colors.textMuted} />
                 <Text style={styles.rowLabel}>{opt.label}</Text>
                 {active ? (
-                  <Animated.View entering={ZoomIn.springify().damping(14)}>
+                  <Animated.View entering={FadeIn.duration(160)}>
                     <CheckCircleIcon color={colors.accent} size={22} />
                   </Animated.View>
                 ) : (

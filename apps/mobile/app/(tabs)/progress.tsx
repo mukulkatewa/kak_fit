@@ -14,8 +14,6 @@ import { ArrowRightIcon } from "react-native-heroicons/outline";
 import { TrophyIcon } from "react-native-heroicons/solid";
 import Animated, {
   FadeIn,
-  FadeInRight,
-  FadeInUp,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -50,7 +48,7 @@ function AnimatedStatBlock({
 }) {
   return (
     <Animated.View
-      entering={FadeInUp.delay(index * 100).springify().damping(16)}
+      entering={FadeIn.delay(Math.min(index * 40, 120)).duration(160)}
       style={{ flex: 1 }}
     >
       <StatBlock value={value} label={label} />
@@ -386,7 +384,7 @@ export default function ProgressScreen() {
             prs?.map((pr, index) => (
               <Animated.View
                 key={pr.id}
-                entering={FadeInRight.delay(index * 80).springify().damping(16)}
+                entering={FadeIn.delay(Math.min(index * 40, 120)).duration(160)}
               >
                 <Pressable
                   style={styles.prRow}

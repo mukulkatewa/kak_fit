@@ -22,8 +22,7 @@ import {
   TrashIcon,
 } from "react-native-heroicons/outline";
 import Animated, {
-  FadeInUp,
-  SlideInDown,
+  FadeIn,
 } from "react-native-reanimated";
 import { EmptyState, ListGroup, ListRow, Screen, ThemedDialog, useToast } from "../../src/components/ui";
 import { QueryErrorState } from "../../src/components/query-error-state";
@@ -626,7 +625,7 @@ export default function WorkoutTabScreen() {
             {previewPrograms.map((program, index) => (
               <Animated.View
                 key={program.id}
-                entering={FadeInUp.delay(index * 80).springify().damping(16)}
+                entering={FadeIn.delay(Math.min(index * 40, 120)).duration(160)}
               >
                 <HevyProgramCard
                   badge={program.badge}
@@ -667,7 +666,7 @@ export default function WorkoutTabScreen() {
       >
         <Pressable style={styles.menuBackdrop} onPress={() => setWorkoutMenu({ visible: false })}>
           <Animated.View
-            entering={SlideInDown.springify().damping(18)}
+            entering={FadeIn.duration(160)}
             style={[styles.menuCard, { paddingBottom: bottomSheetInset }]}
           >
             <Text style={styles.menuTitle} numberOfLines={1}>
@@ -827,7 +826,7 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
     programList: { gap: spacing.md },
     categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     categoryTileWrap: {
-      minWidth: 150,
+      minWidth: 0,
     },
     categoryTile: {
       backgroundColor: colors.surface,

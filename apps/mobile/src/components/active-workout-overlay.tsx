@@ -9,20 +9,19 @@ import {
 } from "react-native";
 import { CheckIcon, ChevronUpIcon, TrashIcon } from "react-native-heroicons/outline";
 import Animated, {
-  SlideInDown,
+  FadeIn,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedDialog } from "./ui";
 import { useAuth } from "../lib/auth-context";
 import { applySetPatchToWorkout, patchSetInWorkout } from "../lib/active-workout-cache";
 import { formatElapsedDuration } from "../lib/format-duration";
 import { enqueueWorkoutMutation, isNetworkError } from "../lib/offline-workouts";
-import { isMainTabRoot, TAB_BAR_HEIGHT, ACTIVE_WORKOUT_PILL_HEIGHT } from "../lib/layout-constants";
+import { isMainTabRoot, useTabBarLayout, ACTIVE_WORKOUT_PILL_HEIGHT } from "../lib/layout-constants";
 import { useWorkoutPillInset } from "../lib/workout-pill-inset";
 import { trpc, queryStaleTime } from "../lib/trpc";
 import { useTheme } from "../lib/theme";
@@ -97,7 +96,7 @@ export function ActiveWorkoutOverlay() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const { height: tabBarHeight } = useTabBarLayout();
   const utils = trpc.useUtils();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -204,12 +203,12 @@ export function ActiveWorkoutOverlay() {
 
   if (hiddenRoute) return null;
 
-  const bottom = insets.bottom + TAB_BAR_HEIGHT + 8;
+  const bottom = tabBarHeight + 8;
 
   return (
     <>
       <Animated.View
-        entering={SlideInDown.springify().damping(16)}
+        entering={FadeIn.duration(160)}
         style={[
           styles.pill,
           glowStyle,

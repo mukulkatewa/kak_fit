@@ -7,6 +7,9 @@ const monorepoRoot = path.resolve(projectRoot, "../..");
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(projectRoot);
 
+// Match the emulator build's worker limit after generating a fresh Android project.
+if (process.platform === "win32") config.maxWorkers = 2;
+
 // Keep Expo defaults and add monorepo root for hoisted packages.
 config.watchFolders = [...new Set([...(config.watchFolders ?? []), monorepoRoot])];
 config.resolver.nodeModulesPaths = [

@@ -1,6 +1,7 @@
-import { Platform, type ViewStyle } from "react-native";
+import { Platform, useWindowDimensions, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing } from "./theme";
+import { tabBarLayout } from "./layout-metrics";
 
 /** Flex child that should fill remaining space and allow nested ScrollViews to scroll. */
 export const flexFill: ViewStyle = { flex: 1, minHeight: 0 };
@@ -31,7 +32,13 @@ export const webFlexScreen: ViewStyle =
 /** Icon + label area of the bottom tab bar (excluding safe-area padding). */
 export const TAB_BAR_CONTENT_HEIGHT = 56;
 export const TAB_BAR_HEIGHT = TAB_BAR_CONTENT_HEIGHT + 8;
-export const TAB_BAR_PADDING_BOTTOM = Platform.OS === "web" ? spacing.sm : 28;
+export const TAB_BAR_PADDING_BOTTOM = spacing.sm;
+
+export function useTabBarLayout() {
+  const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  return tabBarLayout(insets.bottom, fontScale);
+}
 
 /** Height of the floating active-workout pill above the tab bar. */
 export const ACTIVE_WORKOUT_PILL_HEIGHT = 64;

@@ -15,9 +15,6 @@ import {
 } from "react-native-heroicons/outline";
 import Animated, {
   FadeIn,
-  FadeInRight,
-  FadeInUp,
-  ZoomIn,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -130,7 +127,7 @@ function DashboardGridItem({
 
   return (
     <Animated.View
-      entering={FadeInUp.delay(index * 50).springify().damping(16)}
+      entering={FadeIn.delay(Math.min(index * 40, 120)).duration(160)}
       style={[styles.gridItemWrap, { width: gridItemWidth }, scale]}
     >
       <Pressable
@@ -174,7 +171,9 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { horizontalPadding } = useResponsive();
+  const { horizontalPadding, contentWidth, fontScale } = useResponsive();
+  // Leave each stat enough room for its scaled label beside the 80dp avatar.
+  const stackProfileStats = contentWidth < 80 + spacing.xl * 3 + 64 * fontScale * 3;
   const { signOut } = useAuth();
   const { weightUnit } = useUserPreferences();
   const [chartMode, setChartMode] = useState<ChartMode>("volume");
@@ -258,11 +257,11 @@ export default function ProfileScreen() {
           />
         </Animated.View>
 
-        <View style={styles.profileRow}>
-          <Animated.View entering={ZoomIn.springify().damping(14)}>
+        <View style={[styles.profileRow, stackProfileStats && styles.profileColumn]}>
+          <Animated.View entering={FadeIn.duration(160)}>
             <Avatar name={user?.name} size={80} />
           </Animated.View>
-          <Animated.View entering={FadeInRight.delay(200).springify().damping(16)} style={styles.statsWrap}>
+          <Animated.View entering={FadeIn.duration(160)} style={stackProfileStats ? styles.statsWrapFull : styles.statsWrap}>
             <HevyStatsRow
               items={[
                 { value: stats?.workoutCount ?? 0, label: "Workouts" },
@@ -386,7 +385,9 @@ const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     pad: { gap: spacing.lg },
     profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.xl },
+    profileColumn: { flexDirection: "column", alignItems: "flex-start" },
     statsWrap: { flex: 1 },
+    statsWrapFull: { width: "100%" },
     bio: { ...typography.bodySmall, color: colors.textMuted },
     segmented: {
       flexDirection: "row",
@@ -423,7 +424,7 @@ const makeStyles = (colors: Palette) =>
     noDataText: { ...typography.body, color: colors.textMuted },
     sectionLabel: { ...typography.caption, color: colors.textMuted, marginTop: spacing.sm },
     grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-    gridItemWrap: { minWidth: 150 },
+    gridItemWrap: { minWidth: 0 },
     gridItem: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
@@ -433,7 +434,7 @@ const makeStyles = (colors: Palette) =>
       gap: spacing.md,
       minHeight: 56,
     },
-    gridLabel: { ...typography.body, color: colors.text },
+    gridLabel: { ...typography.body, color: colors.text, flex: 1, flexShrink: 1 },
     signOutBtn: {
       flexDirection: "row",
       alignItems: "center",

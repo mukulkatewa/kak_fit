@@ -13,6 +13,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
   type PressableProps,
   type ScrollViewProps,
   type TextInputProps,
@@ -26,20 +27,16 @@ import {
 } from "react-native-heroicons/outline";
 import Animated, {
   FadeIn,
-  FadeInDown,
-  FadeInUp,
-  ZoomIn,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withSequence,
-  withSpring,
   withTiming,
 } from "react-native-reanimated";
 import { create } from "zustand";
-import { SPRING_CONFIG } from "../lib/animations";
 import { useScreenBottomInset, useScreenTopInset, type ScreenLayoutVariant } from "../lib/layout-constants";
 import { useWorkoutPillInset } from "../lib/workout-pill-inset";
+import { useResponsive } from "../lib/responsive";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   radius,
@@ -53,16 +50,16 @@ import {
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-function usePressScale(activeScale = 0.95) {
+function usePressScale(activeScale = 0.98) {
   const scale = useSharedValue(1);
   const style = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
   const onPressIn = () => {
-    scale.value = withSpring(activeScale, SPRING_CONFIG.snappy);
+    scale.value = withTiming(activeScale, { duration: 80 });
   };
   const onPressOut = () => {
-    scale.value = withSpring(1, SPRING_CONFIG.snappy);
+    scale.value = withTiming(1, { duration: 100 });
   };
   return { style, onPressIn, onPressOut };
 }
@@ -89,6 +86,8 @@ export function Screen({
 }) {
   const styles = useThemedStyles(makeStyles);
   const topInset = useScreenTopInset(variant);
+  const insets = useSafeAreaInsets();
+  const { horizontalPadding } = useResponsive();
   const workoutPillVisible = useWorkoutPillInset((s) => s.visible);
   const bottomPad = useScreenBottomInset(
     variant,
@@ -101,6 +100,7 @@ export function Screen({
 
   const innerStyle = [
     padded ? styles.screenInner : styles.screenInnerFlush,
+    padded && { paddingHorizontal: horizontalPadding },
     !scroll && { paddingBottom: bottomPad },
     style,
   ];
@@ -108,7 +108,7 @@ export function Screen({
   const content = <View style={innerStyle}>{children}</View>;
 
   return (
-    <View style={[styles.screen, { paddingTop: topInset }]}>
+    <View style={[styles.screen, { paddingTop: topInset, paddingLeft: insets.left, paddingRight: insets.right }]}>
       {scroll ? (
         <ScrollView
           ref={resolvedScrollRef}
@@ -170,7 +170,7 @@ export function SectionHeader({
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {action && onAction ? (
-        <Pressable onPress={onAction} hitSlop={8}>
+        <Pressable onPress={onAction} hitSlop={8} style={{ flexShrink: 0 }}>
           <Text style={styles.sectionAction}>{action}</Text>
         </Pressable>
       ) : null}
@@ -320,7 +320,7 @@ export function Chip({
   onPress?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const { style, onPressIn, onPressOut } = usePressScale(0.95);
+  const { style, onPressIn, onPressOut } = usePressScale();
 
   return (
     <Animated.View style={style}>
@@ -372,7 +372,7 @@ export function HevyButton({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { style, onPressIn, onPressOut } = usePressScale(0.95);
+  const { style, onPressIn, onPressOut } = usePressScale();
 
   const content = loading ? (
     <ActivityIndicator color={variant === "secondary" ? colors.accent : "#fff"} size="small" />
@@ -455,7 +455,7 @@ export function Button({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { style, onPressIn, onPressOut } = usePressScale(0.95);
+  const { style, onPressIn, onPressOut } = usePressScale();
   const resolvedSize = size ?? (variant === "primary" ? "lg" : "md");
   const tint =
     variant === "primary"
@@ -536,14 +536,11 @@ export function FAB({ onPress, icon = "add" }: { onPress: () => void; icon?: Ico
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.9, SPRING_CONFIG.snappy);
+    scale.value = withTiming(0.98, { duration: 80 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSequence(
-      withSpring(1.1, SPRING_CONFIG.snappy),
-      withSpring(1, SPRING_CONFIG.snappy),
-    );
+    scale.value = withTiming(1, { duration: 100 });
   };
 
   return (
@@ -698,24 +695,10 @@ function DialogActionButton({
   onDismiss?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const scale = useSharedValue(1);
-  const shakeX = useSharedValue(0);
   const isPrimary = btn.variant === "primary";
   const isDestructive = btn.variant === "destructive";
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }, { translateX: shakeX.value }],
-  }));
-
   const handlePress = () => {
-    if (isDestructive) {
-      shakeX.value = withSequence(
-        withTiming(-5, { duration: 45 }),
-        withTiming(5, { duration: 45 }),
-        withTiming(-4, { duration: 45 }),
-        withTiming(0, { duration: 45 }),
-      );
-    }
     btn.onPress?.();
     const shouldDismiss = btn.dismissOnPress ?? btn.variant !== "destructive";
     if (shouldDismiss) {
@@ -724,36 +707,26 @@ function DialogActionButton({
   };
 
   return (
-    <Animated.View style={animatedStyle}>
-      <Pressable
+    <Pressable
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.dialogBtn,
+        isPrimary && styles.dialogBtnPrimary,
+        isDestructive && styles.dialogBtnDestructive,
+        pressed && styles.pressed,
+      ]}
+      onPress={handlePress}
+    >
+      <Text
         style={[
-          styles.dialogBtn,
-          isPrimary && styles.dialogBtnPrimary,
-          isDestructive && styles.dialogBtnDestructive,
+          styles.dialogBtnText,
+          isPrimary && styles.dialogBtnTextPrimary,
+          isDestructive && styles.dialogBtnTextDestructive,
         ]}
-        onPress={handlePress}
-        onPressIn={() => {
-          if (isPrimary) {
-            scale.value = withSpring(0.95, SPRING_CONFIG.snappy);
-          }
-        }}
-        onPressOut={() => {
-          if (isPrimary) {
-            scale.value = withSpring(1, SPRING_CONFIG.snappy);
-          }
-        }}
       >
-        <Text
-          style={[
-            styles.dialogBtnText,
-            isPrimary && styles.dialogBtnTextPrimary,
-            isDestructive && styles.dialogBtnTextDestructive,
-          ]}
-        >
-          {btn.label}
-        </Text>
-      </Pressable>
-    </Animated.View>
+        {btn.label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -778,34 +751,39 @@ export function ThemedDialog({
 }) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const paddingTop = Math.max(insets.top, spacing.xl);
+  const paddingBottom = Math.max(insets.bottom, spacing.xl);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss}>
+    <Modal visible={visible} transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={onDismiss}>
       {visible ? (
         <Animated.View
-          entering={FadeIn.duration(200)}
+          entering={FadeIn.duration(120)}
           style={[
             styles.dialogBackdrop,
             {
-              paddingTop: Math.max(insets.top, spacing.xl),
-              paddingBottom: Math.max(insets.bottom, spacing.xl),
+              paddingTop,
+              paddingBottom,
               paddingHorizontal: spacing.xl,
             },
           ]}
         >
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={onDismiss} accessibilityRole="button" />
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={onDismiss} accessibilityRole="button" accessibilityLabel="Dismiss dialog" />
           <Animated.View
-            entering={FadeInUp.springify().damping(16)}
-            style={styles.dialogCard}
+            entering={FadeIn.duration(120)}
+            style={[styles.dialogCard, { maxHeight: height - paddingTop - paddingBottom }]}
             accessibilityViewIsModal
           >
-            <Text style={styles.dialogTitle}>{title}</Text>
-            {message ? <Text style={styles.dialogMessage}>{message}</Text> : null}
-            <View style={styles.dialogActions}>
-              {buttons.map((btn, i) => (
-                <DialogActionButton key={`${btn.label}-${i}`} btn={btn} onDismiss={onDismiss} />
-              ))}
-            </View>
+            <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={styles.dialogContent} bounces={false}>
+              <Text style={styles.dialogTitle} accessibilityRole="header">{title}</Text>
+              {message ? <Text style={styles.dialogMessage}>{message}</Text> : null}
+              <View style={styles.dialogActions}>
+                {buttons.map((btn, i) => (
+                  <DialogActionButton key={`${btn.label}-${i}`} btn={btn} onDismiss={onDismiss} />
+                ))}
+              </View>
+            </ScrollView>
           </Animated.View>
         </Animated.View>
       ) : null}
@@ -827,14 +805,14 @@ export function EmptyState({
   return (
     <View style={styles.empty}>
       {icon ? (
-        <Animated.View entering={ZoomIn.springify().damping(14)} style={styles.emptyIcon}>
+        <Animated.View entering={FadeIn.duration(160)} style={styles.emptyIcon}>
           <Ionicons name={icon} size={30} color={colors.textDim} />
         </Animated.View>
       ) : null}
-      <Animated.Text entering={FadeInDown.delay(100).springify().damping(16)} style={styles.emptyTitle}>
+      <Animated.Text entering={FadeIn.duration(160)} style={styles.emptyTitle}>
         {title}
       </Animated.Text>
-      <Animated.Text entering={FadeInDown.delay(160).springify().damping(16)} style={styles.emptyMessage}>
+      <Animated.Text entering={FadeIn.duration(160)} style={styles.emptyMessage}>
         {message}
       </Animated.Text>
     </View>
@@ -895,18 +873,19 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       minHeight: 44,
       marginBottom: spacing.xs,
     },
-    headerText: { flex: 1, gap: 4 },
+    headerText: { flex: 1, minWidth: 0, gap: 4 },
     headerTitle: { ...typography.h1, color: colors.text },
     headerSubtitle: { ...typography.caption, color: colors.textMuted },
-    headerAction: { marginLeft: spacing.md, marginTop: 8 },
+    headerAction: { marginLeft: spacing.md, marginTop: 8, flexShrink: 0 },
 
     sectionHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
       marginTop: spacing.sm,
+      gap: spacing.md,
     },
-    sectionTitle: { ...typography.h2, color: colors.text },
+    sectionTitle: { ...typography.h2, color: colors.text, flex: 1, minWidth: 0 },
     sectionAction: { ...typography.caption, color: colors.accent },
 
     card: {
@@ -1078,9 +1057,9 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
     buttonDanger: { backgroundColor: colors.dangerMuted },
     buttonGold: { backgroundColor: colors.surfaceHover },
     buttonDisabled: { opacity: 0.5 },
-    buttonInner: { flexDirection: "row", alignItems: "center", gap: 8 },
-    buttonText: { ...typography.button },
-    buttonTextSm: { ...typography.body, fontWeight: "600" },
+    buttonInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, maxWidth: "100%" },
+    buttonText: { ...typography.button, flexShrink: 1, textAlign: "center" },
+    buttonTextSm: { ...typography.body, fontWeight: "600", flexShrink: 1, textAlign: "center" },
     pressed: { opacity: 0.7 },
 
     hevyButton: {
@@ -1098,6 +1077,8 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
     hevyButtonText: {
       ...typography.button,
       color: "#ffffff",
+      textAlign: "center",
+      flexShrink: 1,
     },
     hevyButtonTextSecondary: {
       color: colors.accent,
@@ -1206,32 +1187,35 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
     },
     dialogCard: {
       width: "100%",
-      maxWidth: 340,
+      maxWidth: 400,
       backgroundColor: colors.bgElevated,
       borderRadius: radius.lg,
-      padding: spacing.lg,
-      gap: spacing.md,
+      overflow: "hidden",
+      flexShrink: 1,
       borderWidth: 1,
       borderColor: colors.border,
       zIndex: 1,
     },
+    dialogContent: { padding: spacing.xl, gap: spacing.md },
     dialogTitle: { ...typography.h2, color: colors.text },
     dialogMessage: { ...typography.body, color: colors.textMuted },
     dialogActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "flex-end",
+      alignItems: "stretch",
       gap: spacing.sm,
       marginTop: spacing.xs,
     },
     dialogBtn: {
+      width: "100%",
+      minHeight: 48,
+      alignItems: "center",
+      justifyContent: "center",
       borderRadius: radius.md,
       paddingHorizontal: spacing.lg,
-      paddingVertical: 10,
+      paddingVertical: spacing.md,
     },
     dialogBtnPrimary: { backgroundColor: colors.accent },
     dialogBtnDestructive: { backgroundColor: colors.dangerMuted },
-    dialogBtnText: { ...typography.body, fontWeight: "600", color: colors.textMuted },
+    dialogBtnText: { ...typography.body, fontWeight: "600", color: colors.textMuted, textAlign: "center", flexShrink: 1 },
     dialogBtnTextPrimary: { color: colors.onAccent },
     dialogBtnTextDestructive: { color: colors.danger, fontWeight: "700" },
   });

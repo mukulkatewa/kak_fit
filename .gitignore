@@ -20,6 +20,8 @@ web-build/
 # IDE
 .idea/
 .vscode/
+.claude/settings.local.json
+.claude/worktrees/
 *.swp
 *.swo
 

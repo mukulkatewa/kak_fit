@@ -45,6 +45,7 @@
         }
       ],
       "./plugins/with-workout-widget",
+      "./plugins/with-localhost-network",
       "expo-router",
       "expo-secure-store",
       [

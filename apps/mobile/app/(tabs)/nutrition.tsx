@@ -26,7 +26,7 @@ import {
   TrashIcon,
 } from "react-native-heroicons/outline";
 import Animated, {
-  FadeInRight,
+  FadeIn,
   interpolateColor,
   runOnJS,
   useAnimatedReaction,
@@ -46,6 +46,7 @@ import {
 import { ProgressRing } from "../../src/components/charts";
 import { ListSkeleton } from "../../src/components/skeleton";
 import { entranceDown } from "../../src/lib/animations";
+import { useResponsive } from "../../src/lib/responsive";
 import { scheduleMealPlanNotifications } from "../../src/lib/meal-plan-notifications";
 import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { radius, spacing, typography, useTheme, type Palette, type ShadowSet } from "../../src/lib/theme";
@@ -1365,6 +1366,8 @@ function LogFoodSheet({
 export default function NutritionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { contentWidth, fontScale } = useResponsive();
+  const stackHeaderActions = contentWidth < 360 * fontScale;
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => StyleSheet.create(makeStyles(colors, shadows, isDark)), [colors, shadows, isDark]);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -1520,8 +1523,8 @@ export default function NutritionScreen() {
     <View style={styles.screenRoot}>
       <Screen scroll padded={false} variant="tab" style={{ backgroundColor: colors.bg }}>
       <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <Text style={styles.pageTitle}>Nutrition</Text>
+        <View style={[styles.titleRow, stackHeaderActions && styles.titleColumn]}>
+          <Text style={[styles.pageTitle, stackHeaderActions && { flex: 0 }]}>Nutrition</Text>
           <View style={styles.titleActions}>
             <Pressable hitSlop={8} onPress={() => router.push("/nutrition-foods")} style={styles.goalsBtn}>
               <Ionicons name="fast-food-outline" size={16} color={colors.accent} />
@@ -1929,7 +1932,7 @@ function MacroBar({
   const remaining = Math.max(0, target - value);
 
   return (
-    <Animated.View entering={FadeInRight.delay(index * 80).springify().damping(18)} style={{ gap: spacing.xs }}>
+    <Animated.View entering={FadeIn.delay(Math.min(index * 40, 120)).duration(160)} style={{ gap: spacing.xs }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <Text style={{ ...typography.label, color: colors.text, fontWeight: "700" }}>{label}</Text>
         <Text style={{ ...typography.caption, color: colors.textMuted }}>
@@ -2263,7 +2266,8 @@ function makeStyles(colors: Palette, shadows: ShadowSet, isDark: boolean) {
       gap: spacing.md,
       marginBottom: spacing.md,
     },
-    titleActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.sm },
+    titleColumn: { flexDirection: "column" as const, alignItems: "flex-start" as const },
+    titleActions: { flexDirection: "row" as const, flexWrap: "wrap" as const, alignItems: "center" as const, gap: spacing.sm },
     pageTitle: { flex: 1, ...typography.h1, color: colors.text },
     dateStepper: {
       flexDirection: "row" as const,

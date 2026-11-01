@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { forwardRef } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { TOUCH_TARGET_MIN } from "../lib/layout-constants";
 import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
 
@@ -60,10 +60,11 @@ export function HevyStatsRow({
   items: Array<{ value: string | number; label: string }>;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const { fontScale } = useWindowDimensions();
   return (
     <View style={styles.statsRow}>
       {items.map((item) => (
-        <View key={item.label} style={styles.statCol}>
+        <View key={item.label} style={[styles.statCol, { minWidth: 60 * fontScale, flexBasis: 60 * fontScale }]}>
           <Text style={styles.statValue}>{item.value}</Text>
           <Text style={styles.statLabel}>{item.label}</Text>
         </View>
@@ -359,11 +360,11 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       marginBottom: spacing.sm,
     },
     titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, flex: 1, minWidth: 0 },
-    title: { ...typography.h1, color: colors.text },
+    title: { ...typography.h1, color: colors.text, flexShrink: 1 },
     actions: { flexDirection: "row", alignItems: "center", gap: spacing.md },
     iconBtn: { minWidth: TOUCH_TARGET_MIN, minHeight: TOUCH_TARGET_MIN, alignItems: "center", justifyContent: "center" },
-    statsRow: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.sm },
-    statCol: { gap: spacing.xs },
+    statsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xl, marginTop: spacing.sm },
+    statCol: { flex: 1, minWidth: 0, gap: spacing.xs },
     statValue: { ...typography.body, fontWeight: "700", color: colors.text },
     statLabel: { ...typography.caption, color: colors.textMuted },
     banner: {
@@ -393,7 +394,7 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       justifyContent: "center",
     },
     segmentActive: { backgroundColor: colors.accent },
-    segmentText: { ...typography.bodySmall, fontWeight: "600", color: colors.textMuted },
+    segmentText: { ...typography.bodySmall, fontWeight: "600", color: colors.textMuted, textAlign: "center", flexShrink: 1 },
     segmentTextActive: { color: "#fff" },
     grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     gridItem: {
@@ -406,7 +407,7 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       gap: spacing.md,
       minHeight: 56,
     },
-    gridLabel: { ...typography.body, color: colors.text },
+    gridLabel: { ...typography.body, color: colors.text, flex: 1, minWidth: 0 },
     modalHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -452,7 +453,7 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       minHeight: TOUCH_TARGET_MIN,
       marginBottom: spacing.sm,
     },
-    stackBack: { width: TOUCH_TARGET_MIN, flexShrink: 0, alignItems: "flex-start" },
+    stackBack: { width: TOUCH_TARGET_MIN, minHeight: TOUCH_TARGET_MIN, flexShrink: 0, alignItems: "flex-start", justifyContent: "center" },
     stackTitle: { ...typography.body, fontWeight: "600", color: colors.text, textAlign: "center", flex: 1 },
     stackRight: { minWidth: TOUCH_TARGET_MIN, flexShrink: 0, alignItems: "flex-end", justifyContent: "center" },
     filterRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", alignItems: "flex-start" },

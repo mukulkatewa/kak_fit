@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useWindowDimensions } from "react-native";
 import { spacing } from "./theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { gridItemWidth, responsiveGridColumns } from "./layout-metrics";
 
 /**
  * Responsive breakpoints (width/height in pt).
@@ -12,8 +14,6 @@ export const BREAKPOINT_NARROW = 380;
 export const BREAKPOINT_WIDE = 428;
 export const BREAKPOINT_COMPACT_HEIGHT = 700;
 
-const GRID_MIN_TILE_WIDTH = 150;
-
 /** Two-column grid item width accounting for horizontal padding and gap. */
 export function getTwoColumnItemWidth(
   screenWidth: number,
@@ -21,11 +21,13 @@ export function getTwoColumnItemWidth(
   gap: number,
 ): number {
   const contentWidth = screenWidth - horizontalPadding * 2;
-  return Math.max(GRID_MIN_TILE_WIDTH, (contentWidth - gap) / 2);
+  return gridItemWidth(contentWidth, 2, gap);
 }
 
 export function useResponsive() {
-  const { width, height } = useWindowDimensions();
+  const { width: windowWidth, height, fontScale } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const width = windowWidth - insets.left - insets.right;
 
   return useMemo(() => {
     const isCompact = height < BREAKPOINT_COMPACT_HEIGHT;
@@ -44,13 +46,10 @@ export function useResponsive() {
 
     const gridGap = spacing.sm;
     const contentWidth = width - horizontalPadding * 2;
-    const gridColumns = isWide ? 3 : 2;
+    const gridColumns = responsiveGridColumns(contentWidth, fontScale);
     const twoColumnItemWidth = getTwoColumnItemWidth(width, horizontalPadding, gridGap);
-    const threeColumnItemWidth = Math.max(
-      120,
-      (contentWidth - gridGap * 2) / 3,
-    );
-    const gridItemWidth = gridColumns === 3 ? threeColumnItemWidth : twoColumnItemWidth;
+    const threeColumnItemWidth = gridItemWidth(contentWidth, 3, gridGap);
+    const itemWidth = gridItemWidth(contentWidth, gridColumns, gridGap);
 
     return {
       isCompact,
@@ -67,12 +66,13 @@ export function useResponsive() {
       ambientRingSize,
       width,
       height,
+      fontScale,
       contentWidth,
       gridColumns,
       gridGap,
       twoColumnItemWidth,
       threeColumnItemWidth,
-      gridItemWidth,
+      gridItemWidth: itemWidth,
     };
-  }, [width, height]);
+  }, [width, height, fontScale]);
 }

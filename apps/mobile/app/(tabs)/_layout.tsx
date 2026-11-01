@@ -9,15 +9,13 @@ import { FireIcon as FireSolid } from "react-native-heroicons/solid";
 import { HomeIcon as HomeSolid } from "react-native-heroicons/solid";
 import { UserCircleIcon as UserCircleSolid } from "react-native-heroicons/solid";
 import { Platform, StyleSheet } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AnimatedTabIcon } from "../../src/components/animated-tab-icon";
-import { TAB_BAR_HEIGHT, TAB_BAR_PADDING_BOTTOM } from "../../src/lib/layout-constants";
-import { spacing, typography, useTheme } from "../../src/lib/theme";
+import { TabIcon } from "../../src/components/tab-icon";
+import { useTabBarLayout } from "../../src/lib/layout-constants";
+import { useTheme } from "../../src/lib/theme";
 
 function makeTabIcon(
   IconOutline: FC<{ color?: string; size?: number }>,
   IconSolid: FC<{ color?: string; size?: number }>,
-  accentColor: string,
 ) {
   return ({
     color,
@@ -28,11 +26,10 @@ function makeTabIcon(
     focused: boolean;
     size?: number;
   }) => (
-    <AnimatedTabIcon
+    <TabIcon
       focused={focused}
       color={color}
       size={size}
-      accentColor={accentColor}
       IconOutline={IconOutline}
       IconSolid={IconSolid}
     />
@@ -42,11 +39,7 @@ function makeTabIcon(
 /** Green & white tab bar: Home, Workout, Meals, Profile */
 export default function TabsLayout() {
   const { colors, isDark } = useTheme();
-  const insets = useSafeAreaInsets();
-  const tabBarBottomPad = Math.max(
-    Platform.OS === "web" ? spacing.sm : insets.bottom,
-    TAB_BAR_PADDING_BOTTOM,
-  );
+  const tabBar = useTabBarLayout();
   const tabBarStyle = {
     backgroundColor: isDark ? "rgba(0,0,0,0.85)" : "rgba(245,244,240,0.92)",
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -54,8 +47,8 @@ export default function TabsLayout() {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 8,
-    paddingBottom: tabBarBottomPad,
-    minHeight: TAB_BAR_HEIGHT + tabBarBottomPad,
+    paddingBottom: tabBar.bottomPadding,
+    height: tabBar.height,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -74,7 +67,11 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        animation: "none",
         tabBarStyle,
+        tabBarItemStyle: styles.tabItem,
+        tabBarIconStyle: styles.tabIcon,
+        tabBarLabelPosition: "below-icon",
         sceneStyle: { flex: 1, backgroundColor: colors.bg },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textDim,
@@ -85,28 +82,28 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: makeTabIcon(HomeOutline, HomeSolid, colors.accent),
+          tabBarIcon: makeTabIcon(HomeOutline, HomeSolid),
         }}
       />
       <Tabs.Screen
         name="routines"
         options={{
           title: "Workout",
-          tabBarIcon: makeTabIcon(FireOutline, FireSolid, colors.accent),
+          tabBarIcon: makeTabIcon(FireOutline, FireSolid),
         }}
       />
       <Tabs.Screen
         name="nutrition"
         options={{
           title: "Meals",
-          tabBarIcon: makeTabIcon(BeakerOutline, BeakerSolid, colors.accent),
+          tabBarIcon: makeTabIcon(BeakerOutline, BeakerSolid),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: makeTabIcon(UserCircleOutline, UserCircleSolid, colors.accent),
+          tabBarIcon: makeTabIcon(UserCircleOutline, UserCircleSolid),
         }}
       />
       {/* Hidden — opened from deep links / dashboard grid */}
@@ -117,5 +114,7 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabLabel: { ...typography.label, marginTop: 2 },
+  tabItem: { paddingVertical: 4 },
+  tabIcon: { width: 24, height: 24 },
+  tabLabel: { fontSize: 11, lineHeight: 16, fontWeight: "600", marginTop: 4, includeFontPadding: false },
 });

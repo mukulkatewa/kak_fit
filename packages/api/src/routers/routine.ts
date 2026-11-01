@@ -190,6 +190,9 @@ export const routineRouter = router({
           saved += 1;
         }
         return { routines, saved, skipped };
+      }, {
+        // A program writes several routine/exercise/set trees over a remote DB.
+        timeout: 30_000,
       });
 
       return {

@@ -83,10 +83,6 @@ function foodSearchKey(food: FoodSearchResult) {
   return food.id ?? `fdc-${food.fdcId}`;
 }
 
-function formatFoodMacros(food: FoodSearchResult) {
-  return `${Math.round(food.calories)}kcal · ${Math.round(food.protein)}g P · ${Math.round(food.carbs)}g C · ${Math.round(food.fat)}g F`;
-}
-
 type EditFoodMacros = {
   servingUnit: string | null;
   servingSize: number | null;

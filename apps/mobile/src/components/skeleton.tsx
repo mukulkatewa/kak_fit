@@ -86,26 +86,6 @@ export function SkeletonCards({
   );
 }
 
-/** Hevy-style feed row skeleton (avatar + text lines) */
-export function FeedSkeleton({ rows = 3 }: { rows?: number }) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.feed}>
-      {Array.from({ length: rows }).map((_, i) => (
-        <View key={i} style={styles.feedRow}>
-          <ShimmerBox style={styles.avatar} />
-          <View style={styles.lines}>
-            <ShimmerBox style={styles.lineShort} />
-            <ShimmerBox style={styles.lineLong} />
-            <ShimmerBox style={styles.lineMed} />
-            <ShimmerBox style={styles.lineLong} />
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 export function CardSkeleton() {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -134,13 +114,6 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderRadius: 12,
     opacity: 0.5,
   },
-  feed: { gap: spacing.xl, paddingVertical: spacing.md },
-  feedRow: { flexDirection: "row", gap: spacing.md },
-  avatar: { width: 44, height: 44, borderRadius: 22 },
-  lines: { flex: 1, gap: spacing.sm },
-  lineShort: { height: 12, width: "35%", borderRadius: 6 },
-  lineLong: { height: 12, width: "92%", borderRadius: 6 },
-  lineMed: { height: 12, width: "70%", borderRadius: 6 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

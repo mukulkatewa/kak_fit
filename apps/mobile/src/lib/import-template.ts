@@ -1,5 +1,4 @@
 import type { AppRouter } from "@kak-fit/api/router";
-import type { TRPCClientErrorLike } from "@trpc/client";
 import type { createTRPCReact } from "@trpc/react-query";
 
 type TrpcUtils = ReturnType<ReturnType<typeof createTRPCReact<AppRouter>>["useUtils"]>;

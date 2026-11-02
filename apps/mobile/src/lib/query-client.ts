@@ -1,9 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { TRPCClientError } from "@trpc/client";
-import { defaultQueryClientOptions, queryDedupStaleTime } from "./trpc";
-
-const mutationRetryDelay = (attemptIndex: number) =>
-  Math.min(1000 * 2 ** attemptIndex, 30_000);
+import { defaultQueryClientOptions } from "./query-options";
 
 const queryShouldRetry = (failureCount: number, error: unknown) => {
   if (error instanceof TRPCClientError) {
@@ -12,19 +9,9 @@ const queryShouldRetry = (failureCount: number, error: unknown) => {
       return false;
     }
   }
-  // Network / TLS failures won't self-heal on retry — avoids request storms.
+  // Recover network failures through an explicit retry or reconnection.
   if (error instanceof TypeError) return false;
   return failureCount < 1;
-};
-
-const mutationShouldRetry = (failureCount: number, error: unknown) => {
-  if (error instanceof TRPCClientError) {
-    const httpStatus = error.data?.httpStatus;
-    if (httpStatus && httpStatus >= 400 && httpStatus < 500) {
-      return false;
-    }
-  }
-  return failureCount < 3;
 };
 
 export function createQueryClient() {
@@ -33,15 +20,12 @@ export function createQueryClient() {
       ...defaultQueryClientOptions,
       queries: {
         ...defaultQueryClientOptions.queries,
-        // Short window for unstated queries; per-screen options override with longer values.
-        staleTime: Math.max(queryDedupStaleTime, defaultQueryClientOptions.queries.staleTime),
-        structuralSharing: true,
-        queryKeyHashFn: (queryKey) => JSON.stringify(queryKey),
         retry: queryShouldRetry,
       },
       mutations: {
-        retry: mutationShouldRetry,
-        retryDelay: mutationRetryDelay,
+        // A lost response does not prove the write failed. Retries belong in
+        // operation-specific recovery logic, with server idempotency where needed.
+        retry: false,
       },
     },
   });

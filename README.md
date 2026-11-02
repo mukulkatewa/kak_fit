@@ -11,7 +11,7 @@ A mobile-first workout tracker — Hevy-style. **Core focus: logging + progress.
 - **Backend:** Next.js + tRPC + TypeScript
 - **Database:** PostgreSQL + Prisma (Supabase)
 - **Auth:** Better Auth (Google OAuth + bearer tokens for mobile)
-- **Exercise data:** [Wger API](https://wger.readthedocs.io/en/latest/api/api.html) (855 exercises imported)
+- **Exercise data:** Database-backed catalog with Wger/Hevy import scripts and exercise media
 - **Nutrition:** USDA FoodData Central (food search + macro tracking)
 
 ## Docs
@@ -19,6 +19,7 @@ A mobile-first workout tracker — Hevy-style. **Core focus: logging + progress.
 - [docs/PROJECT_ROADMAP.md](./docs/PROJECT_ROADMAP.md) — competitive research and phased roadmap
 - [docs/HEVY_COMPARISON.md](./docs/HEVY_COMPARISON.md) — current end-to-end feature comparison vs Hevy + gap backlog
 - [docs/ENV_SETUP.md](./docs/ENV_SETUP.md) — environment variables and database setup
+- [docs/REACT_NATIVE_REVIEW.md](./docs/REACT_NATIVE_REVIEW.md) — architecture review, remaining production work, and interview walkthrough
 
 ## Quick Start
 
@@ -36,7 +37,7 @@ cp .env apps/web/.env.local
 # 4. Database
 pnpm db:generate
 pnpm db:push
-pnpm db:import      # Import 855 exercises from Wger
+pnpm db:import      # Import the exercise catalog from Wger
 pnpm db:seed        # Optional — checks for legacy demo user
 
 # 5. Run API (terminal 1)
@@ -75,7 +76,10 @@ Start an Android emulator in Android Studio, install dependencies with
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-api-windows.ps1
 
 # Terminal 2: generate Android configuration after installing dependencies.
-node .\node_modules\expo\bin\cli prebuild apps/mobile --platform android --no-install
+Push-Location .\apps\mobile
+try {
+  node ..\..\node_modules\expo\bin\cli prebuild --platform android --no-install
+} finally { Pop-Location }
 
 # Build a standalone APK, install it, and open Kak Fit.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\android-emulator.ps1 -Build
@@ -101,7 +105,7 @@ Use **Continue with Google** on the login screen. Set `GOOGLE_CLIENT_ID` and
 ## Features (Live)
 
 - Google sign-in, persistent mobile sessions
-- Exercise library (855 Wger exercises, searchable) + per-exercise detail & charts
+- Searchable exercise library + per-exercise detail & charts
 - Routine builder (create, duplicate, delete) + program/category templates
 - Workout logger (empty / from routine, set types, rest timer, previous values, copy set)
 - Personal records (auto-detected on finish) + workout history & read-only detail view

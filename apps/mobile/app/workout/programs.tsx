@@ -12,7 +12,7 @@ import {
   type ProgramGoal,
   type ProgramLevel,
 } from "../../src/lib/explore-data";
-import { useTheme, useThemedStyles, spacing, radius, typography, type Palette } from "../../src/lib/theme";
+import { useThemedStyles, spacing, radius, typography, type Palette } from "../../src/lib/theme";
 import { TOUCH_TARGET_MIN } from "../../src/lib/layout-constants";
 
 type FilterKey = "level" | "goal" | "equipment" | null;

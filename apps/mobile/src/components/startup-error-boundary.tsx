@@ -22,7 +22,9 @@ export class StartupErrorBoundary extends Component<Props, State> {
       <View style={styles.root}>
         <Text style={styles.title}>Kak Fit couldn&apos;t start</Text>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <Text style={styles.message}>{this.state.error.message}</Text>
+          <Text style={styles.message}>
+            {__DEV__ ? this.state.error.message : "Please close and reopen Kak Fit. If the problem continues, try again later."}
+          </Text>
         </ScrollView>
       </View>
     );

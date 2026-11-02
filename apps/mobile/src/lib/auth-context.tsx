@@ -10,7 +10,6 @@ const TOKEN_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
-  isRefreshing: boolean;
   signInWithGoogle: () => ReturnType<typeof authLib.signInWithGoogle>;
   signOut: () => Promise<void>;
   refresh: () => Promise<boolean>;
@@ -30,10 +29,9 @@ function getInitialAuthState() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Compute once so both values come from the same evaluation of getInitialAuthState().
+  // Start with cached credentials; the hydration effect handles stored sessions.
   const [isAuthenticated, setIsAuthenticated] = useState(() => getInitialAuthState().isAuthenticated);
   const [isLoading, setIsLoading] = useState(() => getInitialAuthState().isLoading);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const signOut = useCallback(async () => {
     await authLib.signOut();
@@ -52,22 +50,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshSession = useCallback(async () => {
     if (authLib.isWithinAuthGracePeriod()) return "skipped" as authLib.RefreshTokenResult;
 
-    setIsRefreshing(true);
-    try {
-      const result = await authLib.refreshTokenIfNeeded();
-      if (result === "refreshed") {
-        setIsAuthenticated(true);
-      } else if (result === "failed") {
-        const expiry = await authLib.getTokenExpiry();
-        if (authLib.isAccessTokenExpired(expiry)) {
-          showAppToast("Session expired, please log in", "error");
-          await signOut();
-        }
+    const result = await authLib.refreshTokenIfNeeded();
+    if (result === "refreshed") {
+      setIsAuthenticated(true);
+    } else if (result === "failed") {
+      const expiry = await authLib.getTokenExpiry();
+      if (authLib.isAccessTokenExpired(expiry)) {
+        showAppToast("Session expired, please log in", "error");
+        await signOut();
       }
-      return result;
-    } finally {
-      setIsRefreshing(false);
     }
+    return result;
   }, [signOut]);
 
   useEffect(() => {
@@ -141,7 +134,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         isAuthenticated,
         isLoading,
-        isRefreshing,
         signInWithGoogle,
         signOut,
         refresh,

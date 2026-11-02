@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "@kak-fit/db";
 import { getPreviousSetsBatch } from "../services/previous-values";
-import { recalculatePersonalRecordsForExercise, needsFullPersonalRecordRecalc, syncPersonalRecords, syncPersonalRecordsBatch, updatePersonalRecordsIncremental } from "../services/personal-records";
+import { recalculatePersonalRecordsForExercise, needsFullPersonalRecordRecalc, syncPersonalRecordsBatch, updatePersonalRecordsIncremental } from "../services/personal-records";
 import {
   getWorkoutWithDetails,
   queryWorkoutHistoryPage,
@@ -65,13 +65,6 @@ const workoutSetInput = z.object({
   notes: z.string().optional(),
   setType: z.enum(["NORMAL", "WARMUP", "DROP", "FAILURE"]).optional(),
   isCompleted: z.boolean().default(false),
-});
-
-const workoutExerciseInput = z.object({
-  exerciseId: z.string(),
-  order: z.number().int().nonnegative(),
-  notes: z.string().optional(),
-  sets: z.array(workoutSetInput).min(1),
 });
 
 export const workoutRouter = router({

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { forwardRef } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { TOUCH_TARGET_MIN } from "../lib/layout-constants";
 import { radius, spacing, typography, useTheme, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
 
@@ -114,26 +114,6 @@ export function HevySegmentedControl<T extends string>({
           </Pressable>
         );
       })}
-    </View>
-  );
-}
-
-/** 2x2 dashboard grid like Hevy profile */
-export function HevyDashboardGrid({
-  items,
-}: {
-  items: Array<{ icon: IconName; label: string; onPress: () => void }>;
-}) {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.grid}>
-      {items.map((item) => (
-        <Pressable key={item.label} style={styles.gridItem} onPress={item.onPress}>
-          <Ionicons name={item.icon} size={22} color={colors.text} />
-          <Text style={styles.gridLabel}>{item.label}</Text>
-        </Pressable>
-      ))}
     </View>
   );
 }
@@ -307,39 +287,6 @@ export function HevyProgramCard({
   );
 }
 
-/** Personalized program promo card */
-export function HevyTrainerCard({ onPress }: { onPress?: () => void }) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.trainerCard}>
-      <Text style={styles.trainerTitle}>Personalized Program</Text>
-      <Text style={styles.trainerSubtitle}>Based on your needs & goals</Text>
-      <Pressable style={styles.trainerCta} onPress={onPress}>
-        <Text style={styles.trainerCtaText}>Explore now</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-/** Category grid tile — label + emoji icon */
-export function HevyCategoryTile({
-  label,
-  icon,
-  onPress,
-}: {
-  label: string;
-  icon: string;
-  onPress: () => void;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <Pressable style={styles.categoryTile} onPress={onPress}>
-      <Text style={styles.categoryLabel}>{label}</Text>
-      <Text style={styles.categoryIcon}>{icon}</Text>
-    </Pressable>
-  );
-}
-
 /** Full-width secondary button */
 export function HevyOutlineButton({ label, onPress }: { label: string; onPress: () => void }) {
   const styles = useThemedStyles(makeStyles);
@@ -396,18 +343,6 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
     segmentActive: { backgroundColor: colors.accent },
     segmentText: { ...typography.bodySmall, fontWeight: "600", color: colors.textMuted, textAlign: "center", flexShrink: 1 },
     segmentTextActive: { color: "#fff" },
-    grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-    gridItem: {
-      width: "48%",
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      padding: spacing.lg,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.md,
-      minHeight: 56,
-    },
-    gridLabel: { ...typography.body, color: colors.text, flex: 1, minWidth: 0 },
     modalHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -497,43 +432,7 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
     programBadgeIcon: { alignSelf: "flex-end", opacity: 0.5 },
     programInfo: { flex: 1, gap: spacing.sm },
     programTitle: { ...typography.h3, color: colors.text },
-    programMeta: { ...typography.bodySmall, color: colors.textMuted },
-    trainerCard: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.xl,
-      padding: spacing.xl,
-      gap: spacing.sm,
-      alignItems: "center",
-      borderWidth: 1,
-      borderColor: colors.border,
-      ...shadows.md,
-    },
-    trainerTitle: { ...typography.h2, color: colors.text, textAlign: "center" },
-    trainerSubtitle: { ...typography.bodySmall, color: colors.textMuted, textAlign: "center" },
-    trainerCta: {
-      alignSelf: "stretch",
-      marginTop: spacing.md,
-      backgroundColor: colors.accent,
-      borderRadius: radius.md,
-      minHeight: TOUCH_TARGET_MIN + spacing.md,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    trainerCtaText: { ...typography.button, color: "#fff" },
-    categoryTile: {
-      flexBasis: "48%",
-      flexGrow: 1,
-      maxWidth: "48%",
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      padding: spacing.lg,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      minHeight: 64,
-    },
-    categoryLabel: { ...typography.body, color: colors.text, flex: 1 },
-    categoryIcon: { fontSize: 28 }, // decorative emoji scale
+    programMeta: { ...typography.bodySmall, color: colors.textMuted }, // decorative emoji scale
     outlineBtn: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,

@@ -207,33 +207,6 @@ export function ProgressRing({
   );
 }
 
-export function MuscleBars({
-  data,
-}: {
-  data: Array<{ muscle: string; volume: number; pct: number }>;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  if (data.length === 0) {
-    return <Text style={styles.empty}>Train more to see muscle distribution.</Text>;
-  }
-
-  return (
-    <View style={styles.muscleList}>
-      {data.map((m) => (
-        <View key={m.muscle} style={styles.muscleRow}>
-          <Text style={styles.muscleName} numberOfLines={1}>
-            {m.muscle}
-          </Text>
-          <View style={styles.muscleTrack}>
-            <View style={[styles.muscleFill, { width: `${m.pct}%` }]} />
-          </View>
-          <Text style={styles.muscleVol}>{m.volume} kg</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 const makeStyles = (colors: Palette) => StyleSheet.create({
   wrap: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg },
   bars: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
@@ -243,16 +216,4 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   barLabel: { fontSize: 9, color: colors.textDim, textAlign: "center" },
   empty: { fontSize: 14, color: colors.textMuted, textAlign: "center", paddingVertical: spacing.xl },
   ringCenter: { alignItems: "center", justifyContent: "center" },
-  muscleList: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md },
-  muscleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  muscleName: { width: 80, fontSize: 13, color: colors.text },
-  muscleTrack: {
-    flex: 1,
-    height: 8,
-    backgroundColor: colors.surfaceHover,
-    borderRadius: radius.full,
-    overflow: "hidden",
-  },
-  muscleFill: { height: "100%", backgroundColor: colors.accent, borderRadius: radius.full },
-  muscleVol: { width: 52, fontSize: 12, color: colors.textMuted, textAlign: "right" },
 });

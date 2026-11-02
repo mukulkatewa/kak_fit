@@ -121,8 +121,6 @@ async function fetchCurrentPrMaxMapBatch(
 }
 
 function syncPersonalRecordsWithBest(
-  userId: string,
-  exerciseId: string,
   sets: CompletedSet[],
   currentBest: Map<PersonalRecordType, number>,
 ): NewRecord[] {
@@ -229,7 +227,7 @@ export async function syncPersonalRecords(
   sets: CompletedSet[],
 ): Promise<NewRecord[]> {
   const currentBest = await fetchCurrentPrMaxMap(prisma, userId, exerciseId);
-  const created = syncPersonalRecordsWithBest(userId, exerciseId, sets, currentBest);
+  const created = syncPersonalRecordsWithBest(sets, currentBest);
 
   if (created.length === 0) return [];
 
@@ -267,7 +265,7 @@ export async function syncPersonalRecordsBatch(
   for (const { exerciseId, sets } of exercises) {
     const currentBest =
       bestByExercise.get(exerciseId) ?? new Map<PersonalRecordType, number>();
-    const records = syncPersonalRecordsWithBest(userId, exerciseId, sets, currentBest);
+    const records = syncPersonalRecordsWithBest(sets, currentBest);
     for (const record of records) {
       created.push({ ...record, exerciseId });
       rows.push({

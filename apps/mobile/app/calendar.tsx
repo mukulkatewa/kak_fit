@@ -7,7 +7,7 @@ import { EmptyState, ListGroup, ListRow, Screen } from "../src/components/ui";
 import { trpc } from "../src/lib/trpc";
 import { iconButtonStyle } from "../src/lib/layout-constants";
 import { useResponsive } from "../src/lib/responsive";
-import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
+import { spacing, typography, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
 
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const MONTHS = [
@@ -37,7 +37,7 @@ export default function CalendarScreen() {
   const styles = useThemedStyles(makeStyles);
   const cellSize = Math.floor((width - horizontalPadding * 2) / 7);
 
-  const { data: workouts, isLoading, isError, error, refetch } = trpc.progress.calendar.useQuery();
+  const { data: workouts, isLoading, isError, error } = trpc.progress.calendar.useQuery();
 
   const todayKey = isoDateKey(new Date());
   const [cursor, setCursor] = useState(() => {

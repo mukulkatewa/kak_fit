@@ -1,5 +1,3 @@
-import type { RouterOutputs } from "@kak-fit/api/router";
-
 type ExerciseUtils = {
   exercise: {
     detailPage: {
@@ -11,8 +9,6 @@ type ExerciseUtils = {
 type ExerciseRouter = {
   push: (href: { pathname: "/exercise/[id]"; params: { id: string } }) => void;
 };
-
-export type ExerciseListItem = RouterOutputs["exercise"]["list"][number];
 
 export function openExerciseDetail(
   utils: ExerciseUtils,

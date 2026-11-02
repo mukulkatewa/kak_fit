@@ -30,7 +30,7 @@ function QueryErrorFallback({
       <Ionicons name="alert-circle-outline" size={48} color={colors.danger} />
       <Text style={styles.title}>Something went wrong</Text>
       <Text style={styles.message}>
-        {error?.message || "An unexpected error occurred"}
+        {__DEV__ && error?.message ? error.message : "Please try again. If this keeps happening, reopen Kak Fit."}
       </Text>
       <Button label="Try Again" onPress={onRetry} />
     </View>

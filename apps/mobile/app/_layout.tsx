@@ -20,7 +20,6 @@ import { OfflineWorkoutSync } from "../src/components/offline-workout-sync";
 import { DevApiBanner } from "../src/components/dev-api-banner";
 import { QueryErrorBoundary } from "../src/components/query-error-boundary";
 import { StartupErrorBoundary } from "../src/components/startup-error-boundary";
-import { TokenRefreshBadge } from "../src/components/token-refresh-badge";
 import { TrpcPrefetchBootstrap } from "../src/components/trpc-prefetch-bootstrap";
 import { WorkoutLiveNotificationBridge } from "../src/components/workout-live-notification-bridge";
 import { ToastContainer, ToastProvider } from "../src/components/ui";
@@ -155,7 +154,6 @@ function ThemedApp() {
           <AuthRedirect />
           <AuthLoadingOverlay />
           <DevApiBanner />
-          <TokenRefreshBadge />
           <OfflineWorkoutSync />
           <WorkoutLiveNotificationBridge />
           <ActiveWorkoutOverlay />

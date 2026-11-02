@@ -1,5 +1,7 @@
 import * as SQLite from "expo-sqlite";
 import { createTRPCClient } from "./trpc";
+import { isNetworkError } from "./network-errors";
+export { isNetworkError } from "./network-errors";
 
 export type OfflineWorkoutMutationType =
   | "updateSet"
@@ -77,13 +79,6 @@ function getDb() {
     return db;
   });
   return dbPromise;
-}
-
-export function isNetworkError(error: unknown) {
-  // AbortError = intentional request cancellation or server-side timeout — not an offline event.
-  if (error instanceof Error && error.name === "AbortError") return false;
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return /network request failed|failed to fetch|load failed|internet|offline|econn|fetch failed/i.test(message);
 }
 
 export async function enqueueWorkoutMutation(type: OfflineWorkoutMutationType, payload: unknown) {

@@ -19,10 +19,7 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -51,7 +48,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Kak Fit to add progress photos from your library."
+          "photosPermission": "Allow Kak Fit to add progress photos from your library.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       "expo-video",

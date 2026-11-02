@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, ListGroup, ListRow, Screen, ThemedDialog, useToast } from "../src/components/ui";
 import { HevyStackHeader } from "../src/components/hevy-ui";
+import { QueryErrorState } from "../src/components/query-error-state";
 import { trpc } from "../src/lib/trpc";
 import { getApiUrl } from "../src/lib/api-client";
 import { radius, spacing, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
@@ -62,7 +63,7 @@ export default function DeveloperApiScreen() {
   const styles = useThemedStyles(makeStyles);
   const { showToast } = useToast();
   const utils = trpc.useUtils();
-  const { data: keys, isLoading } = trpc.developer.listKeys.useQuery();
+  const { data: keys, isLoading, isError, refetch } = trpc.developer.listKeys.useQuery();
 
   const [keyName, setKeyName] = useState("My AI Key");
   const [detailOpen, setDetailOpen] = useState(false);
@@ -76,7 +77,6 @@ export default function DeveloperApiScreen() {
   const [revokeError, setRevokeError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoCreateAttempted = useRef(false);
 
   const baseUrl = getApiUrl();
   const apiBase = `${baseUrl}/api/v1`;
@@ -157,21 +157,12 @@ export default function DeveloperApiScreen() {
   };
 
   useEffect(() => {
-    if (isLoading || autoCreateAttempted.current || createKey.isPending) return;
-    if (keys && keys.length === 0) {
-      autoCreateAttempted.current = true;
-      createKey.mutate({ name: "My AI Key" });
-    }
-  }, [isLoading, keys, createKey.isPending]);
-
-  useEffect(() => {
     return () => {
       if (copyTimeout.current) clearTimeout(copyTimeout.current);
     };
   }, []);
 
-  const showCreateForm = keyCount > 0 || createError != null;
-  const settingUp = !isLoading && keyCount === 0 && (createKey.isPending || !createError);
+  const showCreateForm = !isLoading && !isError;
 
   return (
     <>
@@ -182,14 +173,16 @@ export default function DeveloperApiScreen() {
           Connect Claude, ChatGPT, or other tools to your workouts with an API key.
         </Text>
 
-        {isLoading || settingUp ? (
+        {isLoading ? (
           <View style={styles.loadingCard}>
             <ActivityIndicator color={colors.accent} />
             <Text style={styles.loadingText}>
-              {settingUp ? "Setting up your API key…" : "Loading…"}
+              Loading…
             </Text>
           </View>
         ) : null}
+
+        {isError ? <QueryErrorState message="Could not load your API keys." onRetry={() => void refetch()} /> : null}
 
         {!isLoading && singleKey ? (
           <KeySetupCard

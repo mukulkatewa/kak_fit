@@ -14,8 +14,6 @@ export const BUTTON_HEIGHT_PRIMARY = 56;
 export const BUTTON_HEIGHT_SECONDARY = 52;
 /** Extra tap padding for navigation and primary actions. */
 export const HIT_SLOP_LARGE = 8;
-/** Extra tap padding for list rows and cards. */
-export const HIT_SLOP_MEDIUM = 4;
 
 /** Standard 44×44 icon button wrapper — use hitSlop when visual size is smaller. */
 export const iconButtonStyle: ViewStyle = {
@@ -28,11 +26,6 @@ export const iconButtonStyle: ViewStyle = {
 /** Extra constraints for full-height screens on web. */
 export const webFlexScreen: ViewStyle =
   Platform.OS === "web" ? { minHeight: 0, height: "100%" } : {};
-
-/** Icon + label area of the bottom tab bar (excluding safe-area padding). */
-export const TAB_BAR_CONTENT_HEIGHT = 56;
-export const TAB_BAR_HEIGHT = TAB_BAR_CONTENT_HEIGHT + 8;
-export const TAB_BAR_PADDING_BOTTOM = spacing.sm;
 
 export function useTabBarLayout() {
   const insets = useSafeAreaInsets();
@@ -72,16 +65,6 @@ export function useScreenBottomInset(
     return spacing.lg + pill + webClearance;
   }
   return Math.max(insets.bottom, spacing.md) + spacing.sm;
-}
-
-/** @deprecated Use useScreenBottomInset("tab") */
-export function useTabBarBottomInset(): number {
-  return useScreenBottomInset("tab");
-}
-
-/** @deprecated Use useScreenTopInset("tab") */
-export function useTabScreenTopInset(): number {
-  return useScreenTopInset("tab");
 }
 
 /** Screens where the active-workout overlay may appear (tab roots + common drill-downs). */

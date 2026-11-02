@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BarChart } from "../src/components/charts";
-import { Button, EmptyState, Header, Input, ListGroup, ListRow, Screen, SectionHeader, ThemedDialog, useToast } from "../src/components/ui";
+import { Button, Header, Input, ListGroup, ListRow, Screen, SectionHeader, ThemedDialog, useToast } from "../src/components/ui";
 import { HevySegmentedControl } from "../src/components/hevy-ui";
 import { trpc } from "../src/lib/trpc";
 import { useUserPreferences } from "../src/lib/use-preferences";

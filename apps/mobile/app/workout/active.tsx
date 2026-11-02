@@ -44,7 +44,7 @@ import { trpc, queryStaleTime } from "../../src/lib/trpc";
 import { parseOptionalNumber } from "../../src/lib/workout-errors";
 import { cycleRpe, formatRpe } from "../../src/lib/rpe";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { fromKg, sumWorkoutSetVolume, toKg, tonnageFromKg, weightLabel } from "../../src/lib/units";
+import { fromKg, sumWorkoutSetVolume, toKg, weightLabel } from "../../src/lib/units";
 import { formatRestTime, useRestTimer } from "../../src/lib/rest-timer";
 import {
   clearPendingFinishWorkout,

@@ -22,15 +22,12 @@ import {
 import {
   ChevronRightIcon,
   MagnifyingGlassIcon,
-  PlusIcon,
   XCircleIcon,
 } from "react-native-heroicons/outline";
 import Animated, {
   FadeIn,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
-  withSequence,
   withTiming,
 } from "react-native-reanimated";
 import { create } from "zustand";
@@ -204,101 +201,6 @@ export function Card({
   );
 }
 
-export function GlassCard({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
-  const styles = useThemedStyles(makeStyles);
-  return <View style={[styles.glassCard, style]}>{children}</View>;
-}
-
-export function StatPill({
-  value,
-  label,
-  accent,
-  gold,
-}: {
-  value: string | number;
-  label: string;
-  accent?: boolean;
-  gold?: boolean;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={[styles.statPill, accent && styles.statPillAccent, gold && styles.statPillGold]}>
-      <Text style={[styles.statValue, accent && styles.statValueAccent, gold && styles.statValueGold]}>
-        {value}
-      </Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-export function PRBadge({ label }: { label: string }) {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.prBadge}>
-      <Ionicons name="trophy" size={11} color={colors.gold} />
-      <Text style={styles.prBadgeText}>{label}</Text>
-    </View>
-  );
-}
-
-export function StreakBadge({ weeks }: { weeks: number }) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.streakBadge}>
-      <Text style={styles.streakEmoji}>🔥</Text>
-      <Text style={styles.streakText}>{weeks} week streak</Text>
-    </View>
-  );
-}
-
-export function XPBar({ current, max, level }: { current: number; max: number; level: number }) {
-  const styles = useThemedStyles(makeStyles);
-  const pct = Math.min((current / max) * 100, 100);
-  return (
-    <View style={styles.xpContainer}>
-      <View style={styles.xpHeader}>
-        <View style={styles.xpLevelBadge}>
-          <Text style={styles.xpLevel}>LVL {level}</Text>
-        </View>
-        <Text style={styles.xpText}>
-          {current} / {max} XP
-        </Text>
-      </View>
-      <View style={styles.xpTrack}>
-        <View style={[styles.xpFill, { width: `${pct}%` }]} />
-      </View>
-    </View>
-  );
-}
-
-export function FitnessScoreRing({ score }: { score: number }) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.scoreRing}>
-      <View style={styles.scoreRingInner}>
-        <Text style={styles.scoreValue}>{score}</Text>
-        <Text style={styles.scoreLabel}>SCORE</Text>
-      </View>
-    </View>
-  );
-}
-
-export function ProgressBar({ pct, color }: { pct: number; color?: string }) {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.progressTrack}>
-      <View
-        style={[
-          styles.progressFill,
-          { width: `${Math.min(pct, 100)}%`, backgroundColor: color ?? colors.accent },
-        ]}
-      />
-    </View>
-  );
-}
-
 export function Avatar({ name, size = 64 }: { name?: string | null; size?: number }) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -307,32 +209,6 @@ export function Avatar({ name, size = 64 }: { name?: string | null; size?: numbe
         {name?.[0]?.toUpperCase() ?? "K"}
       </Text>
     </View>
-  );
-}
-
-export function Chip({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active?: boolean;
-  onPress?: () => void;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  const { style, onPressIn, onPressOut } = usePressScale();
-
-  return (
-    <Animated.View style={style}>
-      <Pressable
-        onPress={onPress}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-        style={[styles.chip, active && styles.chipActive]}
-      >
-        <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-      </Pressable>
-    </Animated.View>
   );
 }
 
@@ -408,27 +284,9 @@ export function HevyButton({
   );
 }
 
-export function BrandMark({ large }: { large?: boolean }) {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.brandMarkRow}>
-      <View style={[styles.brandIcon, large && styles.brandIconLarge]}>
-        <Ionicons name="barbell" size={large ? 32 : 18} color={colors.accent} />
-      </View>
-      <Text style={[styles.brandMark, large && styles.brandMarkLarge]}>Kak Fit</Text>
-    </View>
-  );
-}
-
 export function Title({ children }: { children: React.ReactNode }) {
   const styles = useThemedStyles(makeStyles);
   return <Text style={styles.title}>{children}</Text>;
-}
-
-export function Subtitle({ children }: { children: React.ReactNode }) {
-  const styles = useThemedStyles(makeStyles);
-  return <Text style={styles.subtitle}>{children}</Text>;
 }
 
 // ─── Buttons ────────────────────────────────────────────────────────────────
@@ -504,69 +362,6 @@ export function Button({
               {label}
             </Text>
           </View>
-        )}
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-export function FAB({ onPress, icon = "add" }: { onPress: () => void; icon?: IconName }) {
-  const { colors, isDark } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-  const scale = useSharedValue(1);
-  const shadowPulse = useSharedValue(0.35);
-
-  useEffect(() => {
-    shadowPulse.value = withRepeat(
-      withSequence(
-        withTiming(0.55, { duration: 1200 }),
-        withTiming(0.25, { duration: 1200 }),
-      ),
-      -1,
-      true,
-    );
-  }, [shadowPulse]);
-
-  const scaleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const shadowStyle = useAnimatedStyle(() => ({
-    shadowOpacity: shadowPulse.value,
-  }));
-
-  const handlePressIn = () => {
-    scale.value = withTiming(0.98, { duration: 80 });
-  };
-
-  const handlePressOut = () => {
-    scale.value = withTiming(1, { duration: 100 });
-  };
-
-  return (
-    <Animated.View
-      style={[
-        styles.fab,
-        !isDark && {
-          shadowColor: colors.accent,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 8,
-        },
-        shadowStyle,
-        scaleStyle,
-      ]}
-    >
-      <Pressable
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        style={styles.fabInner}
-      >
-        {icon === "add" ? (
-          <PlusIcon color={colors.onAccent} size={26} />
-        ) : (
-          <Ionicons name={icon} size={26} color={colors.onAccent} />
         )}
       </Pressable>
     </Animated.View>
@@ -819,31 +614,6 @@ export function EmptyState({
   );
 }
 
-export function MacroRing({
-  label,
-  value,
-  target,
-  color,
-}: {
-  label: string;
-  value: number;
-  target: number;
-  color: string;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  const percentage = target > 0 ? Math.min(1, value / target) : 0;
-  const pct = Math.round(percentage * 100);
-  return (
-    <View style={styles.macroRing}>
-      <View style={[styles.macroRingOuter, { borderColor: color }]}>
-        <Text style={[styles.macroRingValue, { color }]}>{Math.round(value)}</Text>
-      </View>
-      <Text style={styles.macroRingLabel}>{label}</Text>
-      <Text style={styles.macroRingTarget}>{Math.round(pct)}%</Text>
-    </View>
-  );
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const makeStyles = (colors: Palette, shadows: ShadowSet) =>
@@ -897,28 +667,6 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       borderColor: colors.border,
       ...shadows.md,
     },
-    glassCard: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      padding: spacing.lg,
-      gap: spacing.md,
-    },
-
-    statPill: {
-      flex: 1,
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.sm,
-      alignItems: "center",
-      gap: 2,
-    },
-    statPillAccent: {},
-    statPillGold: {},
-    statValue: { fontSize: 22, fontWeight: "700", color: colors.text }, // custom: stat emphasis
-    statValueAccent: { color: colors.accent },
-    statValueGold: { color: colors.gold },
-    statLabel: { ...typography.label, color: colors.textMuted },
 
     statBlock: { flex: 1, alignItems: "center", gap: 2 },
     statBlockValue: { ...typography.h2, color: colors.text },
@@ -930,101 +678,13 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       overflow: "hidden",
     },
 
-    prBadge: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      backgroundColor: colors.goldMuted,
-      borderRadius: radius.sm,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      alignSelf: "flex-start",
-    },
-    prBadgeText: { ...typography.label, color: colors.gold },
-
-    streakBadge: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      alignSelf: "flex-start",
-    },
-    streakEmoji: { fontSize: 14 }, // emoji size
-    streakText: { ...typography.caption, color: colors.textMuted },
-
-    xpContainer: { gap: spacing.sm },
-    xpHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-    xpLevelBadge: {
-      backgroundColor: colors.accentMuted,
-      borderRadius: radius.sm,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-    },
-    xpLevel: { ...typography.label, color: colors.accent },
-    xpText: { ...typography.caption, color: colors.textMuted },
-    xpTrack: {
-      height: 4,
-      backgroundColor: colors.surfaceHover,
-      borderRadius: radius.full,
-      overflow: "hidden",
-    },
-    xpFill: { height: "100%", backgroundColor: colors.accent, borderRadius: radius.full },
-
-    scoreRing: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      borderWidth: 2,
-      borderColor: colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    scoreRingInner: { alignItems: "center" },
-    scoreValue: { fontSize: 24, fontWeight: "700", color: colors.text }, // custom: ring score
-    scoreLabel: { ...typography.label, fontSize: 9, color: colors.textMuted }, // custom: compact ring label
-
-    progressTrack: {
-      height: 4,
-      backgroundColor: colors.surfaceHover,
-      borderRadius: radius.full,
-      overflow: "hidden",
-    },
-    progressFill: { height: "100%", borderRadius: radius.full },
-
     avatar: {
       backgroundColor: colors.surfaceHover,
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { ...typography.bodySmall, fontWeight: "600", color: colors.text },
-
-    chip: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      borderRadius: radius.full,
-      backgroundColor: colors.surfaceHover,
-    },
-    chipActive: { backgroundColor: colors.accent },
-    chipText: { ...typography.caption, color: colors.textMuted },
-    chipTextActive: { color: "#fff", fontWeight: "600" },
-
-    brandMarkRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-    brandIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: radius.md,
-      backgroundColor: colors.surface,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    brandIconLarge: { width: 64, height: 64, borderRadius: radius.lg },
-    brandMark: { ...typography.body, fontWeight: "600", color: colors.text },
-    brandMarkLarge: { fontSize: 28, fontWeight: "700" }, // custom: large brand mark
+    avatarText: { ...typography.bodySmall, fontWeight: "600", color: colors.text }, // custom: large brand mark
     title: { ...typography.h1, color: colors.text },
-    subtitle: { ...typography.bodySmall, color: colors.textMuted },
 
     button: {
       borderRadius: radius.md,
@@ -1084,24 +744,6 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       color: colors.accent,
     },
 
-    fab: {
-      position: "absolute",
-      right: spacing.lg,
-      bottom: spacing.xl,
-      width: 56,
-      height: 56,
-      minWidth: 56,
-      minHeight: 56,
-      borderRadius: 28,
-      backgroundColor: colors.accent,
-    },
-    fabInner: {
-      width: "100%",
-      height: "100%",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
     searchBar: {
       flexDirection: "row",
       alignItems: "center",
@@ -1133,7 +775,6 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.separator,
     },
-    listRowPressed: { backgroundColor: colors.surfaceHover },
     listRowIcon: {
       width: 32,
       height: 32,
@@ -1164,20 +805,6 @@ const makeStyles = (colors: Palette, shadows: ShadowSet) =>
       lineHeight: 20,
       maxWidth: 260,
     },
-
-    macroRing: { alignItems: "center", gap: 4, flex: 1 },
-    macroRingOuter: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      borderWidth: 2,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.surface,
-    },
-    macroRingValue: { ...typography.body, fontWeight: "700" },
-    macroRingLabel: { ...typography.caption, color: colors.textMuted },
-    macroRingTarget: { ...typography.label, color: colors.textDim },
 
     dialogBackdrop: {
       flex: 1,

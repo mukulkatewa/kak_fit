@@ -1,7 +1,6 @@
 import { Prisma } from "@kak-fit/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { rateLimit } from "../lib/rate-limiter";
 import { protectedProcedure, revokeSessionToken, router } from "../trpc";
 
 const userSelect = {

@@ -15,7 +15,6 @@ import {
 import { protectedProcedure, router } from "../trpc";
 
 const USDA_BASE = "https://api.nal.usda.gov/fdc/v1";
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** USDA nutrient IDs (FoodData Central) */
 const NUTRIENT_IDS = {

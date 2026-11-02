@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Button } from "./ui";
-import { spacing, typography, useThemedStyles, type Palette, type ShadowSet } from "../lib/theme";
+import { spacing, typography, useThemedStyles, type Palette } from "../lib/theme";
 
 type QueryErrorStateProps = {
   message?: string;

@@ -483,7 +483,9 @@ export async function signInWithGoogle() {
     if (code === "INVALID_ORIGIN" || code === "MISSING_OR_NULL_ORIGIN") {
       throw new Error(
         error.message ??
-          "Sign-in blocked by server origin policy. Point EXPO_PUBLIC_API_URL at your live API URL (see docs/ENV_SETUP.md).",
+          __DEV__
+            ? "Sign-in blocked by server origin policy. Point EXPO_PUBLIC_API_URL at your live API URL (see docs/ENV_SETUP.md)."
+            : "Sign-in is temporarily unavailable. Please try again later.",
       );
     }
     if (code === "INVALID_CALLBACK_URL") {

@@ -12,7 +12,7 @@ import { trpc } from "../../src/lib/trpc";
 import { alertWorkoutConflict } from "../../src/lib/workout-errors";
 import { navigateToActiveWorkout } from "../../src/lib/workout-navigation";
 import { useUserPreferences } from "../../src/lib/use-preferences";
-import { formatWeight, sumWorkoutSetVolume, tonnageFromKg, weightLabel } from "../../src/lib/units";
+import { formatWeight, sumWorkoutSetVolume, weightLabel } from "../../src/lib/units";
 import {
   radius,
   spacing,
@@ -71,7 +71,7 @@ function WorkoutDetailScreen() {
   const addPhoto = async () => {
     if (storage?.enabled === false) {
       showToast(
-        "Photo uploads require server storage (Supabase or S3).",
+        "Photo uploads are temporarily unavailable. Please try again later.",
         "error",
       );
       return;

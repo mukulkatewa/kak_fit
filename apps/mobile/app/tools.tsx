@@ -1,19 +1,18 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { HevySegmentedControl, HevyStackHeader } from "../src/components/hevy-ui";
 import { Screen } from "../src/components/ui";
 import { calculatePlates, generateWarmupSets } from "../src/lib/calculators";
 import { useUserPreferences } from "../src/lib/use-preferences";
-import { formatWeight, fromKg, toKg, weightLabel } from "../src/lib/units";
+import { formatWeight, toKg, weightLabel } from "../src/lib/units";
 import { TOUCH_TARGET_MIN } from "../src/lib/layout-constants";
-import { radius, spacing, typography, useTheme, useThemedStyles, type Palette } from "../src/lib/theme";
+import { radius, spacing, typography, useThemedStyles, type Palette } from "../src/lib/theme";
 
 type Tab = "plates" | "warmup";
 
 export default function ToolsScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { weightUnit } = useUserPreferences();
   const [tab, setTab] = useState<Tab>("plates");
@@ -135,7 +134,6 @@ function NumRow({
   onInc: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const { colors } = useTheme();
   return (
     <View style={styles.numRow}>
       <Text style={styles.numLabel}>{label}</Text>

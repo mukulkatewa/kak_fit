@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -31,8 +31,8 @@ export default function PhotosScreen() {
   const addPhoto = async () => {
     if (!enabled) {
       Alert.alert(
-        "Storage not configured",
-        "Photo uploads require server storage (Supabase or S3). Ask your admin to set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+        "Photo uploads unavailable",
+        "Photo uploads are temporarily unavailable. Please try again later.",
       );
       return;
     }
@@ -90,8 +90,8 @@ export default function PhotosScreen() {
       {!enabled ? (
         <EmptyState
           icon="cloud-offline-outline"
-          title="Storage not configured"
-          message="Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on the server to enable photo uploads."
+          title="Photo uploads unavailable"
+          message="Photo uploads are temporarily unavailable. Please try again later."
         />
       ) : isLoading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />

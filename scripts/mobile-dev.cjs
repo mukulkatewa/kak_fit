@@ -27,8 +27,13 @@ function run(command, args, options = {}) {
 function connectWindowsDevices() {
   const devices = spawnSync("adb.exe", ["devices"], adbOptions);
   if (devices.error || devices.status !== 0) {
-    console.error("[mobile] Could not run adb. Add Android SDK platform-tools to PATH.");
-    throw new Error("Android SDK platform-tools must be available on PATH.");
+    if (devices.error?.code === "ENOENT") {
+      throw new Error("Could not find adb.exe. Add Android SDK platform-tools to PATH.");
+    }
+    if (devices.error?.code === "ETIMEDOUT") {
+      throw new Error("ADB is not responding. Restart the ADB server (adb kill-server, then adb start-server), wait for the emulator to reconnect, and retry npm start.");
+    }
+    throw new Error(`ADB could not list devices: ${devices.error?.message ?? devices.stderr.trim()}`);
   }
   const connectedIds = devices.stdout.split(/\r?\n/).flatMap((line) => {
     const match = line.match(/^(\S+)\s+device$/);
@@ -52,19 +57,19 @@ function connectWindowsDevices() {
   return connectedIds;
 }
 
-async function checkApi(apiUrl) {
+async function checkApi(apiUrl, timeoutMs = 30_000) {
   const origin = new URL(apiUrl).origin;
   let health;
   try {
     const response = await fetch(`${origin}/api/health`, {
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     health = await response.json();
     if (!response.ok || health.status !== "ok" || health.db !== "connected") {
       throw new Error("Database unavailable");
     }
   } catch {
-    throw new Error(`API/database is unavailable at ${origin}. Run npm run dev:api in a separate terminal and wait for it to be ready, then retry.`);
+    throw new Error(`API/database is unavailable at ${origin}. Run npm start and wait for the Ready message, then retry. Check the API logs if the database is unavailable.`);
   }
   if (health.auth !== "configured") {
     throw new Error("Backend authentication is not configured. Check the Google/Better Auth settings in apps/web/.env.local.");
@@ -72,16 +77,22 @@ async function checkApi(apiUrl) {
   console.log(`[mobile] API ready at ${origin}; database connected; authentication configured.`);
 }
 
-function openWindowsDebugApp(deviceIds) {
+function installedDebugApp(deviceId) {
+  const appId = require(path.join(mobileRoot, "app.json")).expo.android.package;
+  const installed = spawnSync("adb.exe", ["-s", deviceId, "shell", "dumpsys", "package", appId], adbOptions);
+  return !installed.error && installed.status === 0 && /\bDEBUGGABLE\b/.test(installed.stdout);
+}
+
+function openWindowsDebugApp(deviceIds, restart = false) {
   if (deviceIds.length !== 1) {
-    throw new Error("Keep one Android device/emulator connected when using npm run android:open.");
+    throw new Error("Keep one Android device/emulator connected when opening Kak Fit.");
   }
   const deviceId = deviceIds[0];
   const appId = require(path.join(mobileRoot, "app.json")).expo.android.package;
-  const installed = spawnSync("adb.exe", ["-s", deviceId, "shell", "dumpsys", "package", appId], adbOptions);
-  if (installed.error || installed.status !== 0 || !/\bDEBUGGABLE\b/.test(installed.stdout)) {
-    throw new Error("The Kak Fit debug app is not installed. Run npm run android once to build/install it, then use npm run android:open.");
+  if (!installedDebugApp(deviceId)) {
+    throw new Error("The Kak Fit debug app is not installed. Run npm run android -- --build to build/install it.");
   }
+  require("./android-debug-host.cjs").configureDebugHost(deviceId, appId, restart);
   const opened = spawnSync("adb.exe", [
     "-s", deviceId, "shell", "am", "start", "-W",
     "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER",
@@ -90,7 +101,7 @@ function openWindowsDebugApp(deviceIds) {
   if (opened.error || opened.status !== 0 || !/Status: ok/.test(opened.stdout)) {
     throw new Error("Could not open Kak Fit. Unlock the emulator, then retry npm run android:open.");
   }
-  console.log(`[mobile] Opened Kak Fit debug app on ${deviceId}. Keep the API and Metro terminals running; saved UI changes use Fast Refresh.`);
+  console.log(`[mobile] Opened Kak Fit debug app on ${deviceId}. Keep npm start running; saved UI changes use Fast Refresh.`);
 }
 
 async function metroIsRunning() {
@@ -114,12 +125,14 @@ async function checkMetroProject() {
   if (!directory || path.resolve(directory).toLowerCase() !== mobileRoot.toLowerCase()) {
     throw new Error("Port 8081 belongs to a different project. Stop that server, then run npm start for Kak Fit.");
   }
+  return manifest;
 }
 
 function windowsAndroidArgs() {
   const args = [];
   for (let index = 0; index < extraArgs.length; index++) {
     const arg = extraArgs[index];
+    if (arg === "--build") continue;
     if (arg === "--port" || arg === "-p" || arg.startsWith("--port=")) {
       const port = arg.startsWith("--port=") ? arg.slice(7) : extraArgs[++index];
       if (port !== "8081") throw new Error("This Windows emulator workflow uses Metro on port 8081.");
@@ -136,7 +149,7 @@ async function main() {
     console.error("Usage: node scripts/mobile-dev.cjs <start|android|open> [Expo options]");
     process.exitCode = 1;
   } else if (mode === "open" && helpRequested) {
-    console.log("Usage: npm run android:open\nReopen the installed Windows emulator debug app without rebuilding. Start npm run dev:api and npm start first.");
+    console.log("Usage: npm run android:open\nReopen the installed Windows emulator debug app without rebuilding. Start npm start first.");
   } else if (mode === "open" && !isWindows) {
     throw new Error("android:open supports the Windows emulator workflow. Use npm run android on this platform.");
   } else if (!isWindows && mode === "start" && !helpRequested) {
@@ -152,6 +165,12 @@ async function main() {
     }
     const deviceIds = isWindows && !helpRequested ? connectWindowsDevices() : [];
     if (mode === "start" || !isWindows || helpRequested || deviceIds.length > 0) {
+      if (isWindows && mode === "start" && !helpRequested) {
+        await require("./windows-dev.cjs").startWindowsDev({
+          env, mobileRoot, expoCli, extraArgs, checkApi, metroIsRunning, checkMetroProject,
+        });
+        return;
+      }
       // Expo's existing-port detection uses Unix lsof, which is unavailable on
       // Windows. Skip it explicitly so the debug build cannot drift to port 8082.
       if (isWindows && !helpRequested) {
@@ -159,10 +178,6 @@ async function main() {
         const metroReady = await metroIsRunning();
         if (metroReady) {
           await checkMetroProject();
-          if (mode === "start") {
-            console.log("[mobile] Kak Fit Metro is already running on 8081. Keep it open and run npm run android in the other terminal.");
-            return;
-          }
         } else if (mode !== "start") {
           throw new Error("Start npm start in a separate terminal and wait for Metro on port 8081, then retry this command.");
         }
@@ -171,10 +186,25 @@ async function main() {
         openWindowsDebugApp(deviceIds);
         return;
       }
+      if (isWindows && mode === "android" && !helpRequested && extraArgs.length === 0
+        && deviceIds.length === 1 && installedDebugApp(deviceIds[0])) {
+        console.log("[mobile] Installed debug app found; reopening without Gradle. After native changes use npm run android -- --build.");
+        openWindowsDebugApp(deviceIds, true);
+        return;
+      }
+      if (isWindows && mode === "android" && helpRequested) {
+        console.log("[mobile] Windows: npm run android reopens an installed debug app. Add --build to force native compilation; other Expo options also use the build path.");
+      }
       const args = mode === "start"
         ? ["start", "--localhost", "--port", "8081", ...extraArgs]
         : ["run:android", ...(isWindows && !helpRequested ? windowsAndroidArgs() : extraArgs)];
       run(process.execPath, [expoCli, ...args], { env });
+      if (isWindows && mode === "android" && !helpRequested && process.exitCode === 0
+        && deviceIds.length === 1 && installedDebugApp(deviceIds[0])) {
+        // This app uses RN's native debug support, without expo-dev-client.
+        // Launch MAIN instead of leaving Expo's development-client URL as a route.
+        openWindowsDebugApp(deviceIds, true);
+      }
     } else {
       process.exitCode = 1;
     }

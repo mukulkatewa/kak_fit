@@ -17,7 +17,11 @@ export function createTRPCClient() {
   return trpc.createClient({
     links: [
       loggerLink({
-        enabled: () => __DEV__,
+        enabled: (event) => __DEV__ && (
+          process.env.EXPO_PUBLIC_TRPC_DEBUG === "1"
+          || (event.direction === "down" && event.result instanceof Error)
+        ),
+        colorMode: "none",
       }),
       httpBatchLink({
         url: `${getApiUrl()}/api/trpc`,

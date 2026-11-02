@@ -51,35 +51,41 @@ pnpm --filter @kak-fit/mobile start
 
 ## Android emulator on Windows
 
-For live React Native changes, run these in three VS Code PowerShell terminals
-from the project root, with the emulator running. Start the backend first:
+For live React Native changes, run these in two VS Code PowerShell terminals
+from the project root, with the emulator running:
 
 ```powershell
-# Terminal 1: backend; keep this open.
-npm run dev:api
-```
-
-```powershell
-# Terminal 2: Metro; keep this open.
+# Terminal 1: starts the local API and Metro; keep this open.
 npm start
 ```
 
 ```powershell
-# Terminal 3: first installation, or after native dependency/code changes.
+# Terminal 2: open Kak Fit; builds/installs it if no debug app is installed.
 npm run android
 ```
 
-After the debug app is installed, reopen it in later sessions without a build:
+On Windows, `npm start` starts a missing local API, checks database/auth health,
+warms the API router, starts Metro on 8081, and prepares the Android bundle.
+The first bundle can take a while; wait for its `Ready: API +
+database + Metro` message before running the Android command. Ctrl+C stops only
+the child services that this invocation started. Existing healthy services are
+reused; keep their original terminals open. `npm run dev:api` remains available
+when you want to run the API separately.
+
+If the debug app is already installed, `npm run android` restarts it directly
+without Gradle. After native dependency/code changes, explicitly rebuild:
 
 ```powershell
-# Terminal 3: verify services, reconnect ports, and open the installed debug app.
-npm run android:open
+npm run android -- --build
 ```
 
 The mobile commands also work from `apps/mobile`. On Windows they set the local
 API URL and connect emulator ports 3000 and 8081 automatically. Startup checks
-the API health, database and authentication before proceeding; if the backend
-is stopped, it tells you to run `npm run dev:api` before an expensive build.
+the API health, database and authentication before opening Android. Launching
+uses the native main activity, avoiding Expo's development-client deep link.
+The debug app's Metro host is set to `127.0.0.1:8081`, using ADB reverse for the
+bundle and Fast Refresh instead of the emulator's slower host bridge. Other
+developer preferences are preserved.
 `Network request failed` in tRPC logs means requests are failing: check the API
 terminal and `http://127.0.0.1:3000/api/health` before rebuilding Android.
 Use `npm.cmd` if PowerShell blocks `npm.ps1`. The pnpm `node-linker` warning from
@@ -87,15 +93,19 @@ npm is informational; keep the repository's pnpm configuration.
 
 Wait for Metro to be ready on 8081 before running the Android command. Windows
 explicitly uses that existing bundler; it does not start another server on 8082.
-If Metro is already running for this project, `npm start` reports that and exits
-successfully. Keep the existing server running. Open Kak Fit with the Android
-command or its app icon; the Expo Go QR code is not needed for this native app.
+If API and Metro are already running for this project, `npm start` reports that
+and exits successfully. If it starts a missing service, it stays open to own that
+service. Open Kak Fit with the Android command; the Expo Go QR code is not needed.
 
-The first Android command compiles and installs a debug app. Then saving most
-UI/JavaScript/TypeScript changes updates it through Fast Refresh. Later sessions
-only need the API, Metro, and `npm run android:open`. Native changes
-need another build; app-config/plugin changes also need prebuild first. The debug
-app uses the same package as the release demo. To restore the standalone demo:
+The first Android command without an installed debug app compiles and installs
+it. Then saving most UI/JavaScript/TypeScript changes updates it through Fast
+Refresh. Later sessions
+only need `npm start` and `npm run android`. `npm run android:open` is an optional
+shortcut to bring the installed app forward without restarting it. Native changes
+need `npm run android -- --build`; app-config/plugin changes also need prebuild
+first. Routine successful tRPC requests are quiet; actual errors are still logged.
+Set `EXPO_PUBLIC_TRPC_DEBUG=1` before starting Metro for detailed request logs.
+The debug app uses the same package as the release demo. To restore the standalone demo:
 
 ```powershell
 adb install -r .\results\kak-fit-emulator.apk

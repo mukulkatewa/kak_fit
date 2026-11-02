@@ -44,6 +44,7 @@ const isDevLogging =
 
 export function logTrpcRequestEvent(event: TrpcRequestMonitorEvent): void {
   if (!isDevLogging) return;
+  if (event.type !== "error" && process.env.EXPO_PUBLIC_TRPC_DEBUG !== "1") return;
 
   if (event.type === "fetch") {
     console.log(

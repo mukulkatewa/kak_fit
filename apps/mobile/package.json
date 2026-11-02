@@ -4,9 +4,9 @@
   "private": true,
   "main": "./index.js",
   "scripts": {
-    "start": "bash ../../scripts/start-expo.sh",
+    "start": "node ../../scripts/mobile-dev.cjs start",
     "start:tunnel": "expo start --tunnel --clear",
-    "android": "expo run:android",
+    "android": "node ../../scripts/mobile-dev.cjs android",
     "ios": "expo run:ios",
     "web": "expo start --web --port 8081",
     "export:web": "expo export -p web --output-dir ../web/public",

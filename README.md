@@ -51,6 +51,38 @@ pnpm --filter @kak-fit/mobile start
 
 ## Android emulator on Windows
 
+For live React Native changes, run these in two VS Code PowerShell terminals
+from the project root, with the emulator running:
+
+```powershell
+# Terminal 1: Metro; keep this open.
+npm start
+```
+
+```powershell
+# Terminal 2: build/install the debug app and reuse Metro.
+npm run android
+```
+
+Both commands also work from `apps/mobile`. On Windows they set the local API
+URL and connect emulator ports 3000 and 8081 automatically. Keep the backend
+running in its own terminal using `scripts/start-api-windows.ps1` as shown below.
+Use `npm.cmd` if PowerShell blocks `npm.ps1`. The pnpm `node-linker` warning from
+npm is informational; keep the repository's pnpm configuration.
+
+The first Android command compiles and installs a debug app. Then saving most
+UI/JavaScript/TypeScript changes updates it through Fast Refresh. Later sessions
+only need Metro and the installed debug app opened from its icon. Native changes
+need another build; app-config/plugin changes also need prebuild first. The debug
+app uses the same package as the release demo. To restore the standalone demo:
+
+```powershell
+adb install -r .\results\kak-fit-emulator.apk
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\android-emulator.ps1
+```
+
+The following instructions describe the standalone release demo:
+
 Kak Fit stays installed in the same Android Virtual Device after closing the app,
 Android Studio, or Windows. To show the installed app again, start that emulator
 and run these commands from the project root:

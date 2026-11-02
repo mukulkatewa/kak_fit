@@ -59,7 +59,7 @@ Use this introduction after understanding the files below. Explain the implement
 2. [Query client](../apps/mobile/src/lib/query-client.ts) and [cache options](../apps/mobile/src/lib/query-options.ts): explain read caching, invalidation, bounded retries, and why writes do not retry globally.
 3. [Active workout](../apps/mobile/app/workout/active.tsx): follow a set edit into `useWorkoutSetMutationQueue` and the optimistic cache update.
 4. [Queue core](../apps/mobile/src/lib/workout-mutation-queue-core.ts) and [recovery tests](../apps/mobile/src/lib/workout-mutation-queue.test.ts): explain retained payloads, temporary IDs, persistence, and acknowledgement before removal.
-5. [Auth](../apps/mobile/src/lib/auth.ts): explain Google OAuth, deep-link callbacks, secure credential storage, session recovery, and sign-out.
+5. [Auth](../apps/mobile/src/lib/auth.ts) and [sign-out](../apps/mobile/src/lib/auth-sign-out.ts): explain Google OAuth, deep-link callbacks, secure credential storage, session recovery, and sign-out. API-dependent sign-out orchestration is separate so credential helpers do not import the API client that consumes them.
 6. [Shared UI](../apps/mobile/src/components/ui.tsx), [theme](../apps/mobile/src/lib/theme.ts), and [layout metrics](../apps/mobile/src/lib/layout-metrics.ts): explain consistent spacing, safe areas, text scaling, and dialog layout.
 
 ### Questions worth practising
@@ -93,7 +93,7 @@ Name concrete work from the table below. Explain the trigger, current behavior, 
 | Priority | Finding and evidence | Next step |
 |---|---|---|
 | P0 | During this review, the API configured in `eas.json` returned a Prisma Accelerate database connection error (`P6008`). The local interview API returned `db: connected`. | Restore the deployed API's database configuration, deploy the current sanitized health endpoint, and require a successful database health check before a public release. |
-| P1 | Pending storage uses app-wide keys/tables. The set queue checks workout identity, but neither mechanism is consistently namespaced by authenticated user. See the queue core, `offline-workouts.ts`, and sign-out in `auth.ts`. | Design account-scoped storage and a migration/recovery policy. Test sign-out, account switching, outstanding requests, and unsynced work without silently deleting edits. |
+| P1 | Pending storage uses app-wide keys/tables. The set queue checks workout identity, but neither mechanism is consistently namespaced by authenticated user. See the queue core, `offline-workouts.ts`, and `auth-sign-out.ts`. | Design account-scoped storage and a migration/recovery policy. Test sign-out, account switching, outstanding requests, and unsynced work without silently deleting edits. |
 | P1 | Retrying structural operations such as adding a set can duplicate a server write if the acknowledgement is lost. A local queue ID is not a server idempotency guarantee. | Add server-enforced idempotency keys and test a committed write whose response is lost. |
 | P1 | Queue persistence failures are currently logged. Tests now cover normal persistence and network recovery, but storage failure and concurrent editing need more coverage. | Surface storage failures, define conflict behavior, and add failure-injection tests. |
 | P1 | Tests cover important pure logic and queue behavior, but there is no automated device flow covering sign-in, log/edit/finish, offline recovery, and account switching. | Run the existing checks in CI, then add component and device tests for those journeys. Validate iOS and a physical Android device. |

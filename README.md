@@ -51,22 +51,37 @@ pnpm --filter @kak-fit/mobile start
 
 ## Android emulator on Windows
 
-For live React Native changes, run these in two VS Code PowerShell terminals
-from the project root, with the emulator running:
+For live React Native changes, run these in three VS Code PowerShell terminals
+from the project root, with the emulator running. Start the backend first:
 
 ```powershell
-# Terminal 1: Metro; keep this open.
+# Terminal 1: backend; keep this open.
+npm run dev:api
+```
+
+```powershell
+# Terminal 2: Metro; keep this open.
 npm start
 ```
 
 ```powershell
-# Terminal 2: build/install the debug app and reuse Metro.
+# Terminal 3: first installation, or after native dependency/code changes.
 npm run android
 ```
 
-Both commands also work from `apps/mobile`. On Windows they set the local API
-URL and connect emulator ports 3000 and 8081 automatically. Keep the backend
-running in its own terminal using `scripts/start-api-windows.ps1` as shown below.
+After the debug app is installed, reopen it in later sessions without a build:
+
+```powershell
+# Terminal 3: verify services, reconnect ports, and open the installed debug app.
+npm run android:open
+```
+
+The mobile commands also work from `apps/mobile`. On Windows they set the local
+API URL and connect emulator ports 3000 and 8081 automatically. Startup checks
+the API health, database and authentication before proceeding; if the backend
+is stopped, it tells you to run `npm run dev:api` before an expensive build.
+`Network request failed` in tRPC logs means requests are failing: check the API
+terminal and `http://127.0.0.1:3000/api/health` before rebuilding Android.
 Use `npm.cmd` if PowerShell blocks `npm.ps1`. The pnpm `node-linker` warning from
 npm is informational; keep the repository's pnpm configuration.
 
@@ -78,7 +93,7 @@ command or its app icon; the Expo Go QR code is not needed for this native app.
 
 The first Android command compiles and installs a debug app. Then saving most
 UI/JavaScript/TypeScript changes updates it through Fast Refresh. Later sessions
-only need Metro and the installed debug app opened from its icon. Native changes
+only need the API, Metro, and `npm run android:open`. Native changes
 need another build; app-config/plugin changes also need prebuild first. The debug
 app uses the same package as the release demo. To restore the standalone demo:
 

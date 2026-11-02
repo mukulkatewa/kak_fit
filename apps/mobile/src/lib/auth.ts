@@ -3,7 +3,6 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { apiHeaders, getApiUrl } from "./api-client";
 import { authClient, AUTH_COOKIE_KEY, persistOAuthCookieFromUrl } from "./auth-client";
-import { createTRPCClient } from "./trpc";
 
 const TOKEN_KEY = "kak_fit_token";
 const REFRESH_TOKEN_KEY = "auth_refresh_token";
@@ -550,38 +549,4 @@ function captureOAuthCallbackUrl(timeoutMs: number): Promise<string | null> {
 
     const timer = setTimeout(() => settle(null), timeoutMs);
   });
-}
-
-export async function signOut() {
-  const token = await getToken();
-  const signOutErrors: string[] = [];
-
-  if (token) {
-    await createTRPCClient()
-      .auth.signOut.mutate()
-      .catch((err: unknown) => {
-        signOutErrors.push(`tRPC: ${err instanceof Error ? err.message : String(err)}`);
-      });
-
-    await fetch(`${getApiUrl()}/api/auth/sign-out`, {
-      method: "POST",
-      headers: apiHeaders({
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      }),
-      body: "{}",
-    }).catch((err: unknown) => {
-      signOutErrors.push(`API: ${err instanceof Error ? err.message : String(err)}`);
-    });
-  }
-
-  await authClient.signOut().catch((err: unknown) => {
-    signOutErrors.push(`Client: ${err instanceof Error ? err.message : String(err)}`);
-  });
-
-  await clearToken();
-
-  if (signOutErrors.length > 0) {
-    console.warn("[Auth] Sign-out had server-side errors (local session cleared):", signOutErrors);
-  }
 }

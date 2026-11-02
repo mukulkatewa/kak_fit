@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { Platform } from "react-native";
 import { showAppToast } from "../components/ui";
 import * as authLib from "./auth";
+import { signOut as signOutSession } from "./auth-sign-out";
 import { setSessionExpiredHandler } from "./auth-session-events";
 import { queryClient } from "./query-client";
 
@@ -34,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(() => getInitialAuthState().isLoading);
 
   const signOut = useCallback(async () => {
-    await authLib.signOut();
+    await signOutSession();
     queryClient.clear();
     setIsAuthenticated(false);
   }, []);

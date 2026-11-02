@@ -269,7 +269,7 @@ The repository also supports EAS development/preview/production build profiles a
 | Navigation tabs | [Tabs layout](../apps/mobile/app/(tabs)/_layout.tsx) |
 | Typed API client | [tRPC transport](../apps/mobile/src/lib/trpc.ts), [fetch behavior](../apps/mobile/src/lib/trpc-fetch.ts) |
 | Cache policy | [Query options](../apps/mobile/src/lib/query-options.ts), [Query client](../apps/mobile/src/lib/query-client.ts) |
-| Auth lifecycle | [Auth provider](../apps/mobile/src/lib/auth-context.tsx), [credential/session helpers](../apps/mobile/src/lib/auth.ts) |
+| Auth lifecycle | [Auth provider](../apps/mobile/src/lib/auth-context.tsx), [credential/session helpers](../apps/mobile/src/lib/auth.ts), [sign-out orchestration](../apps/mobile/src/lib/auth-sign-out.ts) |
 | Set-edit persistence | [Core](../apps/mobile/src/lib/workout-mutation-queue-core.ts), [native hook adapter](../apps/mobile/src/lib/workout-mutation-queue.ts) |
 | Other pending writes | [SQLite queue](../apps/mobile/src/lib/offline-workouts.ts), [sync lifecycle](../apps/mobile/src/components/offline-workout-sync.tsx) |
 | Real HTTP entry point | [Next.js tRPC handler](../apps/web/src/app/api/trpc/[trpc]/route.ts) |

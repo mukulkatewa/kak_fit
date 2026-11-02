@@ -5,11 +5,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   LayoutAnimation,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from "react-native";
 import { BoltIcon } from "react-native-heroicons/solid";
@@ -69,10 +67,6 @@ function formatDashboardDate(date = new Date()) {
     day: "numeric",
     month: "short",
   });
-}
-
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
 function CollapsibleHomeSection({

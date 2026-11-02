@@ -5,10 +5,11 @@
   "scripts": {
     "start": "node scripts/mobile-dev.cjs start",
     "android": "node scripts/mobile-dev.cjs android",
+    "android:open": "node scripts/mobile-dev.cjs open",
     "dev:web": "pnpm --filter @kak-fit/web dev",
     "dev:web-app": "pnpm --filter @kak-fit/mobile web",
     "export:web": "pnpm --filter @kak-fit/mobile export:web",
-    "dev:api": "bash scripts/start-api.sh",
+    "dev:api": "node scripts/start-api.cjs",
     "dev:mobile": "node scripts/mobile-dev.cjs start",
     "build:mobile": "bash scripts/build-mobile.sh",
     "build:mobile:ios": "bash scripts/build-mobile.sh ios",

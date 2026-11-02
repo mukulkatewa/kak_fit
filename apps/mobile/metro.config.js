@@ -29,6 +29,10 @@ config.resolver.blockList = [
   /[/\\]\.turbo[/\\]/,
   /[/\\]\.next[/\\]/,
   /[/\\]node_modules[/\\]\.cache[/\\]/,
+  // Native build output and old worktrees are not JavaScript inputs. Avoid
+  // flooding Metro with file events while Gradle builds the Android app.
+  /[/\\]apps[/\\]mobile[/\\]android[/\\]/,
+  /[/\\]\.claude[/\\]worktrees[/\\]/,
 ];
 
 config.watcher = {

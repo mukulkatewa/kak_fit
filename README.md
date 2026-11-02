@@ -70,6 +70,12 @@ running in its own terminal using `scripts/start-api-windows.ps1` as shown below
 Use `npm.cmd` if PowerShell blocks `npm.ps1`. The pnpm `node-linker` warning from
 npm is informational; keep the repository's pnpm configuration.
 
+Wait for Metro to be ready on 8081 before running the Android command. Windows
+explicitly uses that existing bundler; it does not start another server on 8082.
+If Metro is already running for this project, `npm start` reports that and exits
+successfully. Keep the existing server running. Open Kak Fit with the Android
+command or its app icon; the Expo Go QR code is not needed for this native app.
+
 The first Android command compiles and installs a debug app. Then saving most
 UI/JavaScript/TypeScript changes updates it through Fast Refresh. Later sessions
 only need Metro and the installed debug app opened from its icon. Native changes

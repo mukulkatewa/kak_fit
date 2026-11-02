@@ -16,6 +16,7 @@ A mobile-first workout tracker — Hevy-style. **Core focus: logging + progress.
 
 ## Docs
 
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Excalidraw drawing guide, system components, data model, and interview flows
 - [docs/PROJECT_ROADMAP.md](./docs/PROJECT_ROADMAP.md) — competitive research and phased roadmap
 - [docs/HEVY_COMPARISON.md](./docs/HEVY_COMPARISON.md) — current end-to-end feature comparison vs Hevy + gap backlog
 - [docs/ENV_SETUP.md](./docs/ENV_SETUP.md) — environment variables and database setup
